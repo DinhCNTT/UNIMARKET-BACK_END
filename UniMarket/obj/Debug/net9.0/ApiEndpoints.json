@@ -1,0 +1,1015 @@
+[
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "AddCategory",
+    "RelativePath": "api/admin/add-category",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "tenDanhMuc",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "maDanhMucCha",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "AddEmployee",
+    "RelativePath": "api/admin/add-employee",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "AuthController\u002BRegisterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "AddOrUpdateEmployee",
+    "RelativePath": "api/admin/add-or-update-employee",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.AdminController\u002BEmployeeRoleModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "AddParentCategory",
+    "RelativePath": "api/admin/add-parent-category",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "tenDanhMucCha",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "ApprovePost",
+    "RelativePath": "api/admin/approve-post/{id}",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "ChangeUserRole",
+    "RelativePath": "api/admin/change-role",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.AdminController\u002BChangeRoleModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "DeleteCategory",
+    "RelativePath": "api/admin/delete-category/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "DeleteParentCategory",
+    "RelativePath": "api/admin/delete-parent-category/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "DeleteUser",
+    "RelativePath": "api/admin/delete-user/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "GetEmployees",
+    "RelativePath": "api/admin/employees",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "GetCategories",
+    "RelativePath": "api/admin/get-categories",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "GetParentCategories",
+    "RelativePath": "api/admin/get-parent-categories",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "RejectPost",
+    "RelativePath": "api/admin/reject-post/{id}",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "ToggleUserLock",
+    "RelativePath": "api/admin/toggle-lock/{id}",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "UpdateCategory",
+    "RelativePath": "api/admin/update-category/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.AdminController\u002BUpdateCategoryModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "UpdateParentCategory",
+    "RelativePath": "api/admin/update-parent-category/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "tenDanhMucCha",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.AdminController",
+    "Method": "GetUsers",
+    "RelativePath": "api/admin/users",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthController",
+    "Method": "Login",
+    "RelativePath": "api/Auth/login",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "AuthController\u002BLoginModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthController",
+    "Method": "Register",
+    "RelativePath": "api/Auth/register",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "AuthController\u002BRegisterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.CategoryController",
+    "Method": "GetCategories",
+    "RelativePath": "api/Category",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[System.Object, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.CategoryController",
+    "Method": "GetCategoriesWithIcon",
+    "RelativePath": "api/Category/get-categories-with-icon",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[System.Object, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "PutTinDang",
+    "RelativePath": "api/TinDang/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "MaTinDang",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "MaNguoiBan",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "MaDanhMuc",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "TieuDe",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "MoTa",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Gia",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "CoTheThoaThuan",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "TinhTrang",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DiaChi",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "MaTinhThanh",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "MaQuanHuyen",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "NgayDang",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "NgayCapNhat",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "TrangThai",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.MaDanhMuc",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.TenDanhMuc",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.MaDanhMucCha",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.DanhMucCha.MaDanhMucCha",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.DanhMucCha.TenDanhMucCha",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.DanhMucCha.DanhMucs",
+        "Type": "System.Collections.Generic.List\u00601[[UniMarket.Models.DanhMuc, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.DanhMucCha.AnhDanhMucCha",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DanhMuc.DanhMucCha.Icon",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.FullName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.Address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.Age",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.Role",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.Id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.UserName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.NormalizedUserName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.Email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.NormalizedEmail",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.EmailConfirmed",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.PasswordHash",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.SecurityStamp",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.ConcurrencyStamp",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.PhoneNumber",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.PhoneNumberConfirmed",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.TwoFactorEnabled",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.LockoutEnd",
+        "Type": "System.Nullable\u00601[[System.DateTimeOffset, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.LockoutEnabled",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "NguoiBan.AccessFailedCount",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "TinhThanh.MaTinhThanh",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "TinhThanh.TenTinhThanh",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "TinhThanh.QuanHuyens",
+        "Type": "System.Collections.Generic.ICollection\u00601[[UniMarket.Models.QuanHuyen, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.MaQuanHuyen",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.TenQuanHuyen",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.MaTinhThanh",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.TinhThanh.MaTinhThanh",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.TinhThanh.TenTinhThanh",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "QuanHuyen.TinhThanh.QuanHuyens",
+        "Type": "System.Collections.Generic.ICollection\u00601[[UniMarket.Models.QuanHuyen, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "AnhTinDangs",
+        "Type": "System.Collections.Generic.ICollection\u00601[[UniMarket.Models.AnhTinDang, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "image",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "DeleteTinDang",
+    "RelativePath": "api/TinDang/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "AddPost",
+    "RelativePath": "api/TinDang/add-post",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "title",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "description",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "price",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "contactInfo",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "condition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "province",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "district",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "categoryId",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "categoryName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "canNegotiate",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetPostAndSimilarPosts",
+    "RelativePath": "api/TinDang/get-post-and-similar/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetPostById",
+    "RelativePath": "api/TinDang/get-post/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetPosts",
+    "RelativePath": "api/TinDang/get-posts",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "getpotsadmin",
+    "RelativePath": "api/TinDang/get-posts-admin",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetTinhThanhs",
+    "RelativePath": "api/TinDang/tinhthanh",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[UniMarket.DTO.TinhThanhDTO, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetQuanHuyensByTinhThanh",
+    "RelativePath": "api/TinDang/tinhthanh/{maTinhThanh}/quanhuynh",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "maTinhThanh",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[UniMarket.DTO.QuanHuyenDTO, UniMarket, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetPostsByUser",
+    "RelativePath": "api/TinDang/user/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "XemTruocTinDang",
+    "RelativePath": "api/TinDang/xemtruoc/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "UniMarket.Models.TinDang",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  }
+]
