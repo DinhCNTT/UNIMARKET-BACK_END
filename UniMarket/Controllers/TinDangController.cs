@@ -384,6 +384,7 @@ namespace UniMarket.Controllers
             return Ok(quanHuyens);
         }
 
+
         [HttpGet("get-post-and-similar/{id}")]
         public async Task<IActionResult> GetPostAndSimilarPosts(int id)
         {
@@ -400,9 +401,9 @@ namespace UniMarket.Controllers
                 return NotFound(new { message = "Không tìm thấy tin đăng này hoặc tin đăng chưa được duyệt." });
             }
 
-            // Lấy các tin đăng tương tự của người bán, chỉ lấy tin đã duyệt
+            // Lấy các tin đăng tương tự theo danh mục con
             var similarPosts = await _context.TinDangs
-                .Where(p => p.MaNguoiBan == post.MaNguoiBan && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet) // Chỉ lấy tin đã duyệt
+                .Where(p => p.MaDanhMuc == post.MaDanhMuc && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet) // Chỉ lấy tin đã duyệt
                 .Include(p => p.AnhTinDangs)
                 .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
@@ -443,7 +444,6 @@ namespace UniMarket.Controllers
                 },
                 SimilarPosts = similarPosts
             });
-
         }
     }
 

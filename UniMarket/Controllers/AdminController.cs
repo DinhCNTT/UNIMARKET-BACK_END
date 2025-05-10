@@ -402,11 +402,15 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> GetCategories()
         {
             var categories = await _context.DanhMucs
-                .Select(dm => new {
-                    dm.MaDanhMuc,
-                    dm.TenDanhMuc,
-                    dm.MaDanhMucCha
-                })
+                .Join(_context.DanhMucChas,
+                      dm => dm.MaDanhMucCha,
+                      dmc => dmc.MaDanhMucCha,
+                      (dm, dmc) => new {
+                          dm.MaDanhMuc,
+                          dm.TenDanhMuc,
+                          dm.MaDanhMucCha,
+                          TenDanhMucCha = dmc.TenDanhMucCha
+                      })
                 .ToListAsync();
 
             return Ok(categories);
