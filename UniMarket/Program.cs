@@ -9,8 +9,14 @@ using System.Text;
 using UniMarket.DataAccess;
 using UniMarket.Models;
 using Microsoft.AspNetCore.Mvc;
+using UniMarket.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Cấu hình Cloudinary
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("CloudinarySettings"));
+builder.Services.AddScoped<PhotoService>();
 
 // 1️⃣ CORS
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";

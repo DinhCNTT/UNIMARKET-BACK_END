@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using static AuthController;
 using UniMarket.DataAccess;
+using UniMarket.Services;
 
 namespace UniMarket.Controllers
 {
@@ -19,12 +20,15 @@ namespace UniMarket.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ApplicationDbContext _context; // ✅ Định nghĩa biến _context
+        private readonly PhotoService _photoService;
 
-        public AdminController(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, ApplicationDbContext context) // 🔥 Thêm ApplicationDbContext vào DI
+
+        public AdminController(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, ApplicationDbContext context, PhotoService photoService) // 🔥 Thêm ApplicationDbContext vào DI
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context; // ✅ Gán _context
+            _photoService = photoService;
         }
 
 
@@ -491,29 +495,29 @@ namespace UniMarket.Controllers
                 return NotFound(new { message = "Danh mục cha không tồn tại!" });
             }
 
-            // Kiểm tra xem danh mục cha có danh mục con không
             bool hasSubCategories = await _context.DanhMucs.AnyAsync(d => d.MaDanhMucCha == id);
             if (hasSubCategories)
             {
                 return BadRequest(new { message = "Không thể xóa danh mục cha vì có danh mục con liên quan!" });
             }
 
-            // Xóa ảnh và icon khỏi thư mục lưu trữ nếu có
+            // Xóa ảnh
             if (!string.IsNullOrEmpty(category.AnhDanhMucCha))
             {
-                string imagePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", category.AnhDanhMucCha.TrimStart('/'));
-                if (System.IO.File.Exists(imagePath))
+                var imageFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", category.AnhDanhMucCha.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
+                if (System.IO.File.Exists(imageFilePath))
                 {
-                    System.IO.File.Delete(imagePath);
+                    System.IO.File.Delete(imageFilePath);
                 }
             }
 
+            // Xóa icon
             if (!string.IsNullOrEmpty(category.Icon))
             {
-                string iconPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", category.Icon.TrimStart('/'));
-                if (System.IO.File.Exists(iconPath))
+                var iconFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", category.Icon.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
+                if (System.IO.File.Exists(iconFilePath))
                 {
-                    System.IO.File.Delete(iconPath);
+                    System.IO.File.Delete(iconFilePath);
                 }
             }
 
@@ -530,19 +534,106 @@ namespace UniMarket.Controllers
             }
         }
 
+
+        [HttpPost("approve-post/{id}")]
+        public async Task<IActionResult> ApprovePost(int id)
+        {
+            var post = await _context.TinDangs
+                .Include(p => p.AnhTinDangs)
+                .FirstOrDefaultAsync(p => p.MaTinDang == id);
+
+            if (post == null)
+                return NotFound("Tin đăng không tồn tại!");
+
+            if (post.TrangThai == TrangThaiTinDang.DaDuyet)
+                return BadRequest("Tin đăng này đã được duyệt rồi.");
+
+            foreach (var img in post.AnhTinDangs)
+            {
+                if (!img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Lấy tên file từ đường dẫn lưu trong DB (vd: "/images/temp-uploads/filename.png")
+                    var fileName = Path.GetFileName(img.DuongDan);
+                    var localFilePath = Path.Combine("wwwroot", "images", "temp-uploads", fileName);
+
+                    if (!System.IO.File.Exists(localFilePath))
+                        continue;
+
+                    // Đọc file vào bộ nhớ trước
+                    byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
+                    using var memoryStream = new MemoryStream(fileBytes);
+
+                    var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
+                    var uploadResult = await _photoService.UploadPhotoAsync(formFile);
+
+                    if (uploadResult.Error != null)
+                        return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
+
+                    // Cập nhật đường dẫn ảnh thành URL Cloudinary
+                    img.DuongDan = uploadResult.SecureUrl.ToString();
+
+                    // Xóa file ảnh tạm trên server sau khi upload thành công
+                    System.IO.File.Delete(localFilePath);
+                }
+            }
+
+            post.TrangThai = TrangThaiTinDang.DaDuyet;
+
+            _context.TinDangs.Update(post);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Tin đăng đã được duyệt và ảnh đã được lưu trên Cloudinary!" });
+        }
+
+
         [HttpPost("reject-post/{id}")]
         public async Task<IActionResult> RejectPost(int id)
         {
-            var post = await _context.TinDangs.FindAsync(id);
+            var post = await _context.TinDangs
+                .Include(p => p.AnhTinDangs)
+                .FirstOrDefaultAsync(p => p.MaTinDang == id);
 
             if (post == null)
-            {
                 return NotFound("Tin đăng không tồn tại!");
-            }
 
             if (post.TrangThai == TrangThaiTinDang.TuChoi)
-            {
                 return BadRequest("Tin đăng này đã bị từ chối rồi.");
+
+            foreach (var img in post.AnhTinDangs)
+            {
+                if (string.IsNullOrEmpty(img.DuongDan))
+                    continue;
+
+                if (!img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Ảnh chưa upload Cloudinary -> upload lên Cloudinary
+                    var fileName = Path.GetFileName(img.DuongDan);
+                    var localFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "temp-uploads", fileName);
+
+                    if (System.IO.File.Exists(localFilePath))
+                    {
+                        byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
+                        using var memoryStream = new MemoryStream(fileBytes);
+                        var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
+                        var uploadResult = await _photoService.UploadPhotoAsync(formFile);
+
+                        if (uploadResult.Error != null)
+                        {
+                            return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
+                        }
+
+                        // Cập nhật đường dẫn ảnh thành URL Cloudinary
+                        img.DuongDan = uploadResult.SecureUrl.ToString();
+
+                        // Xóa file ảnh tạm trên server
+                        System.IO.File.Delete(localFilePath);
+                    }
+                }
+                else
+                {
+                    // Ảnh đã có trên Cloudinary, không xóa để giữ hiển thị
+                    // Không làm gì thêm
+                }
             }
 
             post.TrangThai = TrangThaiTinDang.TuChoi;
@@ -550,63 +641,10 @@ namespace UniMarket.Controllers
             _context.TinDangs.Update(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Tin đăng đã bị từ chối!" });
+            return Ok(new { message = "Tin đăng đã bị từ chối, ảnh đã được lưu trên Cloudinary và ảnh temp đã xóa!" });
         }
 
-        [HttpPost("approve-post/{id}")]
-        public async Task<IActionResult> ApprovePost(int id, [FromForm] IFormFile? image)
-        {
-            var post = await _context.TinDangs.FindAsync(id);
 
-            if (post == null)
-            {
-                return NotFound("Tin đăng không tồn tại!");
-            }
-
-            // Kiểm tra xem bài đăng đã được duyệt chưa
-            if (post.TrangThai == TrangThaiTinDang.DaDuyet)
-            {
-                return BadRequest("Tin đăng này đã được duyệt rồi.");
-            }
-
-            // Cập nhật trạng thái tin đăng thành "Đã Duyệt"
-            post.TrangThai = TrangThaiTinDang.DaDuyet;
-
-            if (image != null)
-            {
-                var uploadPath = Path.Combine("wwwroot", "images", "TinDang");
-
-                // Tạo thư mục nếu chưa tồn tại
-                if (!Directory.Exists(uploadPath))
-                {
-                    Directory.CreateDirectory(uploadPath);
-                }
-
-                var filePath = Path.Combine(uploadPath, image.FileName);
-
-                // Lưu ảnh vào thư mục
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await image.CopyToAsync(stream);
-                }
-
-                // Tạo đối tượng AnhTinDang mới và thêm vào danh sách AnhTinDangs
-                var anhTinDang = new AnhTinDang
-                {
-                    DuongDan = $"/images/TinDang/{image.FileName}", // Đường dẫn ảnh
-                    MaTinDang = post.MaTinDang  // Gán mã tin đăng
-                };
-
-                // Thêm vào danh sách AnhTinDangs của bài đăng
-                post.AnhTinDangs.Add(anhTinDang);
-            }
-
-            // Cập nhật bài đăng trong cơ sở dữ liệu
-            _context.TinDangs.Update(post);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Tin đăng đã được duyệt và ảnh đã được lưu!" });
-        }
         public class UpdateCategoryModel
         {
             public string TenDanhMuc { get; set; }

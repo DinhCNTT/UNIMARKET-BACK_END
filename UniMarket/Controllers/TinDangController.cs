@@ -7,6 +7,8 @@ using System.IO;
 using UniMarket.DTO;
 using Microsoft.AspNetCore.Identity;
 using System.Threading.Tasks;
+using UniMarket.Services;
+using System.Text.Json; // ✅ thêm using
 
 namespace UniMarket.Controllers
 {
@@ -17,24 +19,26 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly string _imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
+        private readonly PhotoService _photoService; // ✅ thêm
 
-        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService)
         {
             _context = context;
             _userManager = userManager;
+            _photoService = photoService;
         }
 
         [HttpGet("get-posts")]
         public IActionResult GetPosts()
         {
             var posts = _context.TinDangs
-                .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet) // Chỉ lấy tin đã duyệt
+                .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
                 .Include(p => p.QuanHuyen)
                 .Include(p => p.AnhTinDangs)
-                .Include(p => p.DanhMuc) // Bao gồm thông tin danh mục
-                    .ThenInclude(dm => dm.DanhMucCha) // Bao gồm thông tin danh mục cha
+                .Include(p => p.DanhMuc)
+                    .ThenInclude(dm => dm.DanhMucCha)
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -49,22 +53,20 @@ namespace UniMarket.Controllers
                     p.MaNguoiBan,
                     p.NgayDang,
                     Images = p.AnhTinDangs.Select(a =>
-                        a.DuongDan.StartsWith("/images/Posts/")
+                        a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                             ? a.DuongDan
-                            : $"/images/Posts/{a.DuongDan}"
+                            : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
                     ).ToList(),
                     NguoiBan = p.NguoiBan.FullName,
                     TinhThanh = p.TinhThanh.TenTinhThanh,
                     QuanHuyen = p.QuanHuyen.TenQuanHuyen,
-                    DanhMuc = p.DanhMuc.TenDanhMuc, // Thêm tên danh mục con
-                    DanhMucCha = p.DanhMuc.DanhMucCha.TenDanhMucCha // Thêm tên danh mục cha
+                    DanhMuc = p.DanhMuc.TenDanhMuc,
+                    DanhMucCha = p.DanhMuc.DanhMucCha.TenDanhMucCha
                 })
                 .ToList();
 
             if (posts == null || !posts.Any())
-            {
                 return NotFound("Không có tin đăng nào.");
-            }
 
             return Ok(posts);
         }
@@ -73,87 +75,80 @@ namespace UniMarket.Controllers
 
         [HttpPost("add-post")]
         public async Task<IActionResult> AddPost(
-    [FromForm] string title,
-    [FromForm] string description,
-    [FromForm] decimal price,
-    [FromForm] string contactInfo,
-    [FromForm] string condition,
-    [FromForm] int province,
-    [FromForm] int district,
-    [FromForm] IFormFile image,
-    [FromForm] string userId,
-    [FromForm] int categoryId,  // Nhận categoryId từ frontend
-    [FromForm] string categoryName, // Nhận categoryName từ frontend
-    [FromForm] bool canNegotiate) // Nhận trường "Có thể thương lượng"
+   [FromForm] string title,
+   [FromForm] string description,
+   [FromForm] decimal price,
+   [FromForm] string contactInfo,
+   [FromForm] string condition,
+   [FromForm] int province,
+   [FromForm] int district,
+   [FromForm] List<IFormFile> images,
+   [FromForm] string userId,
+   [FromForm] int categoryId,
+   [FromForm] string categoryName,
+   [FromForm] bool canNegotiate)
         {
-            // Kiểm tra xem người bán có tồn tại không
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
-            {
-                return BadRequest("Người bán không tồn tại!");
-            }
+            if (user == null) return BadRequest("Người bán không tồn tại!");
 
-            // Kiểm tra xem tỉnh và quận có tồn tại không
-            var provinceExists = await _context.TinhThanhs.AnyAsync(t => t.MaTinhThanh == province);
-            if (!provinceExists)
-            {
+            if (!await _context.TinhThanhs.AnyAsync(t => t.MaTinhThanh == province))
                 return BadRequest("Tỉnh thành không hợp lệ!");
-            }
 
-            var districtExists = await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district);
-            if (!districtExists)
-            {
+            if (!await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district))
                 return BadRequest("Quận huyện không hợp lệ!");
-            }
 
-            // Tạo bài đăng
+            // Bổ sung giới hạn số lượng ảnh
+            if (images != null && images.Count > 5)
+                return BadRequest("Chỉ được phép tải lên tối đa 5 ảnh cho mỗi tin đăng.");
+
             var post = new TinDang
             {
                 TieuDe = title,
                 MoTa = description,
                 Gia = price,
-                CoTheThoaThuan = canNegotiate, // Gán giá trị "Có thể thương lượng"
+                CoTheThoaThuan = canNegotiate,
                 TinhTrang = condition,
                 DiaChi = contactInfo,
                 MaTinhThanh = province,
                 MaQuanHuyen = district,
-                MaNguoiBan = userId, // Gắn mã người bán
+                MaNguoiBan = userId,
                 NgayDang = DateTime.Now,
-                TrangThai = TrangThaiTinDang.ChoDuyet, // Mặc định là Chờ duyệt
-                MaDanhMuc = categoryId // Gắn mã danh mục
+                TrangThai = TrangThaiTinDang.ChoDuyet,
+                MaDanhMuc = categoryId,
+                AnhTinDangs = new List<AnhTinDang>()
             };
 
-            // Lưu ảnh nếu có
-            if (image != null)
+            if (images != null && images.Count > 0)
             {
-                string uploadPath = Path.Combine("wwwroot", "images", "Posts");
+                var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "temp-uploads");
+                if (!Directory.Exists(tempFolder))
+                    Directory.CreateDirectory(tempFolder);
 
-                if (!Directory.Exists(uploadPath))
+                foreach (var image in images)
                 {
-                    Directory.CreateDirectory(uploadPath);
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(image.FileName);
+                    var filePath = Path.Combine(tempFolder, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await image.CopyToAsync(stream);
+                    }
+
+                    post.AnhTinDangs.Add(new AnhTinDang
+                    {
+                        DuongDan = $"/images/temp-uploads/{fileName}",
+                        TinDang = post
+                    });
                 }
-
-                var filePath = Path.Combine(uploadPath, image.FileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await image.CopyToAsync(stream);
-                }
-
-                var postImage = new AnhTinDang
-                {
-                    DuongDan = $"/images/Posts/{image.FileName}",
-                    TinDang = post
-                };
-
-                post.AnhTinDangs = new List<AnhTinDang> { postImage };
             }
 
-            // Lưu bài đăng vào cơ sở dữ liệu
             _context.TinDangs.Add(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Bài đăng đã được thêm thành công!" });
+            return Ok(new { message = "Bài đăng đã được thêm thành công và đang chờ duyệt!" });
         }
+
+
 
         [HttpGet("get-posts-admin")]
         public IActionResult getpotsadmin()
@@ -187,72 +182,82 @@ namespace UniMarket.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutTinDang(int id, [FromForm] TinDang tinDang, IFormFile? image)
+        public async Task<IActionResult> PutTinDang(
+    int id,
+    [FromForm] string title,
+    [FromForm] string description,
+    [FromForm] decimal price,
+    [FromForm] string contactInfo,
+    [FromForm] string condition,
+    [FromForm] bool canNegotiate,
+    [FromForm] int province,
+    [FromForm] int district,
+    [FromForm] int categoryId,
+    [FromForm] List<IFormFile>? newImages,
+    [FromForm] string userId)
         {
-            var existingTinDang = await _context.TinDangs
-                .Include(td => td.AnhTinDangs)
-                .FirstOrDefaultAsync(td => td.MaTinDang == id);
-
-            if (existingTinDang == null)
-            {
-                return NotFound(new { message = "Không tìm thấy tin đăng" });
-            }
-
-            // Cập nhật các thông tin của tin đăng
-            existingTinDang.TieuDe = tinDang.TieuDe;
-            existingTinDang.MoTa = tinDang.MoTa;
-            existingTinDang.Gia = tinDang.Gia;
-            existingTinDang.CoTheThoaThuan = tinDang.CoTheThoaThuan;
-            existingTinDang.TinhTrang = tinDang.TinhTrang;
-            existingTinDang.DiaChi = tinDang.DiaChi;
-            existingTinDang.NgayCapNhat = DateTime.Now;
-
-            // Xử lý ảnh mới nếu có
-            if (image != null)
-            {
-                // Xóa ảnh cũ khỏi danh sách
-                if (existingTinDang.AnhTinDangs != null && existingTinDang.AnhTinDangs.Count > 0)
-                {
-                    existingTinDang.AnhTinDangs.Clear();
-                }
-
-                // Tạo tên file ngẫu nhiên
-                var fileName = Guid.NewGuid().ToString() + Path.GetExtension(image.FileName);
-                var filePath = Path.Combine("wwwroot/images/Posts", fileName);
-
-                // Tạo folder nếu chưa có
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-
-                // Lưu ảnh mới vào thư mục
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await image.CopyToAsync(stream);
-                }
-
-                var postImage = new AnhTinDang
-                {
-                    DuongDan = $"/images/Posts/{fileName}",   // Chuẩn đường dẫn FE
-                    TinDang = existingTinDang
-                };
-
-                existingTinDang.AnhTinDangs ??= new List<AnhTinDang>();
-                existingTinDang.AnhTinDangs.Add(postImage);
-            }
-
             try
             {
-                // Lưu thay đổi vào cơ sở dữ liệu
+                var post = await _context.TinDangs.Include(td => td.AnhTinDangs).FirstOrDefaultAsync(td => td.MaTinDang == id);
+                if (post == null) return NotFound(new { message = "Không tìm thấy tin đăng" });
+
+                post.TieuDe = title;
+                post.MoTa = description;
+                post.Gia = price;
+                post.DiaChi = contactInfo;
+                post.TinhTrang = condition;
+                post.CoTheThoaThuan = canNegotiate;
+                post.MaTinhThanh = province;
+                post.MaQuanHuyen = district;
+                post.MaDanhMuc = categoryId;
+                post.NgayCapNhat = DateTime.Now;
+
+                // Xóa ảnh cũ
+                foreach (var oldImg in post.AnhTinDangs.ToList())
+                {
+                    if (!string.IsNullOrEmpty(oldImg.DuongDan) && oldImg.DuongDan.StartsWith("http"))
+                        await DeleteCloudinaryPhotoByUrlAsync(oldImg.DuongDan);
+
+                    _context.AnhTinDangs.Remove(oldImg);
+                }
+
+                // Thêm ảnh mới
+                if (newImages != null && newImages.Any())
+                {
+                    foreach (var img in newImages)
+                    {
+                        var result = await _photoService.UploadPhotoAsync(img);
+                        if (result.Error != null)
+                            return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
+
+                        post.AnhTinDangs.Add(new AnhTinDang
+                        {
+                            DuongDan = result.SecureUrl.ToString(),
+                            TinDang = post
+                        });
+                    }
+                }
+
                 await _context.SaveChangesAsync();
 
-                // Trả về thông báo thành công và danh sách ảnh của tin đăng
-                return Ok(new { message = "Cập nhật tin đăng thành công", AnhTinDang = existingTinDang.AnhTinDangs });
+                return Ok(new
+                {
+                    message = "Cập nhật thành công",
+                    AnhTinDangs = post.AnhTinDangs.Select(a => new { a.MaAnh, a.DuongDan })
+                });
             }
             catch (Exception ex)
             {
-                // Trả về lỗi nếu có bất kỳ ngoại lệ nào xảy ra
-                return StatusCode(500, new { message = "Lỗi khi cập nhật tin đăng", error = ex.Message });
+                return StatusCode(500, new
+                {
+                    message = "Lỗi server",
+                    error = ex.Message,
+                    stackTrace = ex.StackTrace
+                });
             }
         }
+
+
 
 
 
@@ -274,16 +279,65 @@ namespace UniMarket.Controllers
             return Ok(post);
         }
 
+        public async Task<bool> DeleteCloudinaryPhotoByUrlAsync(string imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl))
+                return false;
+
+            try
+            {
+                var uri = new Uri(imageUrl);
+                var segments = uri.Segments;
+
+                // Tìm vị trí "upload/" hoặc "upload" trong segments
+                int uploadIndex = segments.ToList().FindIndex(s => s.Equals("upload/", StringComparison.OrdinalIgnoreCase));
+                if (uploadIndex < 0)
+                {
+                    uploadIndex = segments.ToList().FindIndex(s => s.StartsWith("upload", StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (uploadIndex >= 0 && uploadIndex + 2 < segments.Length)
+                {
+                    // Bỏ phần "upload/" và phần version (ví dụ "v1747383052/")
+                    var pathSegments = segments.Skip(uploadIndex + 2);
+                    var publicIdPath = string.Join("", pathSegments).Trim('/');
+
+                    // Bỏ phần mở rộng file (ví dụ ".png")
+                    var publicId = Path.ChangeExtension(publicIdPath, null).Replace("\\", "/");
+
+                    // Gọi hàm xóa Cloudinary với publicId
+                    var deletionResult = await _photoService.DeletePhotoAsync(publicId);
+
+                    return deletionResult.Result == "ok";
+                }
+            }
+            catch
+            {
+                // Bỏ qua lỗi hoặc log tùy ý
+            }
+
+            return false;
+        }
 
 
         // DELETE: api/tindang/{id} (Xóa tin đăng)
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTinDang(int id)
         {
-            var tinDang = await _context.TinDangs.FindAsync(id);
+            var tinDang = await _context.TinDangs
+                .Include(t => t.AnhTinDangs)
+                .FirstOrDefaultAsync(t => t.MaTinDang == id);
+
             if (tinDang == null)
-            {
                 return NotFound(new { message = "Không tìm thấy tin đăng" });
+
+            // Xóa ảnh Cloudinary
+            foreach (var img in tinDang.AnhTinDangs)
+            {
+                if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                }
             }
 
             _context.TinDangs.Remove(tinDang);
@@ -291,6 +345,8 @@ namespace UniMarket.Controllers
 
             return Ok(new { message = "Xóa tin đăng thành công" });
         }
+
+
 
         [HttpGet("xemtruoc/{id}")]
         public async Task<ActionResult<TinDang>> XemTruocTinDang(int id)
@@ -310,14 +366,13 @@ namespace UniMarket.Controllers
             return Ok(tinDang);
         }
 
-
         [HttpGet("user/{userId}")]
         public IActionResult GetPostsByUser(string userId)
         {
             var posts = _context.TinDangs
                 .Where(p => p.MaNguoiBan == userId)
                 .Include(p => p.AnhTinDangs)
-                .Include(p => p.NguoiBan) // ✅ Thêm dòng này để lấy tên người bán
+                .Include(p => p.NguoiBan) // Lấy tên người bán
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -326,17 +381,18 @@ namespace UniMarket.Controllers
                     p.Gia,
                     p.TrangThai,
                     p.NgayDang,
-                    NguoiBan = p.NguoiBan.FullName, // ✅ Trả về tên người bán
+                    NguoiBan = p.NguoiBan.FullName,
                     Images = p.AnhTinDangs.Select(a =>
-                        a.DuongDan.StartsWith("/images/Posts/")
+                        a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                             ? a.DuongDan
-                            : $"/images/Posts/{a.DuongDan}"
+                            : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
                     ).ToList()
                 })
                 .ToList();
 
             return Ok(posts);
         }
+
         // GET: api/tindang/tinhthanh
         [HttpGet("tinhthanh")]
         public async Task<ActionResult<IEnumerable<TinhThanhDTO>>> GetTinhThanhs()
@@ -384,6 +440,24 @@ namespace UniMarket.Controllers
             return Ok(quanHuyens);
         }
 
+        [HttpGet("user-info/{userId}")]
+        public async Task<IActionResult> GetUserInfo(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng" });
+            }
+
+            return Ok(new
+            {
+                user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber
+            });
+        }
+
 
         [HttpGet("get-post-and-similar/{id}")]
         public async Task<IActionResult> GetPostAndSimilarPosts(int id)
@@ -394,7 +468,7 @@ namespace UniMarket.Controllers
                 .Include(p => p.NguoiBan) // Bao gồm thông tin người bán
                 .Include(p => p.TinhThanh)
                 .Include(p => p.QuanHuyen)
-                .FirstOrDefaultAsync(p => p.MaTinDang == id && p.TrangThai == TrangThaiTinDang.DaDuyet); // Thêm điều kiện chỉ lấy tin đã duyệt
+                .FirstOrDefaultAsync(p => p.MaTinDang == id && p.TrangThai == TrangThaiTinDang.DaDuyet); // Chỉ lấy tin đã duyệt
 
             if (post == null)
             {
@@ -416,13 +490,23 @@ namespace UniMarket.Controllers
                     p.Gia,
                     p.TinhTrang,
                     p.DiaChi,
-                    Images = p.AnhTinDangs.Select(a => a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}").ToList(),
+                    Images = p.AnhTinDangs.Select(a =>
+                        (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
+                        ? a.DuongDan
+                        : (a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
+                    ).ToList(),
                     NguoiBan = p.NguoiBan.FullName,
-                    PhoneNumber = p.NguoiBan.PhoneNumber, // Thêm số điện thoại người bán
+                    PhoneNumber = p.NguoiBan.PhoneNumber,
                     TinhThanh = p.TinhThanh.TenTinhThanh,
                     QuanHuyen = p.QuanHuyen.TenQuanHuyen
                 })
                 .ToListAsync();
+
+            var postImages = post.AnhTinDangs.Select(a =>
+                (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
+                ? a.DuongDan
+                : (a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
+            ).ToList();
 
             return Ok(new
             {
@@ -434,17 +518,18 @@ namespace UniMarket.Controllers
                     post.Gia,
                     post.TinhTrang,
                     post.DiaChi,
-                    Images = post.AnhTinDangs.Select(a => a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}").ToList(),
+                    Images = postImages,
                     NguoiBan = post.NguoiBan.FullName,
-                    PhoneNumber = post.NguoiBan.PhoneNumber, // Thêm số điện thoại người bán
+                    PhoneNumber = post.NguoiBan.PhoneNumber,
                     TinhThanh = post.TinhThanh.TenTinhThanh,
                     QuanHuyen = post.QuanHuyen.TenQuanHuyen,
-                    NgayDang = post.NgayDang, // Thêm ngày đăng
-                    NgayCapNhat = post.NgayCapNhat // Thêm ngày cập nhật
+                    NgayDang = post.NgayDang,
+                    NgayCapNhat = post.NgayCapNhat
                 },
                 SimilarPosts = similarPosts
             });
         }
+
     }
 
 }

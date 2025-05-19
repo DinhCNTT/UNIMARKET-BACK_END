@@ -19,6 +19,9 @@ namespace UniMarket.Models
         [DisplayName("Đường dẫn ảnh")]
         public string DuongDan { get; set; }
 
+        [DisplayName("Thứ tự ảnh")]
+        public int Order { get; set; }
+
         [ForeignKey("MaTinDang")]
         [JsonIgnore]  // Bỏ qua thuộc tính này khi chuyển đổi đối tượng thành JSON để tránh vòng lặp
         public TinDang? TinDang { get; set; }
