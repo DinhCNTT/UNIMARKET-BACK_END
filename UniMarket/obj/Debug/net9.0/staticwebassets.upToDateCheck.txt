@@ -45,9 +45,6 @@ wwwroot\images\Posts\Screenshot 2025-05-10 225605.png
 wwwroot\images\Posts\Screenshot 2025-05-13 075736.png
 wwwroot\images\Posts\Screenshot 2025-05-13 081037.png
 wwwroot\images\Posts\Screenshot 2025-05-13 082608.png
-wwwroot\images\temp-uploads\054403ef-c364-41d4-af2d-9169b17a5034.png
-wwwroot\images\temp-uploads\05d5dce1-2fd5-4b64-a580-453328370049.png
-wwwroot\images\temp-uploads\1e6c5e35-e0ac-4622-aa67-df660dea5589.png
 wwwroot\js\site.js
 wwwroot\lib\bootstrap\dist\css\bootstrap.css
 wwwroot\lib\bootstrap\dist\css\bootstrap.css.map

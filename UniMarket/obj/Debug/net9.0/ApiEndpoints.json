@@ -539,12 +539,37 @@
         "IsRequired": false
       },
       {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
         "Name": "newImages",
         "Type": "System.Collections.Generic.List\u00601[[Microsoft.AspNetCore.Http.IFormFile, Microsoft.AspNetCore.Http.Features, Version=9.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60]]",
         "IsRequired": false
       },
       {
-        "Name": "userId",
+        "Name": "newVideos",
+        "Type": "System.Collections.Generic.List\u00601[[Microsoft.AspNetCore.Http.IFormFile, Microsoft.AspNetCore.Http.Features, Version=9.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "oldImagesToDelete",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "oldVideosToDelete",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "oldImageOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "oldVideoOrder",
         "Type": "System.String",
         "IsRequired": false
       }

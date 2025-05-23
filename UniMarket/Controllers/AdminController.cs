@@ -548,43 +548,50 @@ namespace UniMarket.Controllers
             if (post.TrangThai == TrangThaiTinDang.DaDuyet)
                 return BadRequest("Tin đăng này đã được duyệt rồi.");
 
-            foreach (var img in post.AnhTinDangs)
+            foreach (var media in post.AnhTinDangs)
             {
-                if (!img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!media.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Lấy tên file từ đường dẫn lưu trong DB (vd: "/images/temp-uploads/filename.png")
-                    var fileName = Path.GetFileName(img.DuongDan);
+                    var fileName = Path.GetFileName(media.DuongDan);
                     var localFilePath = Path.Combine("wwwroot", "images", "temp-uploads", fileName);
 
                     if (!System.IO.File.Exists(localFilePath))
                         continue;
 
-                    // Đọc file vào bộ nhớ trước
                     byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
                     using var memoryStream = new MemoryStream(fileBytes);
 
                     var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
-                    var uploadResult = await _photoService.UploadPhotoAsync(formFile);
 
-                    if (uploadResult.Error != null)
-                        return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
+                    // Phân biệt ảnh/video dựa vào đuôi file
+                    string ext = Path.GetExtension(fileName).ToLower();
+                    if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
+                    {
+                        var uploadResult = await _photoService.UploadVideoAsync(formFile);
+                        if (uploadResult.Error != null)
+                            return BadRequest(new { message = "Lỗi khi upload video lên Cloudinary", error = uploadResult.Error.Message });
 
-                    // Cập nhật đường dẫn ảnh thành URL Cloudinary
-                    img.DuongDan = uploadResult.SecureUrl.ToString();
+                        media.DuongDan = uploadResult.SecureUrl.ToString();
+                    }
+                    else
+                    {
+                        var uploadResult = await _photoService.UploadPhotoAsync(formFile);
+                        if (uploadResult.Error != null)
+                            return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
 
-                    // Xóa file ảnh tạm trên server sau khi upload thành công
+                        media.DuongDan = uploadResult.SecureUrl.ToString();
+                    }
+
                     System.IO.File.Delete(localFilePath);
                 }
             }
 
             post.TrangThai = TrangThaiTinDang.DaDuyet;
-
             _context.TinDangs.Update(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Tin đăng đã được duyệt và ảnh đã được lưu trên Cloudinary!" });
+            return Ok(new { message = "Tin đăng đã được duyệt và media đã được lưu trên Cloudinary!" });
         }
-
 
         [HttpPost("reject-post/{id}")]
         public async Task<IActionResult> RejectPost(int id)
@@ -599,15 +606,14 @@ namespace UniMarket.Controllers
             if (post.TrangThai == TrangThaiTinDang.TuChoi)
                 return BadRequest("Tin đăng này đã bị từ chối rồi.");
 
-            foreach (var img in post.AnhTinDangs)
+            foreach (var media in post.AnhTinDangs)
             {
-                if (string.IsNullOrEmpty(img.DuongDan))
+                if (string.IsNullOrEmpty(media.DuongDan))
                     continue;
 
-                if (!img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!media.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Ảnh chưa upload Cloudinary -> upload lên Cloudinary
-                    var fileName = Path.GetFileName(img.DuongDan);
+                    var fileName = Path.GetFileName(media.DuongDan);
                     var localFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "temp-uploads", fileName);
 
                     if (System.IO.File.Exists(localFilePath))
@@ -615,33 +621,35 @@ namespace UniMarket.Controllers
                         byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
                         using var memoryStream = new MemoryStream(fileBytes);
                         var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
-                        var uploadResult = await _photoService.UploadPhotoAsync(formFile);
 
-                        if (uploadResult.Error != null)
+                        string ext = Path.GetExtension(fileName).ToLower();
+                        if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
                         {
-                            return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
+                            var uploadResult = await _photoService.UploadVideoAsync(formFile);
+                            if (uploadResult.Error != null)
+                                return BadRequest(new { message = "Lỗi khi upload video lên Cloudinary", error = uploadResult.Error.Message });
+
+                            media.DuongDan = uploadResult.SecureUrl.ToString();
+                        }
+                        else
+                        {
+                            var uploadResult = await _photoService.UploadPhotoAsync(formFile);
+                            if (uploadResult.Error != null)
+                                return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
+
+                            media.DuongDan = uploadResult.SecureUrl.ToString();
                         }
 
-                        // Cập nhật đường dẫn ảnh thành URL Cloudinary
-                        img.DuongDan = uploadResult.SecureUrl.ToString();
-
-                        // Xóa file ảnh tạm trên server
                         System.IO.File.Delete(localFilePath);
                     }
-                }
-                else
-                {
-                    // Ảnh đã có trên Cloudinary, không xóa để giữ hiển thị
-                    // Không làm gì thêm
                 }
             }
 
             post.TrangThai = TrangThaiTinDang.TuChoi;
-
             _context.TinDangs.Update(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Tin đăng đã bị từ chối, ảnh đã được lưu trên Cloudinary và ảnh temp đã xóa!" });
+            return Ok(new { message = "Tin đăng đã bị từ chối, media đã được lưu trên Cloudinary và ảnh temp đã xóa!" });
         }
 
 

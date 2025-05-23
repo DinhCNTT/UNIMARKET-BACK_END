@@ -28,6 +28,7 @@
   <ItemGroup>
     <Folder Include="wwwroot\images\categories\" />
     <Folder Include="wwwroot\images\categories\categories\" />
+    <Folder Include="wwwroot\images\temp-uploads\" />
   </ItemGroup>
 
 </Project>

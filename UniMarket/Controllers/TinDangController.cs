@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Identity;
 using System.Threading.Tasks;
 using UniMarket.Services;
 using System.Text.Json; // ✅ thêm using
-
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Newtonsoft.Json;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -20,12 +22,14 @@ namespace UniMarket.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly string _imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
         private readonly PhotoService _photoService; // ✅ thêm
+        private readonly IWebHostEnvironment _env;
 
-        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService)
+        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService, IWebHostEnvironment env)
         {
             _context = context;
             _userManager = userManager;
             _photoService = photoService;
+            _env = env;
         }
 
         [HttpGet("get-posts")]
@@ -70,23 +74,20 @@ namespace UniMarket.Controllers
 
             return Ok(posts);
         }
-
-
-
         [HttpPost("add-post")]
         public async Task<IActionResult> AddPost(
-   [FromForm] string title,
-   [FromForm] string description,
-   [FromForm] decimal price,
-   [FromForm] string contactInfo,
-   [FromForm] string condition,
-   [FromForm] int province,
-   [FromForm] int district,
-   [FromForm] List<IFormFile> images,
-   [FromForm] string userId,
-   [FromForm] int categoryId,
-   [FromForm] string categoryName,
-   [FromForm] bool canNegotiate)
+            [FromForm] string title,
+            [FromForm] string description,
+            [FromForm] decimal price,
+            [FromForm] string contactInfo,
+            [FromForm] string condition,
+            [FromForm] int province,
+            [FromForm] int district,
+            [FromForm] List<IFormFile> images,
+            [FromForm] string userId,
+            [FromForm] int categoryId,
+            [FromForm] string categoryName,
+            [FromForm] bool canNegotiate)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return BadRequest("Người bán không tồn tại!");
@@ -97,9 +98,35 @@ namespace UniMarket.Controllers
             if (!await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district))
                 return BadRequest("Quận huyện không hợp lệ!");
 
-            // Bổ sung giới hạn số lượng ảnh
-            if (images != null && images.Count > 5)
-                return BadRequest("Chỉ được phép tải lên tối đa 5 ảnh cho mỗi tin đăng.");
+            // Kiểm tra giới hạn file
+            if (images != null && images.Count > 8) // 7 ảnh + 1 video tối đa
+                return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh và 1 video.");
+
+            // Phân loại ảnh và video
+            var imageFiles = new List<IFormFile>();
+            var videoFiles = new List<IFormFile>();
+
+            if (images != null)
+            {
+                foreach (var file in images)
+                {
+                    var extension = Path.GetExtension(file.FileName).ToLower();
+                    var isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                                 extension == ".wmv" || extension == ".flv" || extension == ".webm";
+
+                    if (isVideo)
+                        videoFiles.Add(file);
+                    else
+                        imageFiles.Add(file);
+                }
+
+                // Kiểm tra giới hạn cụ thể
+                if (imageFiles.Count > 7)
+                    return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh.");
+
+                if (videoFiles.Count > 1)
+                    return BadRequest("Chỉ được phép tải lên tối đa 1 video.");
+            }
 
             var post = new TinDang
             {
@@ -124,7 +151,10 @@ namespace UniMarket.Controllers
                 if (!Directory.Exists(tempFolder))
                     Directory.CreateDirectory(tempFolder);
 
-                foreach (var image in images)
+                int order = 1; // Thứ tự hiển thị
+
+                // Xử lý ảnh trước
+                foreach (var image in imageFiles)
                 {
                     var fileName = Guid.NewGuid().ToString() + Path.GetExtension(image.FileName);
                     var filePath = Path.Combine(tempFolder, fileName);
@@ -137,6 +167,28 @@ namespace UniMarket.Controllers
                     post.AnhTinDangs.Add(new AnhTinDang
                     {
                         DuongDan = $"/images/temp-uploads/{fileName}",
+                        LoaiMedia = MediaType.Image,
+                        Order = order++,
+                        TinDang = post
+                    });
+                }
+
+                // Xử lý video sau
+                foreach (var video in videoFiles)
+                {
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(video.FileName);
+                    var filePath = Path.Combine(tempFolder, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await video.CopyToAsync(stream);
+                    }
+
+                    post.AnhTinDangs.Add(new AnhTinDang
+                    {
+                        DuongDan = $"/images/temp-uploads/{fileName}",
+                        LoaiMedia = MediaType.Video,
+                        Order = order++,
                         TinDang = post
                     });
                 }
@@ -145,9 +197,17 @@ namespace UniMarket.Controllers
             _context.TinDangs.Add(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Bài đăng đã được thêm thành công và đang chờ duyệt!" });
-        }
+            // Trả về thông tin chi tiết về số lượng file đã upload
+            var responseMessage = $"Bài đăng đã được thêm thành công và đang chờ duyệt! " +
+                                 $"(Đã tải lên: {imageFiles.Count} ảnh, {videoFiles.Count} video)";
 
+            return Ok(new
+            {
+                message = responseMessage,
+                imageCount = imageFiles.Count,
+                videoCount = videoFiles.Count
+            });
+        }
 
 
         [HttpGet("get-posts-admin")]
@@ -193,14 +253,25 @@ namespace UniMarket.Controllers
     [FromForm] int province,
     [FromForm] int district,
     [FromForm] int categoryId,
+    [FromForm] string userId,
     [FromForm] List<IFormFile>? newImages,
-    [FromForm] string userId)
+    [FromForm] List<IFormFile>? newVideos,
+    [FromForm] string? oldImagesToDelete,
+    [FromForm] string? oldVideosToDelete,
+    [FromForm] string? oldImageOrder,
+    [FromForm] string? oldVideoOrder
+)
         {
             try
             {
-                var post = await _context.TinDangs.Include(td => td.AnhTinDangs).FirstOrDefaultAsync(td => td.MaTinDang == id);
-                if (post == null) return NotFound(new { message = "Không tìm thấy tin đăng" });
+                var post = await _context.TinDangs
+                    .Include(td => td.AnhTinDangs)
+                    .FirstOrDefaultAsync(td => td.MaTinDang == id);
 
+                if (post == null)
+                    return NotFound(new { message = "Không tìm thấy tin đăng" });
+
+                // ✅ Cập nhật thông tin cơ bản
                 post.TieuDe = title;
                 post.MoTa = description;
                 post.Gia = price;
@@ -212,17 +283,43 @@ namespace UniMarket.Controllers
                 post.MaDanhMuc = categoryId;
                 post.NgayCapNhat = DateTime.Now;
 
-                // Xóa ảnh cũ
-                foreach (var oldImg in post.AnhTinDangs.ToList())
-                {
-                    if (!string.IsNullOrEmpty(oldImg.DuongDan) && oldImg.DuongDan.StartsWith("http"))
-                        await DeleteCloudinaryPhotoByUrlAsync(oldImg.DuongDan);
+                // ✅ Parse JSON từ frontend
+                var idsToDeleteImage = string.IsNullOrEmpty(oldImagesToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
+                var idsToDeleteVideo = string.IsNullOrEmpty(oldVideosToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
+                var imageOrder = string.IsNullOrEmpty(oldImageOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImageOrder);
+                var videoOrder = string.IsNullOrEmpty(oldVideoOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideoOrder);
 
-                    _context.AnhTinDangs.Remove(oldImg);
+                var oldMediaList = post.AnhTinDangs.ToList();
+
+                // ✅ Xóa ảnh/video cũ khỏi Cloudinary
+                foreach (var media in oldMediaList)
+                {
+                    if (idsToDeleteImage.Contains(media.MaAnh) || idsToDeleteVideo.Contains(media.MaAnh))
+                    {
+                        if (!string.IsNullOrEmpty(media.DuongDan) && media.DuongDan.StartsWith("http"))
+                        {
+                            await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
+                        }
+
+                        _context.AnhTinDangs.Remove(media);
+                    }
                 }
 
-                // Thêm ảnh mới
-                if (newImages != null && newImages.Any())
+                // ✅ Lọc danh sách giữ lại và sắp xếp theo thứ tự mới
+                var remainingMedia = oldMediaList
+                    .Where(m => imageOrder.Contains(m.MaAnh) || videoOrder.Contains(m.MaAnh))
+                    .OrderBy(m =>
+                        imageOrder.Contains(m.MaAnh) ? imageOrder.IndexOf(m.MaAnh)
+                        : videoOrder.Contains(m.MaAnh) ? 100 + videoOrder.IndexOf(m.MaAnh)
+                        : 999)
+                    .ToList();
+
+                post.AnhTinDangs = remainingMedia;
+
+                int currentOrder = remainingMedia.Count > 0 ? remainingMedia.Max(a => a.Order) + 1 : 1;
+
+                // ✅ Upload ảnh mới
+                if (newImages != null)
                 {
                     foreach (var img in newImages)
                     {
@@ -233,21 +330,48 @@ namespace UniMarket.Controllers
                         post.AnhTinDangs.Add(new AnhTinDang
                         {
                             DuongDan = result.SecureUrl.ToString(),
+                            LoaiMedia = MediaType.Image,
+                            Order = currentOrder++,
                             TinDang = post
                         });
                     }
                 }
 
+                // ✅ Upload video mới
+                if (newVideos != null)
+                {
+                    foreach (var vid in newVideos)
+                    {
+                        var result = await _photoService.UploadVideoAsync(vid);
+                        if (result.Error != null)
+                            return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
+
+                        post.AnhTinDangs.Add(new AnhTinDang
+                        {
+                            DuongDan = result.SecureUrl.ToString(),
+                            LoaiMedia = MediaType.Video,
+                            Order = currentOrder++,
+                            TinDang = post
+                        });
+                    }
+                }
+
+                // ✅ Lưu thay đổi vào DB
                 await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
                     message = "Cập nhật thành công",
-                    AnhTinDangs = post.AnhTinDangs.Select(a => new { a.MaAnh, a.DuongDan })
+                    post.MaTinDang,
+                    AnhTinDangs = post.AnhTinDangs.Select(a => new { a.MaAnh, a.DuongDan, a.Order })
                 });
             }
             catch (Exception ex)
             {
+                Console.WriteLine("❌ LỖI CẬP NHẬT TIN:");
+                Console.WriteLine("Message: " + ex.Message);
+                Console.WriteLine("StackTrace: " + ex.StackTrace);
+
                 return StatusCode(500, new
                 {
                     message = "Lỗi server",
@@ -256,8 +380,6 @@ namespace UniMarket.Controllers
                 });
             }
         }
-
-
 
 
 
@@ -279,6 +401,7 @@ namespace UniMarket.Controllers
             return Ok(post);
         }
 
+        // Hàm xóa ảnh/video trên Cloudinary từ URL publicId
         public async Task<bool> DeleteCloudinaryPhotoByUrlAsync(string imageUrl)
         {
             if (string.IsNullOrEmpty(imageUrl))
@@ -289,7 +412,7 @@ namespace UniMarket.Controllers
                 var uri = new Uri(imageUrl);
                 var segments = uri.Segments;
 
-                // Tìm vị trí "upload/" hoặc "upload" trong segments
+                // Tìm vị trí "upload/" hoặc "upload"
                 int uploadIndex = segments.ToList().FindIndex(s => s.Equals("upload/", StringComparison.OrdinalIgnoreCase));
                 if (uploadIndex < 0)
                 {
@@ -298,29 +421,39 @@ namespace UniMarket.Controllers
 
                 if (uploadIndex >= 0 && uploadIndex + 2 < segments.Length)
                 {
-                    // Bỏ phần "upload/" và phần version (ví dụ "v1747383052/")
+                    // Lấy phần publicId (bỏ "upload/" và version "v123456/")
                     var pathSegments = segments.Skip(uploadIndex + 2);
                     var publicIdPath = string.Join("", pathSegments).Trim('/');
 
-                    // Bỏ phần mở rộng file (ví dụ ".png")
+                    // Bỏ phần mở rộng file (vd: .png, .mp4, .mov...)
                     var publicId = Path.ChangeExtension(publicIdPath, null).Replace("\\", "/");
 
-                    // Gọi hàm xóa Cloudinary với publicId
-                    var deletionResult = await _photoService.DeletePhotoAsync(publicId);
+                    // Xác định loại tài nguyên
+                    var lowerUrl = imageUrl.ToLower();
+                    ResourceType resourceType = ResourceType.Image; // Mặc định là ảnh
+
+                    if (lowerUrl.Contains("/video/") || lowerUrl.EndsWith(".mp4") || lowerUrl.EndsWith(".mov") ||
+                        lowerUrl.EndsWith(".avi") || lowerUrl.EndsWith(".webm") || lowerUrl.EndsWith(".ogg"))
+                    {
+                        resourceType = ResourceType.Video;
+                    }
+
+                    // Gọi service xóa với loại tài nguyên chính xác
+                    var deletionResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
 
                     return deletionResult.Result == "ok";
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Bỏ qua lỗi hoặc log tùy ý
+                // Log hoặc xử lý lỗi nếu cần
+                Console.WriteLine("Lỗi khi xóa ảnh/video trên Cloudinary: " + ex.Message);
             }
 
             return false;
         }
 
-
-        // DELETE: api/tindang/{id} (Xóa tin đăng)
+        // DELETE api/tindang/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTinDang(int id)
         {
@@ -331,15 +464,33 @@ namespace UniMarket.Controllers
             if (tinDang == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng" });
 
-            // Xóa ảnh Cloudinary
+            // Xóa ảnh/video trên Cloudinary hoặc file tạm trên server
             foreach (var img in tinDang.AnhTinDangs)
             {
-                if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                var imagePath = img.DuongDan;
+
+                if (!string.IsNullOrEmpty(imagePath) && imagePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
-                    await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                    await DeleteCloudinaryPhotoByUrlAsync(imagePath);
+                }
+                else if (!string.IsNullOrEmpty(imagePath) && imagePath.Contains("images/temp-uploads"))
+                {
+                    var trimmedPath = imagePath.TrimStart('/');
+                    var localFilePath = Path.Combine(_env.WebRootPath, trimmedPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+
+                    if (System.IO.File.Exists(localFilePath))
+                    {
+                        System.IO.File.Delete(localFilePath);
+                        Console.WriteLine($"Đã xóa file: {localFilePath}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ File không tồn tại: {localFilePath}");
+                    }
                 }
             }
 
+            // Xóa tin đăng và ảnh/video liên quan (EF Cascade Delete)
             _context.TinDangs.Remove(tinDang);
             await _context.SaveChangesAsync();
 
