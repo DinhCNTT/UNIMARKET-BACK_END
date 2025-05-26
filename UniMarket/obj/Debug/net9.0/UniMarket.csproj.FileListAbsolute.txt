@@ -1210,3 +1210,4 @@ F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\obj\Debug\net9.0\UniMarket.pdb
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\obj\Debug\net9.0\UniMarket.genruntimeconfig.cache
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\obj\Debug\net9.0\ref\UniMarket.dll
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\CloudinaryDotNet.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\System.Net.WebSockets.WebSocketProtocol.dll

@@ -671,12 +671,14 @@ namespace UniMarket.Controllers
                     post.DiaChi,
                     Images = postImages,
                     NguoiBan = post.NguoiBan.FullName,
+                    MaNguoiBan = post.NguoiBan.Id, // ✅ THÊM dòng này
                     PhoneNumber = post.NguoiBan.PhoneNumber,
                     TinhThanh = post.TinhThanh.TenTinhThanh,
                     QuanHuyen = post.QuanHuyen.TenQuanHuyen,
                     NgayDang = post.NgayDang,
                     NgayCapNhat = post.NgayCapNhat
                 },
+
                 SimilarPosts = similarPosts
             });
         }

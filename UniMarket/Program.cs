@@ -10,6 +10,7 @@ using UniMarket.DataAccess;
 using UniMarket.Models;
 using Microsoft.AspNetCore.Mvc;
 using UniMarket.Services;
+using UniMarket.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -158,6 +159,10 @@ builder.Services.AddControllers()
         };
     });
 
+builder.Services.AddSignalR();
+
+builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
+
 var app = builder.Build();
 
 // 7️⃣ Middleware
@@ -194,6 +199,8 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.MapRazorPages();
 app.MapControllers();
+app.MapHub<ChatHub>("/hub/chat");
+
 
 // 8️⃣ Tạo role & admin mặc định
 using (var scope = app.Services.CreateScope())
