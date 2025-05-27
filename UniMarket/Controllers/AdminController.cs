@@ -255,37 +255,63 @@ namespace UniMarket.Controllers
             return Ok(result);
         }
 
-
         [HttpPost("add-category")]
         public async Task<IActionResult> AddCategory(
-        [FromForm] string tenDanhMuc,
-        [FromForm] int maDanhMucCha)
+    [FromForm] string tenDanhMuc,
+    [FromForm] int maDanhMucCha)
         {
-            if (maDanhMucCha == 0)
+            try
             {
-                return BadRequest("Danh mục con bắt buộc phải có danh mục cha!");
+                // Validate input
+                if (maDanhMucCha <= 0)
+                {
+                    return BadRequest(new { success = false, message = "Danh mục cha không hợp lệ!" });
+                }
+
+                if (string.IsNullOrWhiteSpace(tenDanhMuc))
+                {
+                    return BadRequest(new { success = false, message = "Tên danh mục không được để trống!" });
+                }
+
+                // Check parent category exists
+                var parentCategory = await _context.DanhMucChas.FindAsync(maDanhMucCha);
+                if (parentCategory == null)
+                {
+                    return BadRequest(new { success = false, message = "Danh mục cha không tồn tại!" });
+                }
+
+                // Normalize and check duplicate
+                var normalizedName = tenDanhMuc.Trim().ToLower();
+                bool isDuplicate = await _context.DanhMucs.AnyAsync(dm =>
+                    dm.MaDanhMucCha == maDanhMucCha &&
+                    dm.TenDanhMuc.Trim().ToLower() == normalizedName);
+
+                if (isDuplicate)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        message = $"Đã tồn tại danh mục con '{tenDanhMuc.Trim()}' trong danh mục cha này!"
+                    });
+                }
+
+                // Add new category
+                var danhMucMoi = new DanhMuc
+                {
+                    TenDanhMuc = tenDanhMuc.Trim(),
+                    MaDanhMucCha = maDanhMucCha
+                };
+
+                _context.DanhMucs.Add(danhMucMoi);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { success = true, message = "Thêm danh mục thành công!" });
             }
-
-            var parentCategory = await _context.DanhMucChas.FindAsync(maDanhMucCha);
-            if (parentCategory == null)
+            catch (Exception ex)
             {
-                return BadRequest("Mã danh mục cha không hợp lệ!");
+                return StatusCode(500, new { success = false, message = "Lỗi server: " + ex.Message });
             }
-
-            // **Lưu vào Database**
-            var danhMucMoi = new DanhMuc
-            {
-                TenDanhMuc = tenDanhMuc,
-                MaDanhMucCha = maDanhMucCha
-            };
-
-            _context.DanhMucs.Add(danhMucMoi);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { Message = "Danh mục đã được thêm thành công!" });
         }
-
-
 
         [HttpPost("add-parent-category")]
         public async Task<IActionResult> AddParentCategory(

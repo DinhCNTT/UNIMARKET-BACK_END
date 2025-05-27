@@ -20,7 +20,7 @@ namespace UniMarket.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromHours(24), stoppingToken); // chạy mỗi 24h
+                await Task.Delay(TimeSpan.FromHours(1), stoppingToken); // chạy mỗi 24h
                 _logger.LogInformation("🧼 CleanUp job running at: {time}", DateTime.UtcNow);
 
                 using var scope = _serviceProvider.CreateScope();
