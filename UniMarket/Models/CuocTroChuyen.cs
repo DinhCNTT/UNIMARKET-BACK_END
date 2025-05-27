@@ -10,7 +10,7 @@ namespace UniMarket.Models
 
         public DateTime ThoiGianTao { get; set; } = DateTime.UtcNow;
 
-        public bool IsEmpty { get; set; } = true; // ✅ THÊM DÒNG NÀY
+        public bool IsEmpty { get; set; } = true;
 
         public ICollection<TinNhan>? TinNhans { get; set; }
 
