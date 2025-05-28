@@ -24,39 +24,49 @@ namespace UniMarket.Controllers
         [HttpPost("start")]
         public async Task<IActionResult> StartChat([FromBody] StartChatRequest request)
         {
-            if (string.IsNullOrEmpty(request.MaNguoiDung1) || string.IsNullOrEmpty(request.MaNguoiDung2))
-                return BadRequest("Mã người dùng không được để trống.");
+            // Validate thông tin người gửi, người nhận, mã tin đăng
+            if (string.IsNullOrEmpty(request.MaNguoiDung1) || string.IsNullOrEmpty(request.MaNguoiDung2) || request.MaTinDang <= 0)
+                return BadRequest("Thông tin không đầy đủ.");
 
-            string GenerateChatId(string u1, string u2)
+            // Tạo mã cuộc trò chuyện dạng "userA-userB-MaTinDang" hoặc dạng chuẩn khác
+            string GenerateChatId(string u1, string u2, int maTinDang)
             {
                 var arr = new[] { u1, u2 };
                 Array.Sort(arr);
-                return string.Join("-", arr);
+                return $"{arr[0]}-{arr[1]}-{maTinDang}";
             }
 
-            var maCuocTroChuyen = GenerateChatId(request.MaNguoiDung1, request.MaNguoiDung2);
+            var maCuocTroChuyen = GenerateChatId(request.MaNguoiDung1, request.MaNguoiDung2, request.MaTinDang);
 
             // Kiểm tra cuộc trò chuyện đã tồn tại chưa
             var existingChat = await _context.CuocTroChuyens
-                .Include(c => c.NguoiThamGias)
                 .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
             if (existingChat != null)
             {
-                // Nếu đã tồn tại, trả về luôn mà không tạo mới
                 return Ok(new { MaCuocTroChuyen = existingChat.MaCuocTroChuyen });
             }
 
-            // Nếu chưa tồn tại, tạo mới
+            // Lấy thông tin tin đăng để lưu snapshot
+            var tinDang = await _context.TinDangs.Include(t => t.AnhTinDangs).FirstOrDefaultAsync(t => t.MaTinDang == request.MaTinDang);
+            if (tinDang == null) return NotFound("Tin đăng không tồn tại.");
+
+
+            // Tạo mới cuộc trò chuyện và lưu snapshot thông tin tin đăng
             var newChat = new CuocTroChuyen
             {
                 MaCuocTroChuyen = maCuocTroChuyen,
                 ThoiGianTao = DateTime.UtcNow,
-                IsEmpty = true// ✅ đánh dấu là mới mở, chưa có tin nhắn
+                IsEmpty = true,
+                MaTinDang = tinDang.MaTinDang,
+                TieuDeTinDang = tinDang.TieuDe,
+                AnhDaiDienTinDang = tinDang.AnhTinDangs?.FirstOrDefault()?.DuongDan ?? "",
+                GiaTinDang = tinDang.Gia
             };
 
             _context.CuocTroChuyens.Add(newChat);
 
+            // Thêm người tham gia chat (2 người)
             _context.NguoiThamGias.AddRange(new[]
             {
         new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung1 },
@@ -67,6 +77,7 @@ namespace UniMarket.Controllers
 
             return Ok(new { MaCuocTroChuyen = maCuocTroChuyen });
         }
+
         // GET api/chat/user/{userId}
         [HttpGet("user/{userId}")]
         public async Task<IActionResult> GetUserConversations(string userId)
@@ -75,9 +86,9 @@ namespace UniMarket.Controllers
                 .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
                 .Select(c => new
                 {
-                    MaCuocTroChuyen = c.MaCuocTroChuyen,
-                    ThoiGianTao = c.ThoiGianTao,
-                    IsEmpty = c.IsEmpty,
+                    c.MaCuocTroChuyen,
+                    c.ThoiGianTao,
+                    c.IsEmpty,
                     TinNhanCuoi = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
                         .OrderByDescending(t => t.ThoiGianGui)
@@ -90,12 +101,19 @@ namespace UniMarket.Controllers
                     TenNguoiConLai = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
                         .Select(n => n.NguoiDung.FullName)
-                        .FirstOrDefault()
+                        .FirstOrDefault(),
+
+                    // Bắt buộc trả về các trường ảnh tin đăng để frontend hiển thị
+                    TieuDeTinDang = c.TieuDeTinDang,
+                    AnhDaiDienTinDang = c.AnhDaiDienTinDang,
+                    GiaTinDang = c.GiaTinDang
                 })
                 .ToListAsync();
 
             return Ok(userChats);
         }
+
+
         // GET api/chat/history/{maCuocTroChuyen}
         [HttpGet("history/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen)
@@ -116,6 +134,22 @@ namespace UniMarket.Controllers
             return Ok(messages);
         }
 
+        [HttpGet("info/{maCuocTroChuyen}")]
+        public async Task<IActionResult> GetChatInfo(string maCuocTroChuyen)
+        {
+            var chat = await _context.CuocTroChuyens
+                .Where(c => c.MaCuocTroChuyen == maCuocTroChuyen)
+                .Select(c => new
+                {
+                    c.TieuDeTinDang,
+                    c.GiaTinDang,
+                    c.AnhDaiDienTinDang
+                }).FirstOrDefaultAsync();
+
+            if (chat == null) return NotFound();
+
+            return Ok(chat);
+        }
 
     }
 }

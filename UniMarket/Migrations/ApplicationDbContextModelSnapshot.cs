@@ -268,11 +268,23 @@ namespace UniMarket.Migrations
                     b.Property<string>("MaCuocTroChuyen")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AnhDaiDienTinDang")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("GiaTinDang")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<bool>("IsEmpty")
                         .HasColumnType("bit");
 
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("ThoiGianTao")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("TieuDeTinDang")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("MaCuocTroChuyen");
 

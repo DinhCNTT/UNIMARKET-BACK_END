@@ -11,6 +11,13 @@ namespace UniMarket.Models
         public DateTime ThoiGianTao { get; set; } = DateTime.UtcNow;
 
         public bool IsEmpty { get; set; } = true;
+        public int MaTinDang { get; set; }  // lưu mã tin đăng
+
+        public string? TieuDeTinDang { get; set; }  // lưu tạm tiêu đề
+
+        public string? AnhDaiDienTinDang { get; set; } // lưu tạm ảnh đại diện
+
+        public decimal GiaTinDang { get; set; }  // lưu tạm giá
 
         public ICollection<TinNhan>? TinNhans { get; set; }
 

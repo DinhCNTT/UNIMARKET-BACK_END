@@ -12,8 +12,8 @@ using UniMarket.DataAccess;
 namespace UniMarket.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250527154230_ThemBangCuocTroChuyenSanPham")]
-    partial class ThemBangCuocTroChuyenSanPham
+    [Migration("20250528074735_ThemCotCuocTroChuyen")]
+    partial class ThemCotCuocTroChuyen
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -271,39 +271,27 @@ namespace UniMarket.Migrations
                     b.Property<string>("MaCuocTroChuyen")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AnhDaiDienTinDang")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("GiaTinDang")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<bool>("IsEmpty")
                         .HasColumnType("bit");
-
-                    b.Property<DateTime>("ThoiGianTao")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("MaCuocTroChuyen");
-
-                    b.ToTable("CuocTroChuyens");
-                });
-
-            modelBuilder.Entity("UniMarket.Models.CuocTroChuyenSanPham", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("MaCuocTroChuyen")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.Property<DateTime>("ThoiGianTao")
+                        .HasColumnType("datetime2");
 
-                    b.HasIndex("MaCuocTroChuyen");
+                    b.Property<string>("TieuDeTinDang")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.HasIndex("MaTinDang");
+                    b.HasKey("MaCuocTroChuyen");
 
-                    b.ToTable("CuocTroChuyenSanPhams");
+                    b.ToTable("CuocTroChuyens");
                 });
 
             modelBuilder.Entity("UniMarket.Models.DanhMuc", b =>
@@ -579,25 +567,6 @@ namespace UniMarket.Migrations
                     b.Navigation("TinDang");
                 });
 
-            modelBuilder.Entity("UniMarket.Models.CuocTroChuyenSanPham", b =>
-                {
-                    b.HasOne("UniMarket.Models.CuocTroChuyen", "CuocTroChuyen")
-                        .WithMany("CuocTroChuyenSanPhams")
-                        .HasForeignKey("MaCuocTroChuyen")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
-                        .WithMany("CuocTroChuyenSanPhams")
-                        .HasForeignKey("MaTinDang")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CuocTroChuyen");
-
-                    b.Navigation("TinDang");
-                });
-
             modelBuilder.Entity("UniMarket.Models.DanhMuc", b =>
                 {
                     b.HasOne("UniMarket.Models.DanhMucCha", "DanhMucCha")
@@ -691,8 +660,6 @@ namespace UniMarket.Migrations
 
             modelBuilder.Entity("UniMarket.Models.CuocTroChuyen", b =>
                 {
-                    b.Navigation("CuocTroChuyenSanPhams");
-
                     b.Navigation("NguoiThamGias");
 
                     b.Navigation("TinNhans");
@@ -706,8 +673,6 @@ namespace UniMarket.Migrations
             modelBuilder.Entity("UniMarket.Models.TinDang", b =>
                 {
                     b.Navigation("AnhTinDangs");
-
-                    b.Navigation("CuocTroChuyenSanPhams");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinhThanh", b =>
