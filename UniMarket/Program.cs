@@ -138,6 +138,7 @@ builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;  // Giải quyết tuần hoàn
+        options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
     })
     .ConfigureApiBehaviorOptions(options =>
     {
