@@ -20,13 +20,13 @@ namespace UniMarket.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken); // Chạy mỗi 5 phút
+                await Task.Delay(TimeSpan.FromHours(1), stoppingToken); // Chạy mỗi 1 giờ
                 _logger.LogInformation("🧼 CleanUp job running at: {time}", DateTime.UtcNow);
 
                 using var scope = _serviceProvider.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                var cutoff = DateTime.UtcNow.AddMinutes(-5); // Xóa các cuộc trò chuyện rỗng cũ hơn 5 phút
+                var cutoff = DateTime.UtcNow.AddHours(-1); // Xóa các cuộc trò chuyện rỗng cũ hơn 1 giờ
 
                 var emptyChats = await context.CuocTroChuyens
                     .Where(c => c.IsEmpty && c.ThoiGianTao < cutoff)
@@ -44,7 +44,7 @@ namespace UniMarket.Services
                     context.CuocTroChuyens.RemoveRange(emptyChats);
 
                     await context.SaveChangesAsync();
-                    _logger.LogInformation($"🧹 Đã xoá {emptyChats.Count} cuộc trò chuyện rỗng quá 5 phút");
+                    _logger.LogInformation($"🧹 Đã xoá {emptyChats.Count} cuộc trò chuyện rỗng quá 1 giờ");
                 }
                 else
                 {

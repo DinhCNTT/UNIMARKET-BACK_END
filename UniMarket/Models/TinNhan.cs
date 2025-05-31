@@ -19,6 +19,10 @@ namespace UniMarket.Models
 
         public DateTime ThoiGianGui { get; set; } = DateTime.UtcNow;
 
+        public bool DaXem { get; set; } = false;
+
+        public DateTime? ThoiGianXem { get; set; }
+
         [ForeignKey("MaCuocTroChuyen")]
         public CuocTroChuyen? CuocTroChuyen { get; set; }
 

@@ -616,10 +616,10 @@ namespace UniMarket.Controllers
             // Lấy chi tiết tin đăng theo ID
             var post = await _context.TinDangs
                 .Include(p => p.AnhTinDangs)
-                .Include(p => p.NguoiBan) // Bao gồm thông tin người bán
+                .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
                 .Include(p => p.QuanHuyen)
-                .FirstOrDefaultAsync(p => p.MaTinDang == id && p.TrangThai == TrangThaiTinDang.DaDuyet); // Chỉ lấy tin đã duyệt
+                .FirstOrDefaultAsync(p => p.MaTinDang == id && p.TrangThai == TrangThaiTinDang.DaDuyet);
 
             if (post == null)
             {
@@ -627,8 +627,35 @@ namespace UniMarket.Controllers
             }
 
             // Lấy các tin đăng tương tự theo danh mục con
-            var similarPosts = await _context.TinDangs
-                .Where(p => p.MaDanhMuc == post.MaDanhMuc && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet) // Chỉ lấy tin đã duyệt
+            var similarPostsByCategory = await _context.TinDangs
+                .Where(p => p.MaDanhMuc == post.MaDanhMuc && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet)
+                .Include(p => p.AnhTinDangs)
+                .Include(p => p.NguoiBan)
+                .Include(p => p.TinhThanh)
+                .Include(p => p.QuanHuyen)
+                .Select(p => new
+                {
+                    p.MaTinDang,
+                    p.TieuDe,
+                    p.MoTa,
+                    p.Gia,
+                    p.TinhTrang,
+                    p.DiaChi,
+                    Images = p.AnhTinDangs.Select(a =>
+                        (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
+                        ? a.DuongDan
+                        : (a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
+                    ).ToList(),
+                    NguoiBan = p.NguoiBan.FullName,
+                    PhoneNumber = p.NguoiBan.PhoneNumber,
+                    TinhThanh = p.TinhThanh.TenTinhThanh,
+                    QuanHuyen = p.QuanHuyen.TenQuanHuyen
+                })
+                .ToListAsync();
+
+            // Lấy các tin đăng từ cùng người bán
+            var similarPostsBySeller = await _context.TinDangs
+                .Where(p => p.MaNguoiBan == post.MaNguoiBan && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(p => p.AnhTinDangs)
                 .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
@@ -671,15 +698,15 @@ namespace UniMarket.Controllers
                     post.DiaChi,
                     Images = postImages,
                     NguoiBan = post.NguoiBan.FullName,
-                    MaNguoiBan = post.NguoiBan.Id, // ✅ THÊM dòng này
+                    MaNguoiBan = post.NguoiBan.Id,
                     PhoneNumber = post.NguoiBan.PhoneNumber,
                     TinhThanh = post.TinhThanh.TenTinhThanh,
                     QuanHuyen = post.QuanHuyen.TenQuanHuyen,
                     NgayDang = post.NgayDang,
                     NgayCapNhat = post.NgayCapNhat
                 },
-
-                SimilarPosts = similarPosts
+                SimilarPostsByCategory = similarPostsByCategory,
+                SimilarPostsBySeller = similarPostsBySeller
             });
         }
 

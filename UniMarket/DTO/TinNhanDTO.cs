@@ -7,5 +7,8 @@
         public string MaNguoiGui { get; set; }
         public string NoiDung { get; set; }
         public DateTime ThoiGianGui { get; set; }
+        public bool DaXem { get; set; }
+        public DateTime? ThoiGianXem { get; set; }
+
     }
 }

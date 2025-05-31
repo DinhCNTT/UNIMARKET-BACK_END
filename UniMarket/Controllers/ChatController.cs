@@ -117,7 +117,9 @@ namespace UniMarket.Controllers
                     t.MaCuocTroChuyen,
                     t.MaNguoiGui,
                     t.NoiDung,
-                    ThoiGianGui = t.ThoiGianGui.ToString("O") // Định dạng ISO 8601
+                    ThoiGianGui = t.ThoiGianGui.ToString("O"), // Định dạng ISO 8601
+                    t.DaXem,             // ⚠️ THÊM DÒNG NÀY
+                    t.ThoiGianXem      // ⚠️ VÀ DÒNG NÀY
                 })
                 .ToListAsync();
 

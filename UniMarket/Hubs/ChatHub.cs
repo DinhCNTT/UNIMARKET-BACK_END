@@ -109,5 +109,56 @@ namespace UniMarket.Hubs
                 throw new HubException("Lỗi khi lấy lịch sử chat.");
             }
         }
+        public async Task DanhDauDaXem(string maCuocTroChuyen, string maNguoiXem)
+        {
+            try
+            {
+                _logger.LogInformation($"Bắt đầu đánh dấu đã xem: MaCuocTroChuyen={maCuocTroChuyen}, MaNguoiXem={maNguoiXem}");
+
+                var chuaXem = await _context.TinNhans
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen
+                             && t.MaNguoiGui != maNguoiXem
+                             && !t.DaXem)
+                    .OrderBy(t => t.ThoiGianGui)
+                    .ToListAsync();
+
+                _logger.LogInformation($"Số tin nhắn chưa xem cần đánh dấu: {chuaXem.Count}");
+
+                if (chuaXem.Any())
+                {
+                    foreach (var msg in chuaXem)
+                    {
+                        msg.DaXem = true;
+                        msg.ThoiGianXem = DateTime.UtcNow;
+                        _logger.LogDebug($"Đánh dấu tin nhắn {msg.MaTinNhan} là đã xem");
+                    }
+
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Lưu thay đổi đánh dấu đã xem thành công");
+
+                    var tinNhanCuoi = chuaXem.Last();
+
+                    _logger.LogInformation($"Gửi event DaXemTinNhan với MaTinNhanCuoi={tinNhanCuoi.MaTinNhan}");
+
+                    await Clients.Group(maCuocTroChuyen).SendAsync("DaXemTinNhan", new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        MaTinNhanCuoi = tinNhanCuoi.MaTinNhan,
+                        NguoiXem = maNguoiXem
+                    });
+                }
+                else
+                {
+                    _logger.LogInformation("Không có tin nhắn nào chưa xem để đánh dấu.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Lỗi khi đánh dấu đã xem cho cuộc trò chuyện {maCuocTroChuyen}");
+                // Tùy anh em muốn throw hay swallow, thường nên swallow để Hub không crash
+            }
+        }
+
+
     }
 }
