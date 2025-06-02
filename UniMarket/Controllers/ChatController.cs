@@ -82,6 +82,7 @@ namespace UniMarket.Controllers
                     c.MaCuocTroChuyen,
                     c.ThoiGianTao,
                     c.IsEmpty,
+                    c.MaTinDang,
                     TinNhanCuoi = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
                         .OrderByDescending(t => t.ThoiGianGui)
@@ -97,8 +98,10 @@ namespace UniMarket.Controllers
                         .FirstOrDefault(),
                     TieuDeTinDang = c.TieuDeTinDang,
                     AnhDaiDienTinDang = c.AnhDaiDienTinDang,
-                    GiaTinDang = c.GiaTinDang
+                    GiaTinDang = c.GiaTinDang,
+                    IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId)
                 })
+                .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
                 .ToListAsync();
 
             return Ok(userChats);
@@ -117,9 +120,9 @@ namespace UniMarket.Controllers
                     t.MaCuocTroChuyen,
                     t.MaNguoiGui,
                     t.NoiDung,
-                    ThoiGianGui = t.ThoiGianGui.ToString("O"), // Định dạng ISO 8601
-                    t.DaXem,             // ⚠️ THÊM DÒNG NÀY
-                    t.ThoiGianXem      // ⚠️ VÀ DÒNG NÀY
+                    ThoiGianGui = t.ThoiGianGui.ToString("O"),
+                    t.DaXem,
+                    t.ThoiGianXem
                 })
                 .ToListAsync();
 
@@ -133,7 +136,7 @@ namespace UniMarket.Controllers
                 .Where(c => c.MaCuocTroChuyen == maCuocTroChuyen)
                 .Select(c => new
                 {
-                    c.MaTinDang,  // Thêm dòng này 
+                    c.MaTinDang,
                     c.TieuDeTinDang,
                     c.GiaTinDang,
                     c.AnhDaiDienTinDang

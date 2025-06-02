@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UniMarket.DataAccess;
@@ -22,6 +21,13 @@ namespace UniMarket.Hubs
             _logger = logger;
         }
 
+        public override async Task OnConnectedAsync()
+        {
+            var userId = Context.UserIdentifier ?? Context.ConnectionId;
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
+            await base.OnConnectedAsync();
+        }
+
         public async Task ThamGiaCuocTroChuyen(string maCuocTroChuyen)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, maCuocTroChuyen);
@@ -39,7 +45,8 @@ namespace UniMarket.Hubs
                 if (string.IsNullOrWhiteSpace(noiDung))
                     throw new HubException("Nội dung tin nhắn không được để trống.");
 
-                var isParticipant = await _context.NguoiThamGias.AnyAsync(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung == maNguoiGui);
+                var isParticipant = await _context.NguoiThamGias
+                    .AnyAsync(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung == maNguoiGui);
 
                 if (!isParticipant)
                 {
@@ -58,12 +65,38 @@ namespace UniMarket.Hubs
                 _context.TinNhans.Add(tinNhanMoi);
                 await _context.SaveChangesAsync();
 
-                // ✅ Cập nhật IsEmpty = false nếu là tin đầu tiên
-                var cuocTroChuyen = await _context.CuocTroChuyens.FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
-                if (cuocTroChuyen != null && cuocTroChuyen.IsEmpty)
+                var cuocTroChuyen = await _context.CuocTroChuyens
+                    .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+
+                var wasEmpty = cuocTroChuyen.IsEmpty;
+
+                if (cuocTroChuyen != null && wasEmpty)
                 {
                     cuocTroChuyen.IsEmpty = false;
                     await _context.SaveChangesAsync();
+
+                    // Gửi đến user-{người còn lại}
+                    var otherUserId = _context.NguoiThamGias
+                        .Where(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung != maNguoiGui)
+                        .Select(n => n.MaNguoiDung)
+                        .FirstOrDefault();
+
+                    var otherUserName = _context.Users
+                        .Where(u => u.Id == maNguoiGui)
+                        .Select(u => u.FullName)
+                        .FirstOrDefault();
+
+                    await Clients.Group($"user-{otherUserId}").SendAsync("CapNhatCuocTroChuyen", new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        IsEmpty = false,
+                        TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
+                        AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
+                        GiaTinDang = cuocTroChuyen.GiaTinDang,
+                        MaNguoiConLai = maNguoiGui,
+                        TenNguoiConLai = otherUserName,
+                        TinNhanCuoi = tinNhanMoi.NoiDung
+                    });
                 }
 
                 var dto = new TinNhanDTO
@@ -84,37 +117,10 @@ namespace UniMarket.Hubs
             }
         }
 
-        public async Task<List<TinNhanDTO>> LayLichSuChat(string maCuocTroChuyen)
-        {
-            try
-            {
-                var lichSu = await _context.TinNhans
-                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                    .OrderBy(t => t.ThoiGianGui)
-                    .Select(t => new TinNhanDTO
-                    {
-                        MaTinNhan = t.MaTinNhan,
-                        MaCuocTroChuyen = t.MaCuocTroChuyen,
-                        MaNguoiGui = t.MaNguoiGui,
-                        NoiDung = t.NoiDung,
-                        ThoiGianGui = t.ThoiGianGui
-                    })
-                    .ToListAsync();
-
-                return lichSu;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Lỗi khi lấy lịch sử chat của cuộc trò chuyện {maCuocTroChuyen}");
-                throw new HubException("Lỗi khi lấy lịch sử chat.");
-            }
-        }
         public async Task DanhDauDaXem(string maCuocTroChuyen, string maNguoiXem)
         {
             try
             {
-                _logger.LogInformation($"Bắt đầu đánh dấu đã xem: MaCuocTroChuyen={maCuocTroChuyen}, MaNguoiXem={maNguoiXem}");
-
                 var chuaXem = await _context.TinNhans
                     .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen
                              && t.MaNguoiGui != maNguoiXem
@@ -122,23 +128,17 @@ namespace UniMarket.Hubs
                     .OrderBy(t => t.ThoiGianGui)
                     .ToListAsync();
 
-                _logger.LogInformation($"Số tin nhắn chưa xem cần đánh dấu: {chuaXem.Count}");
-
                 if (chuaXem.Any())
                 {
                     foreach (var msg in chuaXem)
                     {
                         msg.DaXem = true;
                         msg.ThoiGianXem = DateTime.UtcNow;
-                        _logger.LogDebug($"Đánh dấu tin nhắn {msg.MaTinNhan} là đã xem");
                     }
 
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation("Lưu thay đổi đánh dấu đã xem thành công");
 
                     var tinNhanCuoi = chuaXem.Last();
-
-                    _logger.LogInformation($"Gửi event DaXemTinNhan với MaTinNhanCuoi={tinNhanCuoi.MaTinNhan}");
 
                     await Clients.Group(maCuocTroChuyen).SendAsync("DaXemTinNhan", new
                     {
@@ -147,18 +147,11 @@ namespace UniMarket.Hubs
                         NguoiXem = maNguoiXem
                     });
                 }
-                else
-                {
-                    _logger.LogInformation("Không có tin nhắn nào chưa xem để đánh dấu.");
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Lỗi khi đánh dấu đã xem cho cuộc trò chuyện {maCuocTroChuyen}");
-                // Tùy anh em muốn throw hay swallow, thường nên swallow để Hub không crash
             }
         }
-
-
     }
 }
