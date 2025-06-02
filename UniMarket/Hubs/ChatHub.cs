@@ -66,37 +66,50 @@ namespace UniMarket.Hubs
                 await _context.SaveChangesAsync();
 
                 var cuocTroChuyen = await _context.CuocTroChuyens
+                    .Include(c => c.NguoiThamGias)
+                        .ThenInclude(ntg => ntg.NguoiDung)
                     .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
-                var wasEmpty = cuocTroChuyen.IsEmpty;
-
-                if (cuocTroChuyen != null && wasEmpty)
+                if (cuocTroChuyen != null)
                 {
-                    cuocTroChuyen.IsEmpty = false;
-                    await _context.SaveChangesAsync();
+                    if (cuocTroChuyen.IsEmpty)
+                    {
+                        cuocTroChuyen.IsEmpty = false;
+                        await _context.SaveChangesAsync();
+                    }
 
-                    // Gửi đến user-{người còn lại}
-                    var otherUserId = _context.NguoiThamGias
-                        .Where(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung != maNguoiGui)
-                        .Select(n => n.MaNguoiDung)
-                        .FirstOrDefault();
+                    var otherUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
+                    var senderUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == maNguoiGui);
 
-                    var otherUserName = _context.Users
-                        .Where(u => u.Id == maNguoiGui)
-                        .Select(u => u.FullName)
-                        .FirstOrDefault();
-
-                    await Clients.Group($"user-{otherUserId}").SendAsync("CapNhatCuocTroChuyen", new
+                    var chatForSender = new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
                         IsEmpty = false,
                         TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
                         AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
-                        MaNguoiConLai = maNguoiGui,
-                        TenNguoiConLai = otherUserName,
-                        TinNhanCuoi = tinNhanMoi.NoiDung
-                    });
+                        MaNguoiConLai = otherUser?.MaNguoiDung,
+                        TenNguoiConLai = otherUser?.NguoiDung?.FullName,
+                        TinNhanCuoi = tinNhanMoi.NoiDung,
+                        HasUnreadMessages = false
+                    };
+
+                    var chatForReceiver = new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        IsEmpty = false,
+                        TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
+                        AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
+                        GiaTinDang = cuocTroChuyen.GiaTinDang,
+                        MaNguoiConLai = senderUser?.MaNguoiDung,
+                        TenNguoiConLai = senderUser?.NguoiDung?.FullName,
+                        TinNhanCuoi = tinNhanMoi.NoiDung,
+                        HasUnreadMessages = true
+                    };
+
+                    await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);
+                    if (otherUser != null)
+                        await Clients.Group($"user-{otherUser.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
                 }
 
                 var dto = new TinNhanDTO
@@ -145,6 +158,12 @@ namespace UniMarket.Hubs
                         MaCuocTroChuyen = maCuocTroChuyen,
                         MaTinNhanCuoi = tinNhanCuoi.MaTinNhan,
                         NguoiXem = maNguoiXem
+                    });
+
+                    await Clients.Group($"user-{maNguoiXem}").SendAsync("CapNhatTrangThaiTinNhan", new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        HasUnreadMessages = false
                     });
                 }
             }

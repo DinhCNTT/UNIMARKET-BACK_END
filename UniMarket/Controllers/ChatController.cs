@@ -99,7 +99,9 @@ namespace UniMarket.Controllers
                     TieuDeTinDang = c.TieuDeTinDang,
                     AnhDaiDienTinDang = c.AnhDaiDienTinDang,
                     GiaTinDang = c.GiaTinDang,
-                    IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId)
+                    IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId),
+                    HasUnreadMessages = _context.TinNhans
+                        .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem)
                 })
                 .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
                 .ToListAsync();

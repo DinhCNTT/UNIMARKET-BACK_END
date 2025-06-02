@@ -20,38 +20,45 @@ namespace UniMarket.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromHours(1), stoppingToken); // Chạy mỗi 1 giờ
-                _logger.LogInformation("🧼 CleanUp job running at: {time}", DateTime.UtcNow);
-
-                using var scope = _serviceProvider.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                var cutoff = DateTime.UtcNow.AddHours(-1); // Xóa các cuộc trò chuyện rỗng cũ hơn 1 giờ
-
-                var emptyChats = await context.CuocTroChuyens
-                    .Where(c => c.IsEmpty && c.ThoiGianTao < cutoff)
-                    .ToListAsync();
-
-                if (emptyChats.Any())
+                try
                 {
-                    var ids = emptyChats.Select(c => c.MaCuocTroChuyen).ToList();
+                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken); // Chạy mỗi 5 phút
+                    _logger.LogInformation("🧼 CleanUp job running at: {time}", DateTime.UtcNow);
 
-                    var thamGia = await context.NguoiThamGias
-                        .Where(t => ids.Contains(t.MaCuocTroChuyen))
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    var cutoff = DateTime.UtcNow.AddMinutes(-3); // Chỉ xóa cuộc trò chuyện rỗng hơn 3 phút
+
+                    var emptyChats = await context.CuocTroChuyens
+                        .Where(c => c.IsEmpty && c.ThoiGianTao < cutoff)
                         .ToListAsync();
 
-                    context.NguoiThamGias.RemoveRange(thamGia);
-                    context.CuocTroChuyens.RemoveRange(emptyChats);
+                    if (emptyChats.Any())
+                    {
+                        var ids = emptyChats.Select(c => c.MaCuocTroChuyen).ToList();
 
-                    await context.SaveChangesAsync();
-                    _logger.LogInformation($"🧹 Đã xoá {emptyChats.Count} cuộc trò chuyện rỗng quá 1 giờ");
+                        var thamGia = await context.NguoiThamGias
+                            .Where(t => ids.Contains(t.MaCuocTroChuyen))
+                            .ToListAsync();
+
+                        context.NguoiThamGias.RemoveRange(thamGia);
+                        context.CuocTroChuyens.RemoveRange(emptyChats);
+
+                        await context.SaveChangesAsync();
+
+                        _logger.LogInformation("🧹 Đã xoá {count} cuộc trò chuyện rỗng hơn 3 phút", emptyChats.Count);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("✅ Không có cuộc trò chuyện rỗng nào cần xoá.");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.LogInformation("✅ Không có cuộc trò chuyện nào cần xoá.");
+                    _logger.LogError(ex, "❌ Lỗi khi xoá cuộc trò chuyện rỗng.");
                 }
             }
         }
-
     }
 }
