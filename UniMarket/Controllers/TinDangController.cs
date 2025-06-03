@@ -12,6 +12,8 @@ using System.Text.Json; // ✅ thêm using
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Newtonsoft.Json;
+using UniMarket.Hubs;
+using Microsoft.AspNetCore.SignalR;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -23,13 +25,14 @@ namespace UniMarket.Controllers
         private readonly string _imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
         private readonly PhotoService _photoService; // ✅ thêm
         private readonly IWebHostEnvironment _env;
-
-        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService, IWebHostEnvironment env)
+        private readonly IHubContext<ChatHub> _hubContext;
+        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService, IWebHostEnvironment env, IHubContext<ChatHub> hubContext)
         {
             _context = context;
             _userManager = userManager;
             _photoService = photoService;
             _env = env;
+            _hubContext = hubContext;
         }
 
         [HttpGet("get-posts")]
@@ -243,24 +246,23 @@ namespace UniMarket.Controllers
 
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
-    int id,
-    [FromForm] string title,
-    [FromForm] string description,
-    [FromForm] decimal price,
-    [FromForm] string contactInfo,
-    [FromForm] string condition,
-    [FromForm] bool canNegotiate,
-    [FromForm] int province,
-    [FromForm] int district,
-    [FromForm] int categoryId,
-    [FromForm] string userId,
-    [FromForm] List<IFormFile>? newImages,
-    [FromForm] List<IFormFile>? newVideos,
-    [FromForm] string? oldImagesToDelete,
-    [FromForm] string? oldVideosToDelete,
-    [FromForm] string? oldImageOrder,
-    [FromForm] string? oldVideoOrder
-)
+            int id,
+            [FromForm] string title,
+            [FromForm] string description,
+            [FromForm] decimal price,
+            [FromForm] string contactInfo,
+            [FromForm] string condition,
+            [FromForm] bool canNegotiate,
+            [FromForm] int province,
+            [FromForm] int district,
+            [FromForm] int categoryId,
+            [FromForm] string userId,
+            [FromForm] List<IFormFile>? newImages,
+            [FromForm] List<IFormFile>? newVideos,
+            [FromForm] string? oldImagesToDelete,
+            [FromForm] string? oldVideosToDelete,
+            [FromForm] string? oldImageOrder,
+            [FromForm] string? oldVideoOrder)
         {
             try
             {
@@ -271,7 +273,7 @@ namespace UniMarket.Controllers
                 if (post == null)
                     return NotFound(new { message = "Không tìm thấy tin đăng" });
 
-                // ✅ Cập nhật thông tin cơ bản
+                // Update basic information
                 post.TieuDe = title;
                 post.MoTa = description;
                 post.Gia = price;
@@ -283,7 +285,7 @@ namespace UniMarket.Controllers
                 post.MaDanhMuc = categoryId;
                 post.NgayCapNhat = DateTime.Now;
 
-                // ✅ Parse JSON từ frontend
+                // Parse JSON from frontend
                 var idsToDeleteImage = string.IsNullOrEmpty(oldImagesToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
                 var idsToDeleteVideo = string.IsNullOrEmpty(oldVideosToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
                 var imageOrder = string.IsNullOrEmpty(oldImageOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImageOrder);
@@ -291,7 +293,7 @@ namespace UniMarket.Controllers
 
                 var oldMediaList = post.AnhTinDangs.ToList();
 
-                // ✅ Xóa ảnh/video cũ khỏi Cloudinary
+                // Delete old media from Cloudinary
                 foreach (var media in oldMediaList)
                 {
                     if (idsToDeleteImage.Contains(media.MaAnh) || idsToDeleteVideo.Contains(media.MaAnh))
@@ -300,12 +302,11 @@ namespace UniMarket.Controllers
                         {
                             await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
                         }
-
                         _context.AnhTinDangs.Remove(media);
                     }
                 }
 
-                // ✅ Lọc danh sách giữ lại và sắp xếp theo thứ tự mới
+                // Filter and reorder remaining media
                 var remainingMedia = oldMediaList
                     .Where(m => imageOrder.Contains(m.MaAnh) || videoOrder.Contains(m.MaAnh))
                     .OrderBy(m =>
@@ -318,7 +319,7 @@ namespace UniMarket.Controllers
 
                 int currentOrder = remainingMedia.Count > 0 ? remainingMedia.Max(a => a.Order) + 1 : 1;
 
-                // ✅ Upload ảnh mới
+                // Upload new images
                 if (newImages != null)
                 {
                     foreach (var img in newImages)
@@ -337,7 +338,7 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // ✅ Upload video mới
+                // Upload new videos
                 if (newVideos != null)
                 {
                     foreach (var vid in newVideos)
@@ -356,8 +357,18 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // ✅ Lưu thay đổi vào DB
+                // Save changes to DB
                 await _context.SaveChangesAsync();
+
+                // Send SignalR notification to all connected clients
+                var updatedPost = new
+                {
+                    MaTinDang = post.MaTinDang,
+                    TieuDe = post.TieuDe,
+                    Gia = post.Gia,
+                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? ""
+                };
+                await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPost);
 
                 return Ok(new
                 {
@@ -380,7 +391,6 @@ namespace UniMarket.Controllers
                 });
             }
         }
-
 
 
         [HttpGet("get-post/{id}")]

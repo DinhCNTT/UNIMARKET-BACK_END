@@ -504,6 +504,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.ChatController",
+    "Method": "GetUnreadCount",
+    "RelativePath": "api/Chat/unread-count/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.ChatController",
     "Method": "GetUserConversations",
     "RelativePath": "api/Chat/user/{userId}",
     "HttpMethod": "GET",

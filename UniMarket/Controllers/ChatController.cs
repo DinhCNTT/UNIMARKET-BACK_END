@@ -148,5 +148,18 @@ namespace UniMarket.Controllers
 
             return Ok(chat);
         }
+        [HttpGet("unread-count/{userId}")]
+        public async Task<IActionResult> GetUnreadCount(string userId)
+        {
+            // Count messages not sent by the user, in conversations the user participates in, and not yet read
+            var count = await _context.TinNhans
+                .Where(t => t.MaNguoiGui != userId
+                    && !t.DaXem
+                    && _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId))
+                .CountAsync();
+
+            return Ok(new { unreadCount = count });
+        }
+
     }
 }
