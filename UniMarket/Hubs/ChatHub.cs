@@ -197,5 +197,6 @@ namespace UniMarket.Hubs
                 _logger.LogError(ex, $"Error marking messages as seen in conversation '{maCuocTroChuyen}'");
             }
         }
+
     }
 }

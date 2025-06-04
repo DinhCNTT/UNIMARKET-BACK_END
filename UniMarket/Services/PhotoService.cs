@@ -102,5 +102,44 @@ namespace UniMarket.Services
             var result = await _cloudinary.DestroyAsync(deletionParams);
             return result;
         }
+        // Upload ảnh cho chat
+        public async Task<ImageUploadResult> UploadChatImageAsync(IFormFile file)
+        {
+            var result = new ImageUploadResult();
+
+            if (file.Length > 0)
+            {
+                using var stream = file.OpenReadStream();
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = "doan-chat", // 🟢 thư mục mới
+                    Transformation = new Transformation().Height(800).Width(800).Crop("limit")
+                };
+                result = await _cloudinary.UploadAsync(uploadParams);
+            }
+
+            return result;
+        }
+
+        // Upload video cho chat
+        public async Task<VideoUploadResult> UploadChatVideoAsync(IFormFile file)
+        {
+            var result = new VideoUploadResult();
+
+            if (file.Length > 0)
+            {
+                using var stream = file.OpenReadStream();
+                var uploadParams = new VideoUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = "doan-chat" // 🟢 thư mục mới
+                };
+                result = await _cloudinary.UploadAsync(uploadParams);
+            }
+
+            return result;
+        }
+
     }
 }

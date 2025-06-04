@@ -14,44 +14,35 @@ using UniMarket.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1️⃣ Logging chi tiết
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
-builder.Logging.SetMinimumLevel(LogLevel.Debug);
-builder.Logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Debug);
-builder.Logging.AddFilter("Microsoft.AspNetCore.Http.Connections", LogLevel.Debug);
-builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Debug);
-builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Information);
-
 // Cấu hình Cloudinary
 builder.Services.Configure<CloudinarySettings>(
     builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
 
-// 2️⃣ CORS
+// 1️⃣ CORS
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173") // Đảm bảo frontend đang chạy trên localhost:5173
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
 
-// 3️⃣ DbContext
+// 2️⃣ DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 4️⃣ Identity
+// 3️⃣ Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-// Cookie cho API không redirect
+// Cấu hình Cookie để API không redirect HTML khi lỗi
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Events.OnRedirectToLogin = context =>
@@ -68,7 +59,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
-// 5️⃣ JWT
+// 4️⃣ JWT Configuration
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new ArgumentNullException("Jwt:Key không được để trống"));
 
@@ -77,12 +68,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.Events = new JwtBearerEvents
         {
-            OnAuthenticationFailed = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogError(context.Exception, "Authentication failed.");
-                return Task.CompletedTask;
-            },
             OnChallenge = context =>
             {
                 context.HandleResponse();
@@ -106,7 +91,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// 6️⃣ Swagger
+// 5️⃣ Swagger Configuration
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -143,16 +128,16 @@ builder.Services.AddSwaggerGen(c =>
                     Id = "Bearer"
                 }
             },
-            Array.Empty<string>()
+            new string[] { }
         }
     });
 });
 
-// 7️⃣ Controllers + Newtonsoft.Json
+// 6️⃣ Controller + xử lý lỗi model và sử dụng Newtonsoft.Json
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
-        options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
+        options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;  // Giải quyết tuần hoàn
         options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
     })
     .ConfigureApiBehaviorOptions(options =>
@@ -175,31 +160,13 @@ builder.Services.AddControllers()
         };
     });
 
-// 8️⃣ SignalR và background service
 builder.Services.AddSignalR();
+
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
 var app = builder.Build();
 
-// 9️⃣ Middleware log request và lỗi toàn cục
-app.Use(async (context, next) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation($"Incoming Request: {context.Request.Method} {context.Request.Path}");
-    try
-    {
-        await next.Invoke();
-        logger.LogInformation($"Response Status: {context.Response.StatusCode}");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, $"Unhandled exception for request {context.Request.Method} {context.Request.Path}");
-        context.Response.StatusCode = 500;
-        await context.Response.WriteAsJsonAsync(new { message = "Internal server error" });
-    }
-});
-
-// 10️⃣ Các middleware chính
+// 7️⃣ Middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -208,50 +175,42 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniMarket API v1");
         c.RoutePrefix = "swagger";
     });
-    app.Logger.LogInformation("Swagger enabled.");
 }
 
-app.UseCors(MyAllowSpecificOrigins);
-app.Logger.LogInformation("CORS policy applied.");
-
+app.UseCors(MyAllowSpecificOrigins); // Áp dụng CORS cho tất cả yêu cầu
 app.UseHttpsRedirection();
-app.Logger.LogInformation("HTTPS redirection enabled.");
-
 app.UseAuthentication();
-app.Logger.LogInformation("Authentication middleware enabled.");
-
 app.UseAuthorization();
-app.Logger.LogInformation("Authorization middleware enabled.");
 
-app.UseStaticFiles();
-app.Logger.LogInformation("Static files enabled.");
-
+app.UseStaticFiles(); // wwwroot
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories")),
     RequestPath = "/images/categories"
 });
+
+// Cấu hình phục vụ ảnh từ thư mục "wwwroot/images/Posts"
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/Posts")),
-    RequestPath = "/images/Posts"
+    RequestPath = "/images/Posts" // Đây là đường dẫn bạn sẽ sử dụng trong frontend
 });
 
 app.MapRazorPages();
 app.MapControllers();
-
 app.MapHub<ChatHub>("/hub/chat");
-app.Logger.LogInformation("SignalR Hub mapped at /hub/chat");
 
-// 11️⃣ Khởi tạo role + admin mặc định
+
+// 8️⃣ Tạo role & admin mặc định
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     await InitializeRolesAndAdmin(services);
 }
 
+// 9️⃣ Run app
 await app.RunAsync();
 
 async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)

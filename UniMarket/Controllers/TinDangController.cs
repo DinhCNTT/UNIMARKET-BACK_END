@@ -243,26 +243,25 @@ namespace UniMarket.Controllers
 
             return Ok(posts);
         }
-
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
-            int id,
-            [FromForm] string title,
-            [FromForm] string description,
-            [FromForm] decimal price,
-            [FromForm] string contactInfo,
-            [FromForm] string condition,
-            [FromForm] bool canNegotiate,
-            [FromForm] int province,
-            [FromForm] int district,
-            [FromForm] int categoryId,
-            [FromForm] string userId,
-            [FromForm] List<IFormFile>? newImages,
-            [FromForm] List<IFormFile>? newVideos,
-            [FromForm] string? oldImagesToDelete,
-            [FromForm] string? oldVideosToDelete,
-            [FromForm] string? oldImageOrder,
-            [FromForm] string? oldVideoOrder)
+    int id,
+    [FromForm] string title,
+    [FromForm] string description,
+    [FromForm] decimal price,
+    [FromForm] string contactInfo,
+    [FromForm] string condition,
+    [FromForm] bool canNegotiate,
+    [FromForm] int province,
+    [FromForm] int district,
+    [FromForm] int categoryId,
+    [FromForm] string userId,
+    [FromForm] List<IFormFile>? newImages,
+    [FromForm] List<IFormFile>? newVideos,
+    [FromForm] string? oldImagesToDelete,
+    [FromForm] string? oldVideosToDelete,
+    [FromForm] string? oldImageOrder,
+    [FromForm] string? oldVideoOrder)
         {
             try
             {
@@ -273,7 +272,10 @@ namespace UniMarket.Controllers
                 if (post == null)
                     return NotFound(new { message = "Không tìm thấy tin đăng" });
 
-                // Update basic information
+                // Log dữ liệu nhận
+                Console.WriteLine($"🔄 Đang cập nhật tin đăng ID={id}, tiêu đề={title}, giá={price}");
+
+                // Update thông tin cơ bản
                 post.TieuDe = title;
                 post.MoTa = description;
                 post.Gia = price;
@@ -285,7 +287,7 @@ namespace UniMarket.Controllers
                 post.MaDanhMuc = categoryId;
                 post.NgayCapNhat = DateTime.Now;
 
-                // Parse JSON from frontend
+                // Deserialize JSON từ frontend (cẩn thận với lỗi JSON)
                 var idsToDeleteImage = string.IsNullOrEmpty(oldImagesToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
                 var idsToDeleteVideo = string.IsNullOrEmpty(oldVideosToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
                 var imageOrder = string.IsNullOrEmpty(oldImageOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImageOrder);
@@ -293,7 +295,7 @@ namespace UniMarket.Controllers
 
                 var oldMediaList = post.AnhTinDangs.ToList();
 
-                // Delete old media from Cloudinary
+                // Xóa media cũ nếu có yêu cầu
                 foreach (var media in oldMediaList)
                 {
                     if (idsToDeleteImage.Contains(media.MaAnh) || idsToDeleteVideo.Contains(media.MaAnh))
@@ -301,12 +303,13 @@ namespace UniMarket.Controllers
                         if (!string.IsNullOrEmpty(media.DuongDan) && media.DuongDan.StartsWith("http"))
                         {
                             await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
+                            Console.WriteLine($"🗑️ Đã xóa media: {media.DuongDan}");
                         }
                         _context.AnhTinDangs.Remove(media);
                     }
                 }
 
-                // Filter and reorder remaining media
+                // Lọc và sắp xếp lại media còn lại
                 var remainingMedia = oldMediaList
                     .Where(m => imageOrder.Contains(m.MaAnh) || videoOrder.Contains(m.MaAnh))
                     .OrderBy(m =>
@@ -319,14 +322,17 @@ namespace UniMarket.Controllers
 
                 int currentOrder = remainingMedia.Count > 0 ? remainingMedia.Max(a => a.Order) + 1 : 1;
 
-                // Upload new images
+                // Upload ảnh mới nếu có
                 if (newImages != null)
                 {
                     foreach (var img in newImages)
                     {
                         var result = await _photoService.UploadPhotoAsync(img);
                         if (result.Error != null)
+                        {
+                            Console.WriteLine("❌ Lỗi upload ảnh: " + result.Error.Message);
                             return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
+                        }
 
                         post.AnhTinDangs.Add(new AnhTinDang
                         {
@@ -338,14 +344,17 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // Upload new videos
+                // Upload video mới nếu có
                 if (newVideos != null)
                 {
                     foreach (var vid in newVideos)
                     {
                         var result = await _photoService.UploadVideoAsync(vid);
                         if (result.Error != null)
+                        {
+                            Console.WriteLine("❌ Lỗi upload video: " + result.Error.Message);
                             return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
+                        }
 
                         post.AnhTinDangs.Add(new AnhTinDang
                         {
@@ -357,10 +366,12 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // Save changes to DB
+                // Lưu thay đổi DB
                 await _context.SaveChangesAsync();
 
-                // Send SignalR notification to all connected clients
+                Console.WriteLine($"✅ Đã lưu thay đổi tin đăng ID={id}");
+
+                // Gửi event SignalR cho tất cả client
                 var updatedPost = new
                 {
                     MaTinDang = post.MaTinDang,
@@ -368,6 +379,9 @@ namespace UniMarket.Controllers
                     Gia = post.Gia,
                     AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? ""
                 };
+
+                Console.WriteLine($"[SignalR] Đang gửi CapNhatTinDang cho MaTinDang={updatedPost.MaTinDang} - Tiêu đề={updatedPost.TieuDe} - Giá={updatedPost.Gia}");
+
                 await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPost);
 
                 return Ok(new
@@ -381,6 +395,8 @@ namespace UniMarket.Controllers
             {
                 Console.WriteLine("❌ LỖI CẬP NHẬT TIN:");
                 Console.WriteLine("Message: " + ex.Message);
+                if (ex.InnerException != null)
+                    Console.WriteLine("InnerException: " + ex.InnerException.Message);
                 Console.WriteLine("StackTrace: " + ex.StackTrace);
 
                 return StatusCode(500, new
@@ -391,6 +407,7 @@ namespace UniMarket.Controllers
                 });
             }
         }
+
 
 
         [HttpGet("get-post/{id}")]
