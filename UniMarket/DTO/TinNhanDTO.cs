@@ -9,6 +9,8 @@
         public DateTime ThoiGianGui { get; set; }
         public bool DaXem { get; set; }
         public DateTime? ThoiGianXem { get; set; }
+        public string? MediaUrl { get; set; }
+        public string Loai { get; set; }
 
     }
 }

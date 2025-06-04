@@ -3,6 +3,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UniMarket.Models
 {
+    public enum LoaiTinNhan
+    {
+        Text,
+        Image,
+        Video
+    }
+
     public class TinNhan
     {
         [Key]
@@ -22,6 +29,12 @@ namespace UniMarket.Models
         public bool DaXem { get; set; } = false;
 
         public DateTime? ThoiGianXem { get; set; }
+
+        // 🆕 Loại tin nhắn: Text / Image / Video
+        public LoaiTinNhan Loai { get; set; } = LoaiTinNhan.Text;
+
+        // 🆕 Nếu là ảnh hoặc video, lưu URL tại đây
+        public string? MediaUrl { get; set; }
 
         [ForeignKey("MaCuocTroChuyen")]
         public CuocTroChuyen? CuocTroChuyen { get; set; }

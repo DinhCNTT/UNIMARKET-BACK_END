@@ -121,25 +121,5 @@ namespace UniMarket.Services
 
             return result;
         }
-
-        // Upload video cho chat
-        public async Task<VideoUploadResult> UploadChatVideoAsync(IFormFile file)
-        {
-            var result = new VideoUploadResult();
-
-            if (file.Length > 0)
-            {
-                using var stream = file.OpenReadStream();
-                var uploadParams = new VideoUploadParams
-                {
-                    File = new FileDescription(file.FileName, stream),
-                    Folder = "doan-chat" // 🟢 thư mục mới
-                };
-                result = await _cloudinary.UploadAsync(uploadParams);
-            }
-
-            return result;
-        }
-
     }
 }
