@@ -148,19 +148,24 @@ namespace UniMarket.Controllers
 
             return Ok(chat);
         }
+
         [HttpGet("unread-count/{userId}")]
-        public async Task<IActionResult> GetUnreadCount(string userId)
+        public async Task<IActionResult> GetUnreadCount(string userId, [FromQuery] List<string>? hiddenChatIds)
         {
-            // Count messages not sent by the user, in conversations the user participates in, and not yet read
-            var count = await _context.TinNhans
+            var query = _context.TinNhans
                 .Where(t => t.MaNguoiGui != userId
                     && !t.DaXem
-                    && _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId))
-                .CountAsync();
+                    && _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId));
 
+            // Loại trừ những đoạn chat đã ẩn
+            if (hiddenChatIds != null && hiddenChatIds.Any())
+            {
+                query = query.Where(t => !hiddenChatIds.Contains(t.MaCuocTroChuyen));
+            }
+
+            var count = await query.CountAsync();
             return Ok(new { unreadCount = count });
         }
-
 
     }
 }
