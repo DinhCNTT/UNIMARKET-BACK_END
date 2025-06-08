@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
+using UniMarket.Services;
 
 namespace UniMarket.Controllers
 {
@@ -14,10 +15,12 @@ namespace UniMarket.Controllers
     public class ChatController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly PhotoService _photoService;
 
-        public ChatController(ApplicationDbContext context)
+        public ChatController(ApplicationDbContext context, PhotoService photoService)
         {
             _context = context;
+            _photoService = photoService;
         }
 
         // POST api/chat/start
@@ -86,7 +89,12 @@ namespace UniMarket.Controllers
                     TinNhanCuoi = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
                         .OrderByDescending(t => t.ThoiGianGui)
-                        .Select(t => t.NoiDung)
+                        .Select(t => new
+                        {
+                            NoiDung = t.NoiDung,
+                            MaNguoiGui = t.MaNguoiGui,
+                            LoaiTinNhan = t.Loai.ToString().ToLower()
+                        })
                         .FirstOrDefault(),
                     MaNguoiConLai = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
@@ -121,7 +129,8 @@ namespace UniMarket.Controllers
                     t.MaTinNhan,
                     t.MaCuocTroChuyen,
                     t.MaNguoiGui,
-                    t.NoiDung,
+                    NoiDung = (t.Loai == LoaiTinNhan.Text) ? t.NoiDung : t.MediaUrl,
+                    LoaiTinNhan = t.Loai.ToString().ToLower(),
                     ThoiGianGui = t.ThoiGianGui.ToString("O"),
                     t.DaXem,
                     t.ThoiGianXem
@@ -150,22 +159,43 @@ namespace UniMarket.Controllers
         }
 
         [HttpGet("unread-count/{userId}")]
-        public async Task<IActionResult> GetUnreadCount(string userId, [FromQuery] List<string>? hiddenChatIds)
+        public async Task<IActionResult> GetUnreadCount(string userId, [FromQuery] List<string> hiddenChatIds)
         {
-            var query = _context.TinNhans
-                .Where(t => t.MaNguoiGui != userId
-                    && !t.DaXem
-                    && _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId));
+            var count = await _context.TinNhans
+                .Where(t =>
+                    t.MaNguoiGui != userId &&
+                    !t.DaXem &&
+                    !hiddenChatIds.Contains(t.MaCuocTroChuyen) &&
+                    _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId)
+                )
+                .CountAsync();
 
-            // Loại trừ những đoạn chat đã ẩn
-            if (hiddenChatIds != null && hiddenChatIds.Any())
-            {
-                query = query.Where(t => !hiddenChatIds.Contains(t.MaCuocTroChuyen));
-            }
-
-            var count = await query.CountAsync();
             return Ok(new { unreadCount = count });
         }
 
+        [HttpPost("upload-media-chat")]
+        public async Task<IActionResult> UploadMediaChat(IFormFile mediaFile)
+        {
+            if (mediaFile == null)
+                return BadRequest("Không có file nào được chọn.");
+
+            string fileExtension = Path.GetExtension(mediaFile.FileName).ToLower();
+            if (!(fileExtension == ".jpg" || fileExtension == ".jpeg" || fileExtension == ".png" || fileExtension == ".mp4" || fileExtension == ".avi"))
+            {
+                return BadRequest("Chỉ hỗ trợ file ảnh (jpg, jpeg, png) và video (mp4, avi).");
+            }
+
+            try
+            {
+                var uploadResult = await _photoService.UploadFileToCloudinaryAsync(mediaFile, "doan-chat");
+                if (uploadResult.Error != null)
+                    return BadRequest(new { message = "Lỗi khi upload file lên Cloudinary", error = uploadResult.Error.Message });
+                return Ok(new { url = uploadResult.SecureUrl.ToString(), publicId = uploadResult.PublicId });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server khi upload media", error = ex.Message });
+            }
+        }
     }
 }

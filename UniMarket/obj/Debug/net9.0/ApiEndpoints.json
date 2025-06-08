@@ -525,6 +525,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.ChatController",
+    "Method": "UploadMediaChat",
+    "RelativePath": "api/Chat/upload-media-chat",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "mediaFile",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.ChatController",
     "Method": "GetUserConversations",
     "RelativePath": "api/Chat/user/{userId}",
     "HttpMethod": "GET",

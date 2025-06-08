@@ -50,9 +50,9 @@ namespace UniMarket.Hubs
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, maCuocTroChuyen);
         }
 
-        public async Task GuiTinNhan(string maCuocTroChuyen, string maNguoiGui, string noiDung)
+        public async Task GuiTinNhan(string maCuocTroChuyen, string maNguoiGui, string noiDung, string loaiTinNhan = "text")
         {
-            _logger.LogInformation($"[SignalR] Received message from user '{maNguoiGui}' in conversation '{maCuocTroChuyen}'. Content: {noiDung}");
+            _logger.LogInformation($"[SignalR] Received message from user '{maNguoiGui}' in conversation '{maCuocTroChuyen}'. Content: {noiDung}, Type: {loaiTinNhan}");
 
             try
             {
@@ -71,12 +71,18 @@ namespace UniMarket.Hubs
                     throw new HubException("Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.");
                 }
 
+                LoaiTinNhan loai = LoaiTinNhan.Text;
+                if (!string.IsNullOrEmpty(loaiTinNhan) && Enum.TryParse<LoaiTinNhan>(loaiTinNhan, true, out var parsed))
+                    loai = parsed;
+
                 var tinNhanMoi = new TinNhan
                 {
                     MaCuocTroChuyen = maCuocTroChuyen,
                     MaNguoiGui = maNguoiGui,
-                    NoiDung = noiDung,
-                    ThoiGianGui = DateTime.UtcNow
+                    ThoiGianGui = DateTime.UtcNow,
+                    Loai = loai,
+                    NoiDung = loai == LoaiTinNhan.Text ? noiDung : "",
+                    MediaUrl = (loai == LoaiTinNhan.Image || loai == LoaiTinNhan.Video) ? noiDung : null
                 };
 
                 _context.TinNhans.Add(tinNhanMoi);
@@ -108,7 +114,9 @@ namespace UniMarket.Hubs
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
                         MaNguoiConLai = otherUser?.MaNguoiDung,
                         TenNguoiConLai = otherUser?.NguoiDung?.FullName,
-                        TinNhanCuoi = tinNhanMoi.NoiDung,
+                        TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+                        MaNguoiGui = tinNhanMoi.MaNguoiGui,
+                        LoaiTinNhan = loai.ToString().ToLower(),
                         HasUnreadMessages = false
                     };
 
@@ -121,14 +129,15 @@ namespace UniMarket.Hubs
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
                         MaNguoiConLai = senderUser?.MaNguoiDung,
                         TenNguoiConLai = senderUser?.NguoiDung?.FullName,
-                        TinNhanCuoi = tinNhanMoi.NoiDung,
+                        TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+                        MaNguoiGui = tinNhanMoi.MaNguoiGui,
+                        LoaiTinNhan = loai.ToString().ToLower(),
                         HasUnreadMessages = true
                     };
 
                     _logger.LogInformation($"[SignalR] Sending chat update to sender '{maNguoiGui}' and receiver '{otherUser?.MaNguoiDung}'");
 
                     await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);
-
                     if (otherUser != null)
                         await Clients.Group($"user-{otherUser.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
                 }
@@ -144,7 +153,16 @@ namespace UniMarket.Hubs
 
                 _logger.LogInformation($"[SignalR] Sending new message to group '{maCuocTroChuyen}'");
 
-                await Clients.Group(maCuocTroChuyen).SendAsync("NhanTinNhan", dto);
+                await Clients.Group(maCuocTroChuyen).SendAsync("NhanTinNhan", new
+                {
+                    maTinNhan = tinNhanMoi.MaTinNhan,
+                    maCuocTroChuyen,
+                    maNguoiGui,
+                    noiDung = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+                    loaiTinNhan = loai.ToString().ToLower(),
+                    thoiGianGui = tinNhanMoi.ThoiGianGui,
+                    daXem = false
+                });
             }
             catch (Exception ex)
             {
@@ -197,6 +215,5 @@ namespace UniMarket.Hubs
                 _logger.LogError(ex, $"Error marking messages as seen in conversation '{maCuocTroChuyen}'");
             }
         }
-
     }
 }

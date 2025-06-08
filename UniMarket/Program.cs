@@ -15,51 +15,35 @@ using UniMarket.Hubs;
 var builder = WebApplication.CreateBuilder(args);
 
 // Cấu hình Cloudinary
-builder.Services.Configure<CloudinarySettings>(
-    builder.Configuration.GetSection("CloudinarySettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
 
-// 1️⃣ CORS
+// CORS Configuration
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // Đảm bảo frontend đang chạy trên localhost:5173
+        policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
 
-// 2️⃣ DbContext
+// DbContext Configuration
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 3️⃣ Identity
+// Identity Configuration
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-// Cấu hình Cookie để API không redirect HTML khi lỗi
-builder.Services.ConfigureApplicationCookie(options =>
-{
-    options.Events.OnRedirectToLogin = context =>
-    {
-        if (context.Request.Path.StartsWithSegments("/api"))
-        {
-            context.Response.StatusCode = 401;
-            context.Response.ContentType = "application/json";
-            return context.Response.WriteAsync("{\"message\": \"Unauthorized - Vui lòng đăng nhập.\"}");
-        }
+builder.Services.AddSingleton<ConnectionMapping<string>>();
 
-        context.Response.Redirect(context.RedirectUri);
-        return Task.CompletedTask;
-    };
-});
-
-// 4️⃣ JWT Configuration
+// JWT Configuration
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new ArgumentNullException("Jwt:Key không được để trống"));
 
@@ -91,7 +75,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// 5️⃣ Swagger Configuration
+// Swagger Configuration
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -133,11 +117,14 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 6️⃣ Controller + xử lý lỗi model và sử dụng Newtonsoft.Json
+// SignalR for chat
+builder.Services.AddSignalR();
+
+// Controller and error handling
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
-        options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;  // Giải quyết tuần hoàn
+        options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
         options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
     })
     .ConfigureApiBehaviorOptions(options =>
@@ -160,13 +147,12 @@ builder.Services.AddControllers()
         };
     });
 
-builder.Services.AddSignalR();
-
+// Hosted Service for cleaning up empty chats
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
 var app = builder.Build();
 
-// 7️⃣ Middleware
+// Middleware configuration
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -177,12 +163,12 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseCors(MyAllowSpecificOrigins); // Áp dụng CORS cho tất cả yêu cầu
+app.UseCors(MyAllowSpecificOrigins); // Apply CORS policy
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseStaticFiles(); // wwwroot
+app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
@@ -190,27 +176,24 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/images/categories"
 });
 
-// Cấu hình phục vụ ảnh từ thư mục "wwwroot/images/Posts"
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/Posts")),
-    RequestPath = "/images/Posts" // Đây là đường dẫn bạn sẽ sử dụng trong frontend
+    RequestPath = "/images/Posts"
 });
 
 app.MapRazorPages();
 app.MapControllers();
 app.MapHub<ChatHub>("/hub/chat");
 
-
-// 8️⃣ Tạo role & admin mặc định
+// Initialize roles and admin user
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     await InitializeRolesAndAdmin(services);
 }
 
-// 9️⃣ Run app
 await app.RunAsync();
 
 async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
