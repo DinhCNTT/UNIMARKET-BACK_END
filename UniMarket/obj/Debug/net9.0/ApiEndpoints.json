@@ -556,6 +556,74 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "EmailVerificationController",
+    "Method": "FacebookLogin",
+    "RelativePath": "api/EmailVerification/facebook-login",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "EmailVerificationController\u002BFacebookLoginModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "EmailVerificationController",
+    "Method": "GoogleLogin",
+    "RelativePath": "api/EmailVerification/google-login",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "EmailVerificationController\u002BGoogleLoginModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "EmailVerificationController",
+    "Method": "SendVerificationCode",
+    "RelativePath": "api/EmailVerification/send-code",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "EmailVerificationController",
+    "Method": "TestSend",
+    "RelativePath": "api/EmailVerification/test-send",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "EmailVerificationController",
+    "Method": "VerifyCode",
+    "RelativePath": "api/EmailVerification/verify-code",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "EmailVerificationController\u002BVerifyModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "UniMarket.Controllers.TinDangController",
     "Method": "DeleteCloudinaryPhotoByUrlAsync",
     "RelativePath": "api/TinDang",
@@ -919,5 +987,83 @@
         "StatusCode": 200
       }
     ]
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "DeleteAccount",
+    "RelativePath": "api/userprofile/delete",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "UpdateEmail",
+    "RelativePath": "api/userprofile/email",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.UserProfileController\u002BUpdateEmailModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "HasPassword",
+    "RelativePath": "api/userprofile/has-password",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "GetUserProfile",
+    "RelativePath": "api/userprofile/me",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "ChangePassword",
+    "RelativePath": "api/userprofile/password",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.UserProfileController\u002BChangePasswordModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.UserProfileController",
+    "Method": "UpdateUserProfile",
+    "RelativePath": "api/userprofile/update",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UniMarket.Controllers.UserProfileController\u002BUpdateProfileModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
   }
 ]

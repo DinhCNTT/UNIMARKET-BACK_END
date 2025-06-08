@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -11,12 +12,17 @@ using UniMarket.Models;
 using Microsoft.AspNetCore.Mvc;
 using UniMarket.Services;
 using UniMarket.Hubs;
+using Swashbuckle.AspNetCore.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Cấu hình Cloudinary
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
+
+// 📧 Email Configuration
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
+builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
 // CORS Configuration
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -115,6 +121,8 @@ builder.Services.AddSwaggerGen(c =>
             new string[] { }
         }
     });
+
+    c.OperationFilter<FileUploadOperationFilter>();
 });
 
 // SignalR for chat
@@ -152,7 +160,25 @@ builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
 var app = builder.Build();
 
-// Middleware configuration
+// Middleware: Xử lý lỗi 500 toàn cục (JSON)
+app.UseExceptionHandler(appBuilder =>
+{
+    appBuilder.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+
+        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerFeature>();
+        if (exceptionHandlerPathFeature != null)
+        {
+            var error = exceptionHandlerPathFeature.Error;
+            var result = JsonConvert.SerializeObject(new { message = error.Message });
+            await context.Response.WriteAsync(result);
+        }
+    });
+});
+
+// Swagger UI
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -163,11 +189,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseCors(MyAllowSpecificOrigins); // Apply CORS policy
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-
+// Static files
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -183,11 +205,16 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/images/Posts"
 });
 
+app.UseCors(MyAllowSpecificOrigins); // Apply CORS policy
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapRazorPages();
 app.MapControllers();
 app.MapHub<ChatHub>("/hub/chat");
 
-// Initialize roles and admin user
+// Init admin + roles
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

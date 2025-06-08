@@ -1209,3 +1209,11 @@ F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\obj\Debug\net9.0\UniMarket.genru
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\obj\Debug\net9.0\ref\UniMarket.dll
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\CloudinaryDotNet.dll
 F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\System.Net.WebSockets.WebSocketProtocol.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Google.Apis.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Google.Apis.Auth.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Google.Apis.Core.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\System.Management.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\runtimes\win\lib\net7.0\System.Management.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Scrutor.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Swashbuckle.AspNetCore.Filters.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\Swashbuckle.AspNetCore.Filters.Abstractions.dll

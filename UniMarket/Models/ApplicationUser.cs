@@ -12,6 +12,9 @@ namespace UniMarket.Models
         [DefaultValue("User")] // Đặt giá trị mặc định
 
         public string Role { get; set; } = "User";
-        
+        public string? EmailVerificationCode { get; set; }
+        public DateTime? CodeGeneratedAt { get; set; }
+        public string? AvatarUrl { get; set; }
+
     }
 }
