@@ -91,7 +91,9 @@ public class AuthController : ControllerBase
             email = user.Email,
             fullName = user.FullName,
             role = roles.FirstOrDefault() ?? "User",
-            token = token
+            token = token,
+            avatarUrl = user.AvatarUrl,
+            emailConfirmed = user.EmailConfirmed
         });
     }
 
@@ -105,23 +107,28 @@ public class AuthController : ControllerBase
         var credentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
-        {
-        new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(ClaimTypes.Role, role),
-        new Claim(ClaimTypes.NameIdentifier, user.Id) // ✅ Đã thêm UserId trong token nếu bạn dùng token giải mã sau
-    };
+    {
+    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+    new Claim(ClaimTypes.NameIdentifier, user.Id),        // ✅ GIỮ LẠI
+    new Claim(ClaimTypes.Role, role),                     // ✅ GIỮ LẠI
+    new Claim(ClaimTypes.Email, user.Email),              // ✅ Optional
+    new Claim(ClaimTypes.Name, user.FullName ?? "")       // ✅ Optional
+};
+
+
+        int expireHours = int.TryParse(jwtSettings["ExpireHours"], out var h) ? h : 2;
 
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(int.Parse(jwtSettings["ExpireHours"] ?? "2")),
+            expires: DateTime.UtcNow.AddHours(expireHours),
             signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
 
 
     // Model đăng nhập

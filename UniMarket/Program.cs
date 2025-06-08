@@ -12,19 +12,35 @@ using UniMarket.Models;
 using Microsoft.AspNetCore.Mvc;
 using UniMarket.Services;
 using UniMarket.Hubs;
+using CloudinaryDotNet;
 using Swashbuckle.AspNetCore.Filters;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Cấu hình Cloudinary
+// ==========================
+// 🔧 Cloudinary
+// ==========================
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
+builder.Services.AddSingleton(provider =>
+{
+    var config = provider.GetRequiredService<IConfiguration>();
+    var settings = new CloudinarySettings();
+    config.GetSection("CloudinarySettings").Bind(settings);
 
-// 📧 Email Configuration
+    return new Cloudinary(new Account(settings.CloudName, settings.ApiKey, settings.ApiSecret));
+});
+
+// ==========================
+// 📧 Email Service (Gmail)
+// ==========================
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// CORS Configuration
+// ==========================
+// 🔓 CORS
+// ==========================
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
@@ -37,51 +53,72 @@ builder.Services.AddCors(options =>
     });
 });
 
-// DbContext Configuration
+// ==========================
+// 🗄️ DbContext
+// ==========================
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Identity Configuration
+// ==========================
+// 👤 Identity
+// ==========================
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-builder.Services.AddSingleton<ConnectionMapping<string>>();
-
-// JWT Configuration
+// ==========================
+// 🔐 JWT Authentication
+// ==========================
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new ArgumentNullException("Jwt:Key không được để trống"));
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.Events = new JwtBearerEvents
     {
-        options.Events = new JwtBearerEvents
+        OnChallenge = context =>
         {
-            OnChallenge = context =>
-            {
-                context.HandleResponse();
-                context.Response.StatusCode = 401;
-                context.Response.ContentType = "application/json";
-                return context.Response.WriteAsync("{\"message\": \"Unauthorized - Token không hợp lệ hoặc đã hết hạn.\"}");
-            }
-        };
+            context.HandleResponse();
+            context.Response.StatusCode = 401;
+            context.Response.ContentType = "application/json";
+            return context.Response.WriteAsync("{\"message\": \"Unauthorized - Token không hợp lệ hoặc đã hết hạn.\"}");
+        }
+    };
 
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(key)
-        };
-    });
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(key)
+    };
+});
 
 builder.Services.AddAuthorization();
 
-// Swagger Configuration
+// ==========================
+// 💬 SignalR + Connection Mapping
+// ==========================
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<ConnectionMapping<string>>();
+
+// ==========================
+// 🧹 HostedService CleanUpEmptyConversationsJob
+// ==========================
+builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
+
+// ==========================
+// 🔍 Swagger + Upload Filter
+// ==========================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -125,10 +162,9 @@ builder.Services.AddSwaggerGen(c =>
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
-// SignalR for chat
-builder.Services.AddSignalR();
-
-// Controller and error handling
+// ==========================
+// 🌐 Controllers + JSON
+// ==========================
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
@@ -155,12 +191,11 @@ builder.Services.AddControllers()
         };
     });
 
-// Hosted Service for cleaning up empty chats
-builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
-
 var app = builder.Build();
 
-// Middleware: Xử lý lỗi 500 toàn cục (JSON)
+// ==========================
+// 🧯 Exception Middleware
+// ==========================
 app.UseExceptionHandler(appBuilder =>
 {
     appBuilder.Run(async context =>
@@ -168,17 +203,15 @@ app.UseExceptionHandler(appBuilder =>
         context.Response.StatusCode = 500;
         context.Response.ContentType = "application/json";
 
-        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerFeature>();
-        if (exceptionHandlerPathFeature != null)
-        {
-            var error = exceptionHandlerPathFeature.Error;
-            var result = JsonConvert.SerializeObject(new { message = error.Message });
-            await context.Response.WriteAsync(result);
-        }
+        var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        var result = JsonConvert.SerializeObject(new { message = error?.Message });
+        await context.Response.WriteAsync(result);
     });
 });
 
-// Swagger UI
+// ==========================
+// 🧩 Middlewares
+// ==========================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -189,23 +222,19 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Static files
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories")),
+    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories")),
     RequestPath = "/images/categories"
 });
-
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/Posts")),
+    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/Posts")),
     RequestPath = "/images/Posts"
 });
 
-app.UseCors(MyAllowSpecificOrigins); // Apply CORS policy
+app.UseCors(MyAllowSpecificOrigins);
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -214,7 +243,9 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapHub<ChatHub>("/hub/chat");
 
-// Init admin + roles
+// ==========================
+// 👑 Tạo Role + Admin mặc định
+// ==========================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -229,13 +260,10 @@ async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
     var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
     string[] roleNames = { "Admin", "Employee", "User" };
-
-    foreach (var roleName in roleNames)
+    foreach (var role in roleNames)
     {
-        if (!await roleManager.RoleExistsAsync(roleName))
-        {
-            await roleManager.CreateAsync(new IdentityRole(roleName));
-        }
+        if (!await roleManager.RoleExistsAsync(role))
+            await roleManager.CreateAsync(new IdentityRole(role));
     }
 
     string adminEmail = "admin@unimarket.com";
@@ -252,14 +280,14 @@ async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
             FullName = "Admin User"
         };
 
-        var createAdminResult = await userManager.CreateAsync(newAdmin, adminPassword);
-        if (createAdminResult.Succeeded)
+        var result = await userManager.CreateAsync(newAdmin, adminPassword);
+        if (result.Succeeded)
         {
             await userManager.AddToRoleAsync(newAdmin, "Admin");
         }
         else
         {
-            Console.WriteLine("Lỗi tạo admin: " + string.Join(", ", createAdminResult.Errors.Select(e => e.Description)));
+            Console.WriteLine("Lỗi tạo Admin: " + string.Join(", ", result.Errors.Select(e => e.Description)));
         }
     }
 }
