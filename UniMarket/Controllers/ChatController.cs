@@ -117,12 +117,13 @@ namespace UniMarket.Controllers
             return Ok(userChats);
         }
 
-        // GET api/chat/history/{maCuocTroChuyen}
+        // GET api/chat/history/{maCuocTroChuyen}?userId=xxx
         [HttpGet("history/{maCuocTroChuyen}")]
-        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen)
+        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen, [FromQuery] string userId)
         {
             var messages = await _context.TinNhans
                 .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
                 .OrderBy(t => t.ThoiGianGui)
                 .Select(t => new
                 {
@@ -139,6 +140,7 @@ namespace UniMarket.Controllers
 
             return Ok(messages);
         }
+
 
         [HttpGet("info/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetChatInfo(string maCuocTroChuyen)
@@ -359,6 +361,66 @@ namespace UniMarket.Controllers
                 return null;
             }
         }
+        [HttpDelete("delete-for-me/{maTinNhan}")]
+        public async Task<IActionResult> DeleteMessageForMe(int maTinNhan, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
 
+            var tinNhan = await _context.TinNhans.FindAsync(maTinNhan);
+            if (tinNhan == null)
+                return NotFound("Tin nhắn không tồn tại.");
+
+            // Kiểm tra đã xóa chưa
+            var daXoa = await _context.TinNhanDaXoas
+                .AnyAsync(x => x.TinNhanId == maTinNhan && x.UserId == userId);
+            if (daXoa)
+                return Ok(new { message = "Tin nhắn đã được xóa trước đó." });
+
+            // Thêm bản ghi xóa
+            var tinNhanDaXoa = new TinNhanDaXoa
+            {
+                TinNhanId = maTinNhan,
+                UserId = userId
+            };
+            _context.TinNhanDaXoas.Add(tinNhanDaXoa);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Đã xóa tin nhắn khỏi phía bạn." });
+        }
+        // Xóa tất cả tin nhắn phía tôi trong một cuộc trò chuyện
+        [HttpDelete("delete-conversation-for-me/{maCuocTroChuyen}")]
+        public async Task<IActionResult> DeleteConversationForMe(string maCuocTroChuyen, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            // Lấy tất cả tin nhắn thuộc cuộc trò chuyện này mà user chưa xóa
+            var tinNhanIds = await _context.TinNhans
+                .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                .Select(t => t.MaTinNhan)
+                .ToListAsync();
+
+            var daXoaIds = await _context.TinNhanDaXoas
+                .Where(x => x.UserId == userId && tinNhanIds.Contains(x.TinNhanId))
+                .Select(x => x.TinNhanId)
+                .ToListAsync();
+
+            var chuaXoaIds = tinNhanIds.Except(daXoaIds).ToList();
+
+            var tinNhanDaXoaList = chuaXoaIds.Select(id => new TinNhanDaXoa
+            {
+                TinNhanId = id,
+                UserId = userId
+            }).ToList();
+
+            if (tinNhanDaXoaList.Count > 0)
+            {
+                _context.TinNhanDaXoas.AddRange(tinNhanDaXoaList);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new { message = "Đã xóa toàn bộ tin nhắn khỏi phía bạn." });
+        }
     }
 }

@@ -20,6 +20,8 @@ namespace UniMarket.DataAccess
         public DbSet<DanhMucCha> DanhMucChas { get; set; } // ✅ Kiểm tra có DbSet<DanhMuc> không
         public DbSet<CuocTroChuyen> CuocTroChuyens { get; set; }
         public DbSet<TinNhan> TinNhans { get; set; }
+        public DbSet<TinNhanDaXoa> TinNhanDaXoas { get; set; }
+
         public DbSet<NguoiThamGia> NguoiThamGias { get; set; }
 
 

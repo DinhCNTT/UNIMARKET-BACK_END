@@ -43,5 +43,8 @@ namespace UniMarket.Models
 
         [ForeignKey("MaNguoiGui")]
         public ApplicationUser? NguoiGui { get; set; }
+
+        public ICollection<TinNhanDaXoa> TinNhanDaXoas { get; set; }
+
     }
 }
