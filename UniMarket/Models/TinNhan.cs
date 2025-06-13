@@ -35,6 +35,8 @@ namespace UniMarket.Models
 
         // 🆕 Nếu là ảnh hoặc video, lưu URL tại đây
         public string? MediaUrl { get; set; }
+        // Trường mới để kiểm soát hiển thị tin nhắn
+        public bool IsVisible { get; set; } = true;  // Mặc định là hiển thị
 
         [ForeignKey("MaCuocTroChuyen")]
         public CuocTroChuyen? CuocTroChuyen { get; set; }

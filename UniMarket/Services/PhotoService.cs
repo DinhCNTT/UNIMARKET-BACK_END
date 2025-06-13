@@ -94,15 +94,146 @@ namespace UniMarket.Services
             return result;
         }
 
-        // Xóa ảnh/video theo publicId
+        // Xóa ảnh/video theo publicId - Updated method with better error handling
         public async Task<DeletionResult> DeletePhotoAsync(string publicId, ResourceType resourceType = ResourceType.Image)
         {
-            var deletionParams = new DeletionParams(publicId)
+            try
             {
-                ResourceType = resourceType
-            };
-            var result = await _cloudinary.DestroyAsync(deletionParams);
-            return result;
+                var deletionParams = new DeletionParams(publicId)
+                {
+                    ResourceType = resourceType
+                };
+
+                var result = await _cloudinary.DestroyAsync(deletionParams);
+
+                // Log result for debugging
+                Console.WriteLine($"Cloudinary deletion result for {publicId}: {result.Result}");
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting from Cloudinary: {ex.Message}");
+
+                // Return a failed result instead of throwing
+                return new DeletionResult
+                {
+                    Result = "error",
+                    Error = new Error { Message = ex.Message }
+                };
+            }
+        }
+
+        // 🆕 Method xóa ảnh/video từ thư mục doan-chat
+        public async Task<DeletionResult> DeleteChatMediaAsync(string publicId, ResourceType resourceType = ResourceType.Image)
+        {
+            try
+            {
+                // Đảm bảo publicId bao gồm folder path "doan-chat/"
+                if (!publicId.StartsWith("doan-chat/"))
+                {
+                    publicId = $"doan-chat/{publicId}";
+                }
+
+                var deletionParams = new DeletionParams(publicId)
+                {
+                    ResourceType = resourceType
+                };
+
+                var result = await _cloudinary.DestroyAsync(deletionParams);
+
+                // Log result for debugging
+                Console.WriteLine($"Cloudinary chat media deletion result for {publicId}: {result.Result}");
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting chat media from Cloudinary: {ex.Message}");
+
+                // Return a failed result instead of throwing
+                return new DeletionResult
+                {
+                    Result = "error",
+                    Error = new Error { Message = ex.Message }
+                };
+            }
+        }
+
+        // 🆕 Method xóa theo URL (tự động detect folder và publicId)
+        public async Task<bool> DeleteMediaByUrlAsync(string mediaUrl, ResourceType resourceType = ResourceType.Image)
+        {
+            try
+            {
+                var publicId = ExtractPublicIdFromUrl(mediaUrl);
+                if (string.IsNullOrEmpty(publicId))
+                {
+                    Console.WriteLine($"Could not extract publicId from URL: {mediaUrl}");
+                    return false;
+                }
+
+                DeletionResult result;
+
+                // Nếu là từ thư mục doan-chat, dùng method chuyên biệt
+                if (publicId.StartsWith("doan-chat/"))
+                {
+                    result = await DeleteChatMediaAsync(publicId, resourceType);
+                }
+                else
+                {
+                    result = await DeletePhotoAsync(publicId, resourceType);
+                }
+
+                return result.Result == "ok";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting media by URL {mediaUrl}: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Helper method để extract publicId từ Cloudinary URL
+        private string ExtractPublicIdFromUrl(string cloudinaryUrl)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(cloudinaryUrl))
+                    return null;
+
+                // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{folder}/{public_id}.{format}
+                var uri = new Uri(cloudinaryUrl);
+                var path = uri.AbsolutePath;
+
+                // Remove file extension
+                var lastDotIndex = path.LastIndexOf('.');
+                if (lastDotIndex > 0)
+                {
+                    path = path.Substring(0, lastDotIndex);
+                }
+
+                // Extract public_id (includes folder path)
+                var uploadIndex = path.IndexOf("/upload/");
+                if (uploadIndex >= 0)
+                {
+                    var afterUpload = path.Substring(uploadIndex + "/upload/".Length);
+                    // Remove version if exists (v1234567890/)
+                    var versionPattern = @"^v\d+/";
+                    var match = System.Text.RegularExpressions.Regex.Match(afterUpload, versionPattern);
+                    if (match.Success)
+                    {
+                        afterUpload = afterUpload.Substring(match.Length);
+                    }
+                    return afterUpload;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error extracting publicId from URL {cloudinaryUrl}: {ex.Message}");
+                return null;
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "NL81siZuDNyEIyQwHx13M4a+wXTkbvqwi3eEJ+0S7dE=",
+  "Hash": "PEVdxgc0q7+U307UWmpE/atPbK8X7PjWTAuV9o8JuvA=",
   "Source": "UniMarket",
   "BasePath": "_content/UniMarket",
   "Mode": "Default",
@@ -3230,27 +3230,6 @@
       "OriginalItemSpec": "wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg"
     },
     {
-      "Identity": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png",
-      "SourceId": "UniMarket",
-      "SourceType": "Discovered",
-      "ContentRoot": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
-      "BasePath": "_content/UniMarket",
-      "RelativePath": "images/categories/6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags#[.{fingerprint}]?.png",
-      "AssetKind": "All",
-      "AssetMode": "All",
-      "AssetRole": "Primary",
-      "AssetMergeBehavior": "",
-      "AssetMergeSource": "",
-      "RelatedAsset": "",
-      "AssetTraitName": "",
-      "AssetTraitValue": "",
-      "Fingerprint": "p9oa2qrhh5",
-      "Integrity": "XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k=",
-      "CopyToOutputDirectory": "Never",
-      "CopyToPublishDirectory": "PreserveNewest",
-      "OriginalItemSpec": "wwwroot\\images\\categories\\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png"
-    },
-    {
       "Identity": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png",
       "SourceId": "UniMarket",
       "SourceType": "Discovered",
@@ -3333,27 +3312,6 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\images\\categories\\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png"
-    },
-    {
-      "Identity": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg",
-      "SourceId": "UniMarket",
-      "SourceType": "Discovered",
-      "ContentRoot": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
-      "BasePath": "_content/UniMarket",
-      "RelativePath": "images/categories/d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a#[.{fingerprint}]?.jpg",
-      "AssetKind": "All",
-      "AssetMode": "All",
-      "AssetRole": "Primary",
-      "AssetMergeBehavior": "",
-      "AssetMergeSource": "",
-      "RelatedAsset": "",
-      "AssetTraitName": "",
-      "AssetTraitValue": "",
-      "Fingerprint": "6skw4coql9",
-      "Integrity": "NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg=",
-      "CopyToOutputDirectory": "Never",
-      "CopyToPublishDirectory": "PreserveNewest",
-      "OriginalItemSpec": "wwwroot\\images\\categories\\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg"
     },
     {
       "Identity": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png",
@@ -13660,88 +13618,6 @@
       ]
     },
     {
-      "Route": "images/categories/6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.p9oa2qrhh5.png",
-      "AssetFile": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "15769"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "image/png"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Tue, 27 May 2025 14:30:25 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=31536000, immutable"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "fingerprint",
-          "Value": "p9oa2qrhh5"
-        },
-        {
-          "Name": "label",
-          "Value": "images/categories/6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png"
-        },
-        {
-          "Name": "integrity",
-          "Value": "sha256-XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k="
-        }
-      ]
-    },
-    {
-      "Route": "images/categories/6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png",
-      "AssetFile": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "15769"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "image/png"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Tue, 27 May 2025 14:30:25 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=3600, must-revalidate"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k="
-        }
-      ]
-    },
-    {
       "Route": "images/categories/82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.5bfkt1il4f.png",
       "AssetFile": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png",
       "Selectors": [],
@@ -14066,88 +13942,6 @@
         {
           "Name": "integrity",
           "Value": "sha256-lmnNy16YNCmofrzgPGhw7/JsqEpCdhuHKgblzM1todE="
-        }
-      ]
-    },
-    {
-      "Route": "images/categories/d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.6skw4coql9.jpg",
-      "AssetFile": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "83843"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "image/jpeg"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Tue, 27 May 2025 14:30:25 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=31536000, immutable"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "fingerprint",
-          "Value": "6skw4coql9"
-        },
-        {
-          "Name": "label",
-          "Value": "images/categories/d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg"
-        },
-        {
-          "Name": "integrity",
-          "Value": "sha256-NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg="
-        }
-      ]
-    },
-    {
-      "Route": "images/categories/d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg",
-      "AssetFile": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "83843"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "image/jpeg"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Tue, 27 May 2025 14:30:25 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=3600, must-revalidate"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg="
         }
       ]
     },

@@ -144,24 +144,6 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg'))</OriginalItemSpec>
     </StaticWebAsset>
-    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png'))">
-      <SourceType>Package</SourceType>
-      <SourceId>UniMarket</SourceId>
-      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
-      <BasePath>_content/UniMarket</BasePath>
-      <RelativePath>images/categories/6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png</RelativePath>
-      <AssetKind>All</AssetKind>
-      <AssetMode>All</AssetMode>
-      <AssetRole>Primary</AssetRole>
-      <RelatedAsset></RelatedAsset>
-      <AssetTraitName></AssetTraitName>
-      <AssetTraitValue></AssetTraitValue>
-      <Fingerprint>p9oa2qrhh5</Fingerprint>
-      <Integrity>XXPdZyZHsVh5G5vn0y1CBS04pxNpPzwjfP1qCfTR/3k=</Integrity>
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png'))</OriginalItemSpec>
-    </StaticWebAsset>
     <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png'))">
       <SourceType>Package</SourceType>
       <SourceId>UniMarket</SourceId>
@@ -233,24 +215,6 @@
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png'))</OriginalItemSpec>
-    </StaticWebAsset>
-    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg'))">
-      <SourceType>Package</SourceType>
-      <SourceId>UniMarket</SourceId>
-      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
-      <BasePath>_content/UniMarket</BasePath>
-      <RelativePath>images/categories/d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg</RelativePath>
-      <AssetKind>All</AssetKind>
-      <AssetMode>All</AssetMode>
-      <AssetRole>Primary</AssetRole>
-      <RelatedAsset></RelatedAsset>
-      <AssetTraitName></AssetTraitName>
-      <AssetTraitValue></AssetTraitValue>
-      <Fingerprint>6skw4coql9</Fingerprint>
-      <Integrity>NmWSkUE1hHc9kCfbW5q4T6WehTPEgfIK3rbgO6RP7Zg=</Integrity>
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg'))</OriginalItemSpec>
     </StaticWebAsset>
     <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png'))">
       <SourceType>Package</SourceType>

@@ -26,12 +26,10 @@ wwwroot\images\categories\3b0cf16e-f650-4117-9ef9-518c877da523_c54bce4fda93901bc
 wwwroot\images\categories\4078cf01-1501-4fb1-a9da-ee6b387f2012_R.jpg
 wwwroot\images\categories\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png
 wwwroot\images\categories\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg
-wwwroot\images\categories\6fa1a083-de2c-4144-a9af-c2224d9d87c2_bags.png
 wwwroot\images\categories\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png
 wwwroot\images\categories\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg
 wwwroot\images\categories\bff391d9-d348-4ead-9566-b66600850f04_interior-design.png
 wwwroot\images\categories\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png
-wwwroot\images\categories\d054aec6-d69a-41b5-a505-2fea2de01547_79203ac152264080c021f1add84b860a.jpg
 wwwroot\images\categories\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png
 wwwroot\images\Posts\iphone-12-pro-max-cu-01622619065.jpg
 wwwroot\images\Posts\laptop.jpg

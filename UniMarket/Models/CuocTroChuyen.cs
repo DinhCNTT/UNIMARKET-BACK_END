@@ -22,6 +22,8 @@ namespace UniMarket.Models
         public ICollection<TinNhan>? TinNhans { get; set; }
 
         public ICollection<NguoiThamGia>? NguoiThamGias { get; set; }
+        // 🆕 Trường mới để kiểm tra trạng thái chặn
+        public bool IsBlocked { get; set; } = false;
     }
 }
 

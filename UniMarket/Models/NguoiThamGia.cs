@@ -19,5 +19,7 @@ namespace UniMarket.Models
 
         [ForeignKey("MaNguoiDung")]
         public ApplicationUser? NguoiDung { get; set; }
+        // 🆕 Trường để đánh dấu người dùng bị chặn
+        public bool IsBlocked { get; set; } = false;
     }
 }

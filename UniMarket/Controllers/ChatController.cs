@@ -197,5 +197,168 @@ namespace UniMarket.Controllers
                 return StatusCode(500, new { message = "Lỗi server khi upload media", error = ex.Message });
             }
         }
+
+        // 🆕 API thu hồi tin nhắn text
+        [HttpDelete("recall/{maTinNhan}")]
+        public async Task<IActionResult> RecallMessage(int maTinNhan, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            try
+            {
+                var tinNhan = await _context.TinNhans
+                    .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
+
+                if (tinNhan == null)
+                    return NotFound("Tin nhắn không tồn tại.");
+
+                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi)
+                if (tinNhan.MaNguoiGui != userId)
+                    return Forbid("Bạn không có quyền thu hồi tin nhắn này.");
+
+                // Kiểm tra thời gian (chỉ được thu hồi trong vòng 5 phút)
+                var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
+                if (timeDifference.TotalMinutes > 5)
+                    return BadRequest("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
+
+                // Chỉ cho phép thu hồi tin nhắn text
+                if (tinNhan.Loai != LoaiTinNhan.Text)
+                    return BadRequest("Chỉ có thể thu hồi tin nhắn văn bản.");
+
+                // Lưu thông tin cần thiết trước khi xóa
+                var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
+
+                // Xóa tin nhắn khỏi database
+                _context.TinNhans.Remove(tinNhan);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Thu hồi tin nhắn thành công",
+                    maTinNhan = maTinNhan,
+                    maCuocTroChuyen = maCuocTroChuyen
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server khi thu hồi tin nhắn", error = ex.Message });
+            }
+        }
+
+        // 🆕 API thu hồi ảnh/video
+        [HttpDelete("recall-media/{maTinNhan}")]
+        public async Task<IActionResult> RecallMedia(int maTinNhan, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            try
+            {
+                var tinNhan = await _context.TinNhans
+                    .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
+
+                if (tinNhan == null)
+                    return NotFound("Tin nhắn không tồn tại.");
+
+                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi)
+                if (tinNhan.MaNguoiGui != userId)
+                    return Forbid("Bạn không có quyền thu hồi tin nhắn này.");
+
+                // Kiểm tra thời gian (chỉ được thu hồi trong vòng 5 phút)
+                var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
+                if (timeDifference.TotalMinutes > 5)
+                    return BadRequest("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
+
+                // Chỉ cho phép thu hồi ảnh/video
+                if (tinNhan.Loai != LoaiTinNhan.Image && tinNhan.Loai != LoaiTinNhan.Video)
+                    return BadRequest("Chỉ có thể thu hồi tin nhắn ảnh hoặc video.");
+
+                // Lưu thông tin cần thiết trước khi xóa
+                var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
+                var mediaUrl = tinNhan.NoiDung; // URL của ảnh/video được lưu trong NoiDung
+
+                // Xóa ảnh/video khỏi Cloudinary
+                if (!string.IsNullOrEmpty(mediaUrl))
+                {
+                    var resourceType = tinNhan.Loai == LoaiTinNhan.Image
+                        ? CloudinaryDotNet.Actions.ResourceType.Image
+                        : CloudinaryDotNet.Actions.ResourceType.Video;
+
+                    // Extract publicId from Cloudinary URL
+                    var publicId = ExtractPublicIdFromUrl(mediaUrl);
+
+                    if (!string.IsNullOrEmpty(publicId))
+                    {
+                        var deleteResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
+
+                        if (deleteResult.Result != "ok")
+                        {
+                            // Log warning but continue with database deletion
+                            Console.WriteLine($"Warning: Could not delete media from Cloudinary. Result: {deleteResult.Result}");
+                        }
+                    }
+                }
+
+                // Xóa tin nhắn khỏi database
+                _context.TinNhans.Remove(tinNhan);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Thu hồi ảnh/video thành công",
+                    maTinNhan = maTinNhan,
+                    maCuocTroChuyen = maCuocTroChuyen
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi thu hồi ảnh/video", error = ex.Message });
+            }
+        }
+
+        // Helper method để extract publicId từ Cloudinary URL
+        private string ExtractPublicIdFromUrl(string cloudinaryUrl)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(cloudinaryUrl))
+                    return null;
+
+                // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{folder}/{public_id}.{format}
+                var uri = new Uri(cloudinaryUrl);
+                var path = uri.AbsolutePath;
+
+                // Remove file extension
+                var lastDotIndex = path.LastIndexOf('.');
+                if (lastDotIndex > 0)
+                {
+                    path = path.Substring(0, lastDotIndex);
+                }
+
+                // Extract public_id (includes folder path)
+                var uploadIndex = path.IndexOf("/upload/");
+                if (uploadIndex >= 0)
+                {
+                    var afterUpload = path.Substring(uploadIndex + "/upload/".Length);
+                    // Remove version if exists (v1234567890/)
+                    var versionPattern = @"^v\d+/";
+                    var match = System.Text.RegularExpressions.Regex.Match(afterUpload, versionPattern);
+                    if (match.Success)
+                    {
+                        afterUpload = afterUpload.Substring(match.Length);
+                    }
+                    return afterUpload;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error extracting publicId from URL {cloudinaryUrl}: {ex.Message}");
+                return null;
+            }
+        }
+
     }
 }
