@@ -1,6 +1,9 @@
+using CloudinaryDotNet;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -8,13 +11,9 @@ using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using System.Text;
 using UniMarket.DataAccess;
-using UniMarket.Models;
-using Microsoft.AspNetCore.Mvc;
-using UniMarket.Services;
 using UniMarket.Hubs;
-using CloudinaryDotNet;
-using Swashbuckle.AspNetCore.Filters;
-using Microsoft.Extensions.Options;
+using UniMarket.Models;
+using UniMarket.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +28,12 @@ builder.Services.AddSingleton(provider =>
     var settings = new CloudinarySettings();
     config.GetSection("CloudinarySettings").Bind(settings);
 
-    return new Cloudinary(new Account(settings.CloudName, settings.ApiKey, settings.ApiSecret));
+    var cloudinary = new Cloudinary(new Account(settings.CloudName, settings.ApiKey, settings.ApiSecret));
+
+    // ✅ FIX lỗi TaskCanceledException khi upload video lớn
+    cloudinary.Api.Timeout = 180000; // 3 phút timeout (100s mặc định là quá ngắn cho video)
+
+    return cloudinary;
 });
 
 // ==========================
@@ -58,6 +62,15 @@ builder.Services.AddCors(options =>
 // ==========================
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ==========================
+// 📦 FIX: Tăng giới hạn upload multipart/form-data (100MB)
+// ==========================
+builder.Services.Configure<FormOptions>(options =>
+{ 
+    options.MultipartBodyLengthLimit = 157286400; // 150MB
+
+});
 
 // ==========================
 // 👤 Identity

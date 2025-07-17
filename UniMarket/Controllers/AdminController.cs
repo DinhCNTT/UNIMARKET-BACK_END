@@ -586,10 +586,8 @@ namespace UniMarket.Controllers
 
                     byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
                     using var memoryStream = new MemoryStream(fileBytes);
-
                     var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
 
-                    // Phân biệt ảnh/video dựa vào đuôi file
                     string ext = Path.GetExtension(fileName).ToLower();
                     if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
                     {
@@ -598,6 +596,12 @@ namespace UniMarket.Controllers
                             return BadRequest(new { message = "Lỗi khi upload video lên Cloudinary", error = uploadResult.Error.Message });
 
                         media.DuongDan = uploadResult.SecureUrl.ToString();
+
+                        // ✅ Gán vào VideoUrl nếu chưa có
+                        if (string.IsNullOrEmpty(post.VideoUrl))
+                        {
+                            post.VideoUrl = media.DuongDan;
+                        }
                     }
                     else
                     {
@@ -610,6 +614,15 @@ namespace UniMarket.Controllers
 
                     System.IO.File.Delete(localFilePath);
                 }
+                else
+                {
+                    // ✅ Trường hợp file đã là URL từ Cloudinary rồi → nếu là video thì gán vào VideoUrl luôn
+                    string ext = Path.GetExtension(media.DuongDan).ToLower();
+                    if ((ext == ".mp4" || ext == ".mov" || ext == ".avi") && string.IsNullOrEmpty(post.VideoUrl))
+                    {
+                        post.VideoUrl = media.DuongDan;
+                    }
+                }
             }
 
             post.TrangThai = TrangThaiTinDang.DaDuyet;
@@ -618,6 +631,7 @@ namespace UniMarket.Controllers
 
             return Ok(new { message = "Tin đăng đã được duyệt và media đã được lưu trên Cloudinary!" });
         }
+
 
         [HttpPost("reject-post/{id}")]
         public async Task<IActionResult> RejectPost(int id)

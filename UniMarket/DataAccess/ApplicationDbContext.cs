@@ -20,7 +20,60 @@ namespace UniMarket.DataAccess
         public DbSet<DanhMucCha> DanhMucChas { get; set; } // ✅ Kiểm tra có DbSet<DanhMuc> không
         public DbSet<CuocTroChuyen> CuocTroChuyens { get; set; }
         public DbSet<TinNhan> TinNhans { get; set; }
+        public DbSet<TinNhanDaXoa> TinNhanDaXoas { get; set; }
         public DbSet<NguoiThamGia> NguoiThamGias { get; set; }
+        public DbSet<BlockedUser> BlockedUsers { get; set; }
+        public DbSet<VideoLike> VideoLikes { get; set; }
+        public DbSet<VideoComment> VideoComments { get; set; }
+        public DbSet<VideoView> VideoViews { get; set; }
+        public DbSet<SearchHistory> SearchHistories { get; set; }
+        public DbSet<TinDangYeuThich> TinDangYeuThichs { get; set; }
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Ngăn nhiều cascade từ TinDang
+            modelBuilder.Entity<VideoLike>()
+                .HasOne(v => v.TinDang)
+                .WithMany()
+                .HasForeignKey(v => v.MaTinDang)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<VideoComment>()
+                .HasOne(v => v.TinDang)
+                .WithMany()
+                .HasForeignKey(v => v.MaTinDang)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<VideoView>()
+                .HasOne(v => v.TinDang)
+                .WithMany()
+                .HasForeignKey(v => v.MaTinDang)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ✅ Cấu hình quan hệ bình luận cha - con (replies)
+            modelBuilder.Entity<VideoComment>()
+                .HasOne(vc => vc.ParentComment)
+                .WithMany(vc => vc.Replies)
+                .HasForeignKey(vc => vc.ParentCommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ✅ Cấu hình TinDangYeuThich
+            modelBuilder.Entity<TinDangYeuThich>()
+                .HasKey(t => t.MaYeuThich);
+
+            modelBuilder.Entity<TinDangYeuThich>()
+                .HasOne(t => t.TinDang)
+                .WithMany(t => t.TinDangYeuThichs)
+                .HasForeignKey(t => t.MaTinDang)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TinDangYeuThich>()
+                .HasOne(t => t.NguoiDung)
+                .WithMany()
+                .HasForeignKey(t => t.MaNguoiDung)
+                .OnDelete(DeleteBehavior.Restrict);
+        }
 
 
     }

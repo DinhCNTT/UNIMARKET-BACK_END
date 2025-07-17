@@ -155,6 +155,51 @@ namespace UniMarket.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SearchHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Keyword")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SearchHistories");
+                });
+
+            modelBuilder.Entity("TinNhanDaXoa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("TinNhanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TinNhanId");
+
+                    b.ToTable("TinNhanDaXoas");
+                });
+
             modelBuilder.Entity("UniMarket.Models.AnhTinDang", b =>
                 {
                     b.Property<int>("MaAnh")
@@ -272,6 +317,30 @@ namespace UniMarket.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("UniMarket.Models.BlockedUser", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("BlockedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("BlockedId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BlockerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BlockedUsers");
+                });
+
             modelBuilder.Entity("UniMarket.Models.CuocTroChuyen", b =>
                 {
                     b.Property<string>("MaCuocTroChuyen")
@@ -288,6 +357,10 @@ namespace UniMarket.Migrations
 
                     b.Property<bool>("IsEmpty")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MaNguoiChan")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
@@ -454,6 +527,10 @@ namespace UniMarket.Migrations
                     b.Property<int>("TrangThai")
                         .HasColumnType("int");
 
+                    b.Property<string>("VideoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.HasKey("MaTinDang");
 
                     b.HasIndex("MaDanhMuc");
@@ -465,6 +542,33 @@ namespace UniMarket.Migrations
                     b.HasIndex("MaTinhThanh");
 
                     b.ToTable("TinDangs");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinDangYeuThich", b =>
+                {
+                    b.Property<int>("MaYeuThich")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaYeuThich"));
+
+                    b.Property<string>("MaNguoiDung")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MaYeuThich");
+
+                    b.HasIndex("MaNguoiDung");
+
+                    b.HasIndex("MaTinDang");
+
+                    b.ToTable("TinDangYeuThichs");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinNhan", b =>
@@ -532,6 +636,96 @@ namespace UniMarket.Migrations
                     b.ToTable("TinhThanhs");
                 });
 
+            modelBuilder.Entity("VideoComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ParentCommentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaTinDang");
+
+                    b.HasIndex("ParentCommentId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("VideoComments");
+                });
+
+            modelBuilder.Entity("VideoLike", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaTinDang");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("VideoLikes");
+                });
+
+            modelBuilder.Entity("VideoView", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("ViewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaTinDang");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("VideoViews");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -581,6 +775,17 @@ namespace UniMarket.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TinNhanDaXoa", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinNhan", "TinNhan")
+                        .WithMany("TinNhanDaXoas")
+                        .HasForeignKey("TinNhanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TinNhan");
                 });
 
             modelBuilder.Entity("UniMarket.Models.AnhTinDang", b =>
@@ -666,6 +871,25 @@ namespace UniMarket.Migrations
                     b.Navigation("TinhThanh");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.TinDangYeuThich", b =>
+                {
+                    b.HasOne("UniMarket.Models.ApplicationUser", "NguoiDung")
+                        .WithMany()
+                        .HasForeignKey("MaNguoiDung")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany("TinDangYeuThichs")
+                        .HasForeignKey("MaTinDang")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("NguoiDung");
+
+                    b.Navigation("TinDang");
+                });
+
             modelBuilder.Entity("UniMarket.Models.TinNhan", b =>
                 {
                     b.HasOne("UniMarket.Models.CuocTroChuyen", "CuocTroChuyen")
@@ -685,6 +909,68 @@ namespace UniMarket.Migrations
                     b.Navigation("NguoiGui");
                 });
 
+            modelBuilder.Entity("VideoComment", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany()
+                        .HasForeignKey("MaTinDang")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("VideoComment", "ParentComment")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentComment");
+
+                    b.Navigation("TinDang");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("VideoLike", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany()
+                        .HasForeignKey("MaTinDang")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TinDang");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("VideoView", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany()
+                        .HasForeignKey("MaTinDang")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("TinDang");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("UniMarket.Models.CuocTroChuyen", b =>
                 {
                     b.Navigation("NguoiThamGias");
@@ -700,11 +986,23 @@ namespace UniMarket.Migrations
             modelBuilder.Entity("UniMarket.Models.TinDang", b =>
                 {
                     b.Navigation("AnhTinDangs");
+
+                    b.Navigation("TinDangYeuThichs");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhan", b =>
+                {
+                    b.Navigation("TinNhanDaXoas");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinhThanh", b =>
                 {
                     b.Navigation("QuanHuyens");
+                });
+
+            modelBuilder.Entity("VideoComment", b =>
+                {
+                    b.Navigation("Replies");
                 });
 #pragma warning restore 612, 618
         }

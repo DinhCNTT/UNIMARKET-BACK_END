@@ -217,6 +217,7 @@ public class EmailVerificationController : ControllerBase
     {
         try
         {
+            // 1. Xác minh ID Token từ Google
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {
                 Audience = new[] { _configuration["Google:ClientId"] }
@@ -233,7 +234,10 @@ public class EmailVerificationController : ControllerBase
                 return BadRequest(new { message = "Không lấy được email từ Google." });
             }
 
+            // 2. Tìm user trong hệ thống
             var user = await _userManager.FindByEmailAsync(email);
+
+            // 3. Nếu user chưa có → tạo mới
             if (user == null)
             {
                 user = new ApplicationUser
@@ -247,19 +251,27 @@ public class EmailVerificationController : ControllerBase
 
                 var createResult = await _userManager.CreateAsync(user);
                 if (!createResult.Succeeded)
+                {
                     return BadRequest(new { errors = createResult.Errors.Select(e => e.Description) });
+                }
 
                 await _userManager.AddToRoleAsync(user, "User");
             }
-            else
+
+            // 🔒 4. KIỂM TRA KHÓA: Nếu user bị khóa thì không cho login
+            if (user.LockoutEnd != null && user.LockoutEnd > DateTime.UtcNow)
             {
-                // ⚠️ Nếu user có rồi mà chưa có role → thêm
-                var rolesOfExisting = await _userManager.GetRolesAsync(user);
-                if (!rolesOfExisting.Contains("User"))
-                    await _userManager.AddToRoleAsync(user, "User");
+                return Unauthorized(new { message = "Tài khoản của bạn đã bị khóa bởi quản trị viên." });
             }
 
+            // 5. Nếu user tồn tại mà chưa có role → thêm vào role "User"
             var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains("User"))
+            {
+                await _userManager.AddToRoleAsync(user, "User");
+            }
+
+            // 6. Cấp token
             var token = GenerateJwtToken(user, roles.FirstOrDefault() ?? "User");
 
             return Ok(new
@@ -282,6 +294,7 @@ public class EmailVerificationController : ControllerBase
             return StatusCode(500, new { message = "Lỗi không xác định.", detail = ex.Message });
         }
     }
+
 
 
     // Hàm tạo JWT token

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -7,6 +8,7 @@ using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
 using UniMarket.Services;
+using UniMarket.Hubs;
 
 namespace UniMarket.Controllers
 {
@@ -16,19 +18,26 @@ namespace UniMarket.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly PhotoService _photoService;
+        private readonly IHubContext<ChatHub> _hubContext;
 
-        public ChatController(ApplicationDbContext context, PhotoService photoService)
+        public ChatController(ApplicationDbContext context, PhotoService photoService, IHubContext<ChatHub> hubContext)
         {
             _context = context;
             _photoService = photoService;
+            _hubContext = hubContext;
         }
 
-        // POST api/chat/start
         [HttpPost("start")]
         public async Task<IActionResult> StartChat([FromBody] StartChatRequest request)
         {
             if (string.IsNullOrEmpty(request.MaNguoiDung1) || string.IsNullOrEmpty(request.MaNguoiDung2) || request.MaTinDang <= 0)
                 return BadRequest("Thông tin không đầy đủ.");
+
+            var isBlocked = await _context.BlockedUsers
+                .AnyAsync(b => (b.BlockerId == request.MaNguoiDung1 && b.BlockedId == request.MaNguoiDung2) ||
+                               (b.BlockerId == request.MaNguoiDung2 && b.BlockedId == request.MaNguoiDung1));
+            if (isBlocked)
+                return Forbid("Không thể bắt đầu cuộc trò chuyện vì một trong hai người đã chặn người kia.");
 
             string GenerateChatId(string u1, string u2, int maTinDang)
             {
@@ -43,9 +52,7 @@ namespace UniMarket.Controllers
                 .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
             if (existingChat != null)
-            {
                 return Ok(new { MaCuocTroChuyen = existingChat.MaCuocTroChuyen });
-            }
 
             var tinDang = await _context.TinDangs.Include(t => t.AnhTinDangs).FirstOrDefaultAsync(t => t.MaTinDang == request.MaTinDang);
             if (tinDang == null) return NotFound("Tin đăng không tồn tại.");
@@ -62,7 +69,6 @@ namespace UniMarket.Controllers
             };
 
             _context.CuocTroChuyens.Add(newChat);
-
             _context.NguoiThamGias.AddRange(new[]
             {
                 new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung1 },
@@ -70,11 +76,9 @@ namespace UniMarket.Controllers
             });
 
             await _context.SaveChangesAsync();
-
             return Ok(new { MaCuocTroChuyen = maCuocTroChuyen });
         }
 
-        // GET api/chat/user/{userId}
         [HttpGet("user/{userId}")]
         public async Task<IActionResult> GetUserConversations(string userId)
         {
@@ -117,27 +121,35 @@ namespace UniMarket.Controllers
             return Ok(userChats);
         }
 
-        // GET api/chat/history/{maCuocTroChuyen}
         [HttpGet("history/{maCuocTroChuyen}")]
-        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen)
+        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen, [FromQuery] string userId)
         {
-            var messages = await _context.TinNhans
-                .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                .OrderBy(t => t.ThoiGianGui)
-                .Select(t => new
-                {
-                    t.MaTinNhan,
-                    t.MaCuocTroChuyen,
-                    t.MaNguoiGui,
-                    NoiDung = (t.Loai == LoaiTinNhan.Text) ? t.NoiDung : t.MediaUrl,
-                    LoaiTinNhan = t.Loai.ToString().ToLower(),
-                    ThoiGianGui = t.ThoiGianGui.ToString("O"),
-                    t.DaXem,
-                    t.ThoiGianXem
-                })
-                .ToListAsync();
+            try
+            {
+                var messages = await _context.TinNhans
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                    .OrderBy(t => t.ThoiGianGui)
+                    .Select(t => new
+                    {
+                        t.MaTinNhan,
+                        t.MaCuocTroChuyen,
+                        t.MaNguoiGui,
+                        NoiDung = (t.Loai == LoaiTinNhan.Text) ? t.NoiDung : t.MediaUrl,
+                        LoaiTinNhan = t.Loai.ToString().ToLower(),
+                        ThoiGianGui = t.ThoiGianGui.ToString("O"),
+                        t.DaXem,
+                        t.ThoiGianXem
+                    })
+                    .ToListAsync();
 
-            return Ok(messages);
+                return Ok(messages);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi: {ex.Message}");
+                return StatusCode(500, "Internal Server Error");
+            }
         }
 
         [HttpGet("info/{maCuocTroChuyen}")]
@@ -162,12 +174,10 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> GetUnreadCount(string userId, [FromQuery] List<string> hiddenChatIds)
         {
             var count = await _context.TinNhans
-                .Where(t =>
-                    t.MaNguoiGui != userId &&
-                    !t.DaXem &&
-                    !hiddenChatIds.Contains(t.MaCuocTroChuyen) &&
-                    _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId)
-                )
+                .Where(t => t.MaNguoiGui != userId &&
+                            !t.DaXem &&
+                            !hiddenChatIds.Contains(t.MaCuocTroChuyen) &&
+                            _context.NguoiThamGias.Any(n => n.MaCuocTroChuyen == t.MaCuocTroChuyen && n.MaNguoiDung == userId))
                 .CountAsync();
 
             return Ok(new { unreadCount = count });
@@ -181,9 +191,7 @@ namespace UniMarket.Controllers
 
             string fileExtension = Path.GetExtension(mediaFile.FileName).ToLower();
             if (!(fileExtension == ".jpg" || fileExtension == ".jpeg" || fileExtension == ".png" || fileExtension == ".mp4" || fileExtension == ".avi"))
-            {
                 return BadRequest("Chỉ hỗ trợ file ảnh (jpg, jpeg, png) và video (mp4, avi).");
-            }
 
             try
             {
@@ -198,7 +206,6 @@ namespace UniMarket.Controllers
             }
         }
 
-        // 🆕 API thu hồi tin nhắn text
         [HttpDelete("recall/{maTinNhan}")]
         public async Task<IActionResult> RecallMessage(int maTinNhan, [FromQuery] string userId)
         {
@@ -213,23 +220,17 @@ namespace UniMarket.Controllers
                 if (tinNhan == null)
                     return NotFound("Tin nhắn không tồn tại.");
 
-                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi)
                 if (tinNhan.MaNguoiGui != userId)
                     return Forbid("Bạn không có quyền thu hồi tin nhắn này.");
 
-                // Kiểm tra thời gian (chỉ được thu hồi trong vòng 5 phút)
                 var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
                 if (timeDifference.TotalMinutes > 5)
                     return BadRequest("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
 
-                // Chỉ cho phép thu hồi tin nhắn text
                 if (tinNhan.Loai != LoaiTinNhan.Text)
                     return BadRequest("Chỉ có thể thu hồi tin nhắn văn bản.");
 
-                // Lưu thông tin cần thiết trước khi xóa
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-
-                // Xóa tin nhắn khỏi database
                 _context.TinNhans.Remove(tinNhan);
                 await _context.SaveChangesAsync();
 
@@ -246,7 +247,6 @@ namespace UniMarket.Controllers
             }
         }
 
-        // 🆕 API thu hồi ảnh/video
         [HttpDelete("recall-media/{maTinNhan}")]
         public async Task<IActionResult> RecallMedia(int maTinNhan, [FromQuery] string userId)
         {
@@ -261,46 +261,34 @@ namespace UniMarket.Controllers
                 if (tinNhan == null)
                     return NotFound("Tin nhắn không tồn tại.");
 
-                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi)
                 if (tinNhan.MaNguoiGui != userId)
                     return Forbid("Bạn không có quyền thu hồi tin nhắn này.");
 
-                // Kiểm tra thời gian (chỉ được thu hồi trong vòng 5 phút)
                 var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
                 if (timeDifference.TotalMinutes > 5)
                     return BadRequest("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
 
-                // Chỉ cho phép thu hồi ảnh/video
                 if (tinNhan.Loai != LoaiTinNhan.Image && tinNhan.Loai != LoaiTinNhan.Video)
                     return BadRequest("Chỉ có thể thu hồi tin nhắn ảnh hoặc video.");
 
-                // Lưu thông tin cần thiết trước khi xóa
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-                var mediaUrl = tinNhan.NoiDung; // URL của ảnh/video được lưu trong NoiDung
+                var mediaUrl = tinNhan.NoiDung;
 
-                // Xóa ảnh/video khỏi Cloudinary
                 if (!string.IsNullOrEmpty(mediaUrl))
                 {
                     var resourceType = tinNhan.Loai == LoaiTinNhan.Image
                         ? CloudinaryDotNet.Actions.ResourceType.Image
                         : CloudinaryDotNet.Actions.ResourceType.Video;
 
-                    // Extract publicId from Cloudinary URL
                     var publicId = ExtractPublicIdFromUrl(mediaUrl);
-
                     if (!string.IsNullOrEmpty(publicId))
                     {
                         var deleteResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
-
                         if (deleteResult.Result != "ok")
-                        {
-                            // Log warning but continue with database deletion
-                            Console.WriteLine($"Warning: Could not delete media from Cloudinary. Result: {deleteResult.Result}");
-                        }
+                            Console.WriteLine($"Warning: Could  Could not delete media from Cloudinary. Result: {deleteResult.Result}");
                     }
                 }
 
-                // Xóa tin nhắn khỏi database
                 _context.TinNhans.Remove(tinNhan);
                 await _context.SaveChangesAsync();
 
@@ -317,7 +305,6 @@ namespace UniMarket.Controllers
             }
         }
 
-        // Helper method để extract publicId từ Cloudinary URL
         private string ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
             try
@@ -325,29 +312,21 @@ namespace UniMarket.Controllers
                 if (string.IsNullOrEmpty(cloudinaryUrl))
                     return null;
 
-                // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{folder}/{public_id}.{format}
                 var uri = new Uri(cloudinaryUrl);
                 var path = uri.AbsolutePath;
 
-                // Remove file extension
                 var lastDotIndex = path.LastIndexOf('.');
                 if (lastDotIndex > 0)
-                {
                     path = path.Substring(0, lastDotIndex);
-                }
 
-                // Extract public_id (includes folder path)
                 var uploadIndex = path.IndexOf("/upload/");
                 if (uploadIndex >= 0)
                 {
                     var afterUpload = path.Substring(uploadIndex + "/upload/".Length);
-                    // Remove version if exists (v1234567890/)
                     var versionPattern = @"^v\d+/";
                     var match = System.Text.RegularExpressions.Regex.Match(afterUpload, versionPattern);
                     if (match.Success)
-                    {
                         afterUpload = afterUpload.Substring(match.Length);
-                    }
                     return afterUpload;
                 }
 
@@ -360,5 +339,114 @@ namespace UniMarket.Controllers
             }
         }
 
+        [HttpPost("block-user")]
+        public async Task<IActionResult> BlockUser([FromBody] BlockUserRequest request)
+        {
+            if (string.IsNullOrEmpty(request.BlockerId) || string.IsNullOrEmpty(request.BlockedId))
+                return BadRequest("Thông tin không đầy đủ.");
+
+            var existing = await _context.BlockedUsers
+                .FirstOrDefaultAsync(b => b.BlockerId == request.BlockerId && b.BlockedId == request.BlockedId);
+
+            if (existing != null)
+                return Ok("Người dùng đã bị chặn.");
+
+            var blockedUser = new BlockedUser
+            {
+                BlockerId = request.BlockerId,
+                BlockedId = request.BlockedId
+            };
+
+            _context.BlockedUsers.Add(blockedUser);
+            await _context.SaveChangesAsync();
+
+            return Ok("Đã chặn người dùng.");
+        }
+
+        [HttpPost("unblock-user")]
+        public async Task<IActionResult> UnblockUser([FromBody] UnblockUserRequest request)
+        {
+            if (string.IsNullOrEmpty(request.BlockerId) || string.IsNullOrEmpty(request.BlockedId))
+                return BadRequest("Thông tin không đầy đủ.");
+
+            var blockedUser = await _context.BlockedUsers
+                .FirstOrDefaultAsync(b => b.BlockerId == request.BlockerId && b.BlockedId == request.BlockedId);
+
+            if (blockedUser == null)
+                return NotFound("Không tìm thấy quan hệ chặn.");
+
+            _context.BlockedUsers.Remove(blockedUser);
+            await _context.SaveChangesAsync();
+
+            return Ok("Đã gỡ chặn người dùng.");
+        }
+
+        [HttpGet("check-block/{blockerId}/{blockedId}")]
+        public async Task<IActionResult> CheckBlock(string blockerId, string blockedId)
+        {
+            var isBlocked = await _context.BlockedUsers
+                .AnyAsync(b => b.BlockerId == blockerId && b.BlockedId == blockedId);
+
+            return Ok(new { IsBlocked = isBlocked });
+        }
+
+        [HttpDelete("delete-for-me/{maTinNhan}")]
+        public async Task<IActionResult> DeleteMessageForMe(int maTinNhan, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            var tinNhan = await _context.TinNhans.FindAsync(maTinNhan);
+            if (tinNhan == null)
+                return NotFound("Tin nhắn không tồn tại.");
+
+            var daXoa = await _context.TinNhanDaXoas
+                .AnyAsync(x => x.TinNhanId == maTinNhan && x.UserId == userId);
+            if (daXoa)
+                return Ok(new { message = "Tin nhắn đã được xóa trước đó." });
+
+            var tinNhanDaXoa = new TinNhanDaXoa
+            {
+                TinNhanId = maTinNhan,
+                UserId = userId
+            };
+            _context.TinNhanDaXoas.Add(tinNhanDaXoa);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Đã xóa tin nhắn khỏi phía bạn." });
+        }
+
+        [HttpDelete("delete-conversation-for-me/{maCuocTroChuyen}")]
+        public async Task<IActionResult> DeleteConversationForMe(string maCuocTroChuyen, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            var tinNhanIds = await _context.TinNhans
+                .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                .Select(t => t.MaTinNhan)
+                .ToListAsync();
+
+            var daXoaIds = await _context.TinNhanDaXoas
+                .Where(x => x.UserId == userId && tinNhanIds.Contains(x.TinNhanId))
+                .Select(x => x.TinNhanId)
+                .ToListAsync();
+
+            var chuaXoaIds = tinNhanIds.Except(daXoaIds).ToList();
+
+            var tinNhanDaXoaList = chuaXoaIds.Select(id => new TinNhanDaXoa
+            {
+                TinNhanId = id,
+                UserId = userId
+            }).ToList();
+
+            if (tinNhanDaXoaList.Count > 0)
+            {
+                _context.TinNhanDaXoas.AddRange(tinNhanDaXoaList);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new { message = "Đã xóa toàn bộ tin nhắn khỏi phía bạn." });
+        }
     }
 }

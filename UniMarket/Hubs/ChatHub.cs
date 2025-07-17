@@ -3,10 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
-using System.Security.AccessControl;
 using System.Threading.Tasks;
 using UniMarket.DataAccess;
-using UniMarket.DTO;
 using UniMarket.Models;
 using UniMarket.Services;
 
@@ -16,7 +14,7 @@ namespace UniMarket.Hubs
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<ChatHub> _logger;
-        private readonly PhotoService _photoService; // Đảm bảo khởi tạo đúng _photoService
+        private readonly PhotoService _photoService;
 
         public ChatHub(ApplicationDbContext context, ILogger<ChatHub> logger, PhotoService photoService)
         {
@@ -61,19 +59,21 @@ namespace UniMarket.Hubs
 
             try
             {
-                if (string.IsNullOrWhiteSpace(noiDung))
-                {
-                    _logger.LogWarning($"Empty message content from user '{maNguoiGui}' in conversation '{maCuocTroChuyen}'.");
-                    throw new HubException("Nội dung tin nhắn không được để trống.");
-                }
+                var chat = await _context.CuocTroChuyens
+                    .Include(c => c.NguoiThamGias)
+                    .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
-                var isParticipant = await _context.NguoiThamGias
-                    .AnyAsync(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung == maNguoiGui);
+                if (chat == null)
+                    throw new HubException("Cuộc trò chuyện không tồn tại.");
 
-                if (!isParticipant)
+                var otherUser = chat.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
+                if (otherUser != null)
                 {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to send message in conversation '{maCuocTroChuyen}' without permission.");
-                    throw new HubException("Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.");
+                    var isBlocked = await _context.BlockedUsers
+                        .AnyAsync(b => (b.BlockerId == otherUser.MaNguoiDung && b.BlockedId == maNguoiGui) ||
+                                       (b.BlockerId == maNguoiGui && b.BlockedId == otherUser.MaNguoiDung));
+                    if (isBlocked)
+                        throw new HubException("Không thể gửi tin nhắn vì một trong hai người đã chặn người kia.");
                 }
 
                 LoaiTinNhan loai = LoaiTinNhan.Text;
@@ -107,7 +107,7 @@ namespace UniMarket.Hubs
                         _logger.LogInformation($"Conversation '{maCuocTroChuyen}' marked as not empty.");
                     }
 
-                    var otherUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
+                    var otherUserInfo = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
                     var senderUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == maNguoiGui);
 
                     var chatForSender = new
@@ -117,8 +117,8 @@ namespace UniMarket.Hubs
                         TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
                         AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
-                        MaNguoiConLai = otherUser?.MaNguoiDung,
-                        TenNguoiConLai = otherUser?.NguoiDung?.FullName,
+                        MaNguoiConLai = otherUserInfo?.MaNguoiDung,
+                        TenNguoiConLai = otherUserInfo?.NguoiDung?.FullName,
                         TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
@@ -140,23 +140,10 @@ namespace UniMarket.Hubs
                         HasUnreadMessages = true
                     };
 
-                    _logger.LogInformation($"[SignalR] Sending chat update to sender '{maNguoiGui}' and receiver '{otherUser?.MaNguoiDung}'");
-
                     await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);
-                    if (otherUser != null)
-                        await Clients.Group($"user-{otherUser.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
+                    if (otherUserInfo != null)
+                        await Clients.Group($"user-{otherUserInfo.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
                 }
-
-                var dto = new TinNhanDTO
-                {
-                    MaTinNhan = tinNhanMoi.MaTinNhan,
-                    MaCuocTroChuyen = tinNhanMoi.MaCuocTroChuyen,
-                    MaNguoiGui = tinNhanMoi.MaNguoiGui,
-                    NoiDung = tinNhanMoi.NoiDung,
-                    ThoiGianGui = tinNhanMoi.ThoiGianGui
-                };
-
-                _logger.LogInformation($"[SignalR] Sending new message to group '{maCuocTroChuyen}'");
 
                 await Clients.Group(maCuocTroChuyen).SendAsync("NhanTinNhan", new
                 {
@@ -171,7 +158,7 @@ namespace UniMarket.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error sending message in conversation '{maCuocTroChuyen}' by user '{maNguoiGui}'.");
+                _logger.LogError(ex, $"Error sending message in conversation '{maCuocTroChuyen}' by user '{maNguoiGui}'");
                 throw;
             }
         }
@@ -221,14 +208,12 @@ namespace UniMarket.Hubs
             }
         }
 
-        // 🆕 Method thu hồi tin nhắn text qua SignalR
         public async Task ThuHoiTinNhan(int maTinNhan, string maNguoiGui)
         {
             _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall text message {maTinNhan}");
 
             try
             {
-                // Tìm tin nhắn trong cơ sở dữ liệu
                 var tinNhan = await _context.TinNhans
                     .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
 
@@ -238,14 +223,12 @@ namespace UniMarket.Hubs
                     throw new HubException("Tin nhắn không tồn tại.");
                 }
 
-                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi tin nhắn)
                 if (tinNhan.MaNguoiGui != maNguoiGui)
                 {
                     _logger.LogWarning($"User '{maNguoiGui}' tried to recall message {maTinNhan} without permission");
                     throw new HubException("Bạn không có quyền thu hồi tin nhắn này.");
                 }
 
-                // Kiểm tra thời gian (chỉ có thể thu hồi trong vòng 5 phút)
                 var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
                 if (timeDifference.TotalMinutes > 5)
                 {
@@ -253,23 +236,18 @@ namespace UniMarket.Hubs
                     throw new HubException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
                 }
 
-                // Chỉ cho phép thu hồi tin nhắn text
                 if (tinNhan.Loai != LoaiTinNhan.Text)
                 {
                     _logger.LogWarning($"User '{maNguoiGui}' tried to recall non-text message {maTinNhan}");
                     throw new HubException("Chỉ có thể thu hồi tin nhắn văn bản bằng phương thức này.");
                 }
 
-                // Lưu thông tin cần thiết trước khi xóa
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-
-                // Xóa tin nhắn khỏi cơ sở dữ liệu
                 _context.TinNhans.Remove(tinNhan);
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"[SignalR] Text message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
 
-                // Thông báo cho tất cả các client trong nhóm cuộc trò chuyện về việc thu hồi tin nhắn
                 await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
                 {
                     maTinNhan = maTinNhan,
@@ -280,20 +258,17 @@ namespace UniMarket.Hubs
             }
             catch (Exception ex)
             {
-                // Log lỗi nếu có sự cố trong quá trình thu hồi tin nhắn
                 _logger.LogError(ex, $"Error recalling text message {maTinNhan} by user '{maNguoiGui}'");
                 throw;
             }
         }
 
-        // 🆕 Method thu hồi ảnh/video qua SignalR
         public async Task ThuHoiAnhVideo(int maTinNhan, string maNguoiGui)
         {
             _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall media message {maTinNhan}");
 
             try
             {
-                // Tìm tin nhắn trong cơ sở dữ liệu
                 var tinNhan = await _context.TinNhans
                     .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
 
@@ -303,14 +278,12 @@ namespace UniMarket.Hubs
                     throw new HubException("Tin nhắn không tồn tại.");
                 }
 
-                // Kiểm tra quyền thu hồi (chỉ người gửi mới được thu hồi tin nhắn)
                 if (tinNhan.MaNguoiGui != maNguoiGui)
                 {
                     _logger.LogWarning($"User '{maNguoiGui}' tried to recall media message {maTinNhan} without permission");
                     throw new HubException("Bạn không có quyền thu hồi tin nhắn này.");
                 }
 
-                // Kiểm tra thời gian (chỉ có thể thu hồi trong vòng 5 phút)
                 var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
                 if (timeDifference.TotalMinutes > 5)
                 {
@@ -318,25 +291,21 @@ namespace UniMarket.Hubs
                     throw new HubException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
                 }
 
-                // Chỉ cho phép thu hồi ảnh/video
                 if (tinNhan.Loai != LoaiTinNhan.Image && tinNhan.Loai != LoaiTinNhan.Video)
                 {
                     _logger.LogWarning($"User '{maNguoiGui}' tried to recall non-media message {maTinNhan}");
                     throw new HubException("Chỉ có thể thu hồi tin nhắn ảnh hoặc video bằng phương thức này.");
                 }
 
-                // Lưu thông tin cần thiết trước khi xóa
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-                var mediaUrl = tinNhan.NoiDung; // URL của ảnh/video được lưu trong NoiDung
+                var mediaUrl = tinNhan.NoiDung;
 
-                // Xóa ảnh/video khỏi Cloudinary
                 if (!string.IsNullOrEmpty(mediaUrl))
                 {
                     var resourceType = tinNhan.Loai == LoaiTinNhan.Image
                         ? CloudinaryDotNet.Actions.ResourceType.Image
                         : CloudinaryDotNet.Actions.ResourceType.Video;
 
-                    // Extract publicId from Cloudinary URL
                     var publicId = ExtractPublicIdFromUrl(mediaUrl);
 
                     if (!string.IsNullOrEmpty(publicId))
@@ -344,27 +313,19 @@ namespace UniMarket.Hubs
                         var deleteResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
 
                         if (deleteResult.Result == "ok")
-                        {
                             _logger.LogInformation($"Successfully deleted media from Cloudinary for message {maTinNhan}");
-                        }
                         else
-                        {
                             _logger.LogWarning($"Could not delete media from Cloudinary for message {maTinNhan}. Result: {deleteResult.Result}");
-                        }
                     }
                     else
-                    {
                         _logger.LogWarning($"Could not extract publicId from URL: {mediaUrl}");
-                    }
                 }
 
-                // Xóa tin nhắn khỏi cơ sở dữ liệu
                 _context.TinNhans.Remove(tinNhan);
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"[SignalR] Media message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
 
-                // Thông báo cho tất cả các client trong nhóm cuộc trò chuyện về việc thu hồi tin nhắn
                 await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
                 {
                     maTinNhan = maTinNhan,
@@ -375,13 +336,11 @@ namespace UniMarket.Hubs
             }
             catch (Exception ex)
             {
-                // Log lỗi nếu có sự cố trong quá trình thu hồi tin nhắn
                 _logger.LogError(ex, $"Error recalling media message {maTinNhan} by user '{maNguoiGui}'");
                 throw;
             }
         }
 
-        // Helper method để extract publicId từ Cloudinary URL
         private string ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
             try
@@ -389,29 +348,21 @@ namespace UniMarket.Hubs
                 if (string.IsNullOrEmpty(cloudinaryUrl))
                     return null;
 
-                // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{folder}/{public_id}.{format}
                 var uri = new Uri(cloudinaryUrl);
                 var path = uri.AbsolutePath;
 
-                // Remove file extension
                 var lastDotIndex = path.LastIndexOf('.');
                 if (lastDotIndex > 0)
-                {
                     path = path.Substring(0, lastDotIndex);
-                }
 
-                // Extract public_id (includes folder path)
                 var uploadIndex = path.IndexOf("/upload/");
                 if (uploadIndex >= 0)
                 {
                     var afterUpload = path.Substring(uploadIndex + "/upload/".Length);
-                    // Remove version if exists (v1234567890/)
                     var versionPattern = @"^v\d+/";
                     var match = System.Text.RegularExpressions.Regex.Match(afterUpload, versionPattern);
                     if (match.Success)
-                    {
                         afterUpload = afterUpload.Substring(match.Length);
-                    }
                     return afterUpload;
                 }
 
@@ -423,7 +374,5 @@ namespace UniMarket.Hubs
                 return null;
             }
         }
-
-
     }
 }

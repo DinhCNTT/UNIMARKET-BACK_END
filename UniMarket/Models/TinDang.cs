@@ -65,7 +65,9 @@ namespace UniMarket.Models
         [Required]
         [DisplayName("Trạng thái tin")]
         public TrangThaiTinDang TrangThai { get; set; } = TrangThaiTinDang.ChoDuyet; // Mặc định là Chờ duyệt
-
+        [DisplayName("Đường dẫn video")]
+        [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
+        public string? VideoUrl { get; set; } // 👉 Thêm dòng này
         [ForeignKey("MaDanhMuc")]
         public DanhMuc? DanhMuc { get; set; }
 
@@ -79,7 +81,9 @@ namespace UniMarket.Models
         public QuanHuyen? QuanHuyen { get; set; }
 
         public ICollection<AnhTinDang>? AnhTinDangs { get; set; }
+        public virtual ICollection<TinDangYeuThich> TinDangYeuThichs { get; set; }
+        [NotMapped]
+        public bool IsHot => TinDangYeuThichs != null && TinDangYeuThichs.Count >= 2;
     }
-
 
 }

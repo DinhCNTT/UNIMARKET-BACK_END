@@ -19,13 +19,12 @@ namespace UniMarket.Services
                 config.Value.ApiKey,
                 config.Value.ApiSecret
             );
-            _cloudinary = new Cloudinary(acc); // Sử dụng một đối tượng Cloudinary duy nhất
+            _cloudinary = new Cloudinary(acc);
         }
 
-        // Upload file lên Cloudinary vào thư mục chỉ định
+        // 🔄 Hàm core upload ảnh
         public async Task<ImageUploadResult> UploadFileToCloudinaryAsync(IFormFile file, string folder)
         {
-
             var uploadResult = new ImageUploadResult();
 
             if (file != null && file.Length > 0)
@@ -35,7 +34,7 @@ namespace UniMarket.Services
                     var uploadParams = new ImageUploadParams()
                     {
                         File = new FileDescription(file.FileName, file.OpenReadStream()),
-                        Folder = folder  // Đặt thư mục
+                        Folder = folder
                     };
 
                     uploadResult = await _cloudinary.UploadAsync(uploadParams);
@@ -49,19 +48,25 @@ namespace UniMarket.Services
             return uploadResult;
         }
 
-        // Upload ảnh cho chat
+        // ✅ Upload avatar vào thư mục "avatars"
+        public async Task<ImageUploadResult> UploadAvatarAsync(IFormFile file)
+        {
+            return await UploadFileToCloudinaryAsync(file, "avatars");
+        }
+
+        // ✅ Upload ảnh cho chat
         public async Task<ImageUploadResult> UploadChatImageAsync(IFormFile file)
         {
-            return await UploadFileToCloudinaryAsync(file, "doan-chat"); // Sử dụng thư mục "doan-chat" cho ảnh chat
+            return await UploadFileToCloudinaryAsync(file, "doan-chat");
         }
 
-        // Upload ảnh cho tin đăng
+        // ✅ Upload ảnh cho tin đăng
         public async Task<ImageUploadResult> UploadPhotoAsync(IFormFile file)
         {
-            return await UploadFileToCloudinaryAsync(file, "tin-dang"); // Sử dụng thư mục "tin-dang" cho ảnh tin đăng
+            return await UploadFileToCloudinaryAsync(file, "tin-dang");
         }
 
-        // Upload video cho tin đăng
+        // ✅ Upload video tin đăng
         public async Task<VideoUploadResult> UploadVideoAsync(IFormFile file)
         {
             var result = new VideoUploadResult();
@@ -72,29 +77,29 @@ namespace UniMarket.Services
                 var uploadParams = new VideoUploadParams
                 {
                     File = new FileDescription(file.FileName, stream),
-                    Folder = "tin-dang"  // Đặt thư mục cho video tin đăng
+                    Folder = "tin-dang",
+                    EagerTransforms = new List<Transformation>
+                    {
+                        new Transformation().Width(720).Height(480).Crop("limit").FetchFormat("mp4")
+                    },
+                    EagerAsync = true
                 };
+
                 result = await _cloudinary.UploadAsync(uploadParams);
 
                 if (result.Error != null)
-                {
-                    // Log lỗi chi tiết
                     Console.WriteLine($"Upload Error (video): {result.Error.Message}");
-                }
                 else
                 {
                     Console.WriteLine($"Upload Success (video): {result.SecureUrl}");
+                    Console.WriteLine($"Dung lượng: {Math.Round(result.Bytes / 1024.0 / 1024.0, 2)} MB");
                 }
-            }
-            else
-            {
-                Console.WriteLine("File length is 0.");
             }
 
             return result;
         }
 
-        // Xóa ảnh/video theo publicId - Updated method with better error handling
+        // ✅ Xóa ảnh/video theo publicId
         public async Task<DeletionResult> DeletePhotoAsync(string publicId, ResourceType resourceType = ResourceType.Image)
         {
             try
@@ -105,17 +110,12 @@ namespace UniMarket.Services
                 };
 
                 var result = await _cloudinary.DestroyAsync(deletionParams);
-
-                // Log result for debugging
                 Console.WriteLine($"Cloudinary deletion result for {publicId}: {result.Result}");
-
                 return result;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error deleting from Cloudinary: {ex.Message}");
-
-                // Return a failed result instead of throwing
                 return new DeletionResult
                 {
                     Result = "error",
@@ -124,16 +124,13 @@ namespace UniMarket.Services
             }
         }
 
-        // 🆕 Method xóa ảnh/video từ thư mục doan-chat
+        // ✅ Xóa media chat
         public async Task<DeletionResult> DeleteChatMediaAsync(string publicId, ResourceType resourceType = ResourceType.Image)
         {
             try
             {
-                // Đảm bảo publicId bao gồm folder path "doan-chat/"
                 if (!publicId.StartsWith("doan-chat/"))
-                {
                     publicId = $"doan-chat/{publicId}";
-                }
 
                 var deletionParams = new DeletionParams(publicId)
                 {
@@ -141,17 +138,12 @@ namespace UniMarket.Services
                 };
 
                 var result = await _cloudinary.DestroyAsync(deletionParams);
-
-                // Log result for debugging
                 Console.WriteLine($"Cloudinary chat media deletion result for {publicId}: {result.Result}");
-
                 return result;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error deleting chat media from Cloudinary: {ex.Message}");
-
-                // Return a failed result instead of throwing
                 return new DeletionResult
                 {
                     Result = "error",
@@ -160,7 +152,7 @@ namespace UniMarket.Services
             }
         }
 
-        // 🆕 Method xóa theo URL (tự động detect folder và publicId)
+        // ✅ Xóa theo URL
         public async Task<bool> DeleteMediaByUrlAsync(string mediaUrl, ResourceType resourceType = ResourceType.Image)
         {
             try
@@ -174,15 +166,10 @@ namespace UniMarket.Services
 
                 DeletionResult result;
 
-                // Nếu là từ thư mục doan-chat, dùng method chuyên biệt
                 if (publicId.StartsWith("doan-chat/"))
-                {
                     result = await DeleteChatMediaAsync(publicId, resourceType);
-                }
                 else
-                {
                     result = await DeletePhotoAsync(publicId, resourceType);
-                }
 
                 return result.Result == "ok";
             }
@@ -193,7 +180,7 @@ namespace UniMarket.Services
             }
         }
 
-        // Helper method để extract publicId từ Cloudinary URL
+        // ✅ Extract publicId từ Cloudinary URL
         private string ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
             try
@@ -201,29 +188,22 @@ namespace UniMarket.Services
                 if (string.IsNullOrEmpty(cloudinaryUrl))
                     return null;
 
-                // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{folder}/{public_id}.{format}
                 var uri = new Uri(cloudinaryUrl);
                 var path = uri.AbsolutePath;
 
-                // Remove file extension
                 var lastDotIndex = path.LastIndexOf('.');
                 if (lastDotIndex > 0)
-                {
                     path = path.Substring(0, lastDotIndex);
-                }
 
-                // Extract public_id (includes folder path)
                 var uploadIndex = path.IndexOf("/upload/");
                 if (uploadIndex >= 0)
                 {
                     var afterUpload = path.Substring(uploadIndex + "/upload/".Length);
-                    // Remove version if exists (v1234567890/)
                     var versionPattern = @"^v\d+/";
                     var match = System.Text.RegularExpressions.Regex.Match(afterUpload, versionPattern);
                     if (match.Success)
-                    {
                         afterUpload = afterUpload.Substring(match.Length);
-                    }
+
                     return afterUpload;
                 }
 

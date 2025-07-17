@@ -24,6 +24,8 @@ namespace UniMarket.Models
         public ICollection<NguoiThamGia>? NguoiThamGias { get; set; }
         // 🆕 Trường mới để kiểm tra trạng thái chặn
         public bool IsBlocked { get; set; } = false;
+        [StringLength(450)] // Phù hợp với MaNguoiDung
+        public string? MaNguoiChan { get; set; } // Lưu ID của người chặn
     }
 }
 

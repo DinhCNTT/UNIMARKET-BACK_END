@@ -1,13 +1,17 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SqlServer.Server;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using UniMarket.DataAccess;
+using UniMarket.DTO;
 using UniMarket.Models;
+using UniMarket.Services;
 
 namespace UniMarket.Controllers
 {
@@ -17,10 +21,19 @@ namespace UniMarket.Controllers
     public class UserProfileController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ApplicationDbContext _context;
+        private readonly PhotoService _photoService;
 
-        public UserProfileController(UserManager<ApplicationUser> userManager)
+        public UserProfileController(UserManager<ApplicationUser> userManager, ApplicationDbContext context, PhotoService photoService)
         {
             _userManager = userManager;
+            _context = context;
+            _photoService = photoService;
+        }
+        // DTO: Cập nhật avatar
+        public class UpdateAvatarModel
+        {
+            public string AvatarUrl { get; set; }
         }
 
         // DTO: Dữ liệu trả về khi gọi GET /me
@@ -222,6 +235,146 @@ namespace UniMarket.Controllers
                 return BadRequest(new { message = "Không thể xóa tài khoản.", errors = result.Errors });
 
             return Ok(new { message = "Tài khoản đã được xóa thành công." });
+        }
+
+        // PUT: api/userprofile/update-avatar
+        [HttpPut("update-avatar")]
+        public async Task<IActionResult> UpdateAvatar([FromBody] UpdateAvatarModel model)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "User is not authenticated." });
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            user.AvatarUrl = model.AvatarUrl;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return BadRequest(new { message = "Failed to update avatar.", errors = result.Errors });
+
+            return Ok(new { message = "Avatar updated successfully.", avatarUrl = user.AvatarUrl });
+        }
+
+        [HttpPost("upload-avatar")]
+        public async Task<IActionResult> UploadAvatar([FromForm] IFormFile avatar)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "User is not authenticated." });
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            if (avatar == null || avatar.Length == 0)
+                return BadRequest(new { message = "No file uploaded." });
+
+            try
+            {
+                // ✅ Nếu user có avatar cũ, xóa trên Cloudinary trước
+                if (!string.IsNullOrEmpty(user.AvatarUrl))
+                {
+                    var deleteResult = await _photoService.DeleteMediaByUrlAsync(user.AvatarUrl);
+
+                    if (!deleteResult)
+                    {
+                        // Không cần return lỗi, chỉ log cảnh báo thôi
+                        Console.WriteLine("⚠️ Không thể xóa avatar cũ từ Cloudinary.");
+                    }
+                }
+
+                // ✅ Upload ảnh mới
+                var uploadResult = await _photoService.UploadFileToCloudinaryAsync(avatar, "avatars");
+
+                if (uploadResult.Error != null)
+                {
+                    return BadRequest(new { message = "Upload thất bại", error = uploadResult.Error.Message });
+                }
+
+                // ✅ Cập nhật AvatarUrl
+                user.AvatarUrl = uploadResult.SecureUrl.ToString();
+                await _userManager.UpdateAsync(user);
+
+                return Ok(new
+                {
+                    message = "✅ Ảnh đại diện đã được cập nhật!",
+                    avatarUrl = user.AvatarUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server khi upload ảnh đại diện", error = ex.Message });
+            }
+        }
+        [HttpGet("user-posts/{userId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserPosts(string userId)
+        {
+            var posts = await _context.TinDangs
+                .Where(t => t.MaNguoiBan == userId && t.TrangThai == TrangThaiTinDang.DaDuyet)
+                .Select(t => new UserPostDto
+                {
+                    MaTinDang = t.MaTinDang,
+                    TieuDe = t.TieuDe,
+                    Gia = t.Gia,
+                    VideoUrl = t.VideoUrl,
+                    DiaChi = t.DiaChi,
+                    NgayDang = t.NgayDang,
+                    TinhTrang = t.TinhTrang,
+                    AnhDuongDans = t.AnhTinDangs.Select(a => a.DuongDan).ToList() // ✅ lấy ảnh
+                })
+                .ToListAsync();
+
+            return Ok(posts);
+        }
+
+
+        [HttpGet("user-videos/{userId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserVideos(string userId)
+        {
+            // Cho phép lấy thông tin kể cả khi chưa đăng nhập
+            string? currentUserId = null;
+
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                currentUserId = _userManager.GetUserId(User);
+            }
+
+            var videos = await _context.TinDangs
+                .Where(t => t.MaNguoiBan == userId && t.VideoUrl != null && t.TrangThai == TrangThaiTinDang.DaDuyet)
+                .Select(t => new UserVideoDto
+                {
+                    MaTinDang = t.MaTinDang,
+                    TieuDe = t.TieuDe,
+                    VideoUrl = t.VideoUrl,
+                    SoLuongTym = _context.VideoLikes.Count(v => v.MaTinDang == t.MaTinDang),
+                    DaTym = currentUserId != null && _context.VideoLikes.Any(v => v.MaTinDang == t.MaTinDang && v.UserId == currentUserId)
+                })
+                .ToListAsync();
+
+            return Ok(videos);
+        }
+
+
+        [HttpGet("user-info/{userId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserInfo(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            var result = new UserInfoDto
+            {
+                FullName = user.FullName ?? "",
+                AvatarUrl = user.AvatarUrl,
+                DaXacMinhEmail = user.EmailConfirmed
+            };
+
+            return Ok(result);
         }
 
     }
