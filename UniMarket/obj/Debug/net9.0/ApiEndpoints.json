@@ -1,5 +1,15 @@
 [
   {
+    "ContainingType": "ApiExplorerController",
+    "Method": "GetAllApis",
+    "RelativePath": "api-list",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "UniMarket.Controllers.AdminController",
     "Method": "AddCategory",
     "RelativePath": "api/admin/add-category",
@@ -1129,6 +1139,38 @@
         "StatusCode": 200
       }
     ]
+  },
+  {
+    "ContainingType": "UserController",
+    "Method": "GetUserProfile",
+    "RelativePath": "api/User/profile/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UserController",
+    "Method": "UpdateProfile",
+    "RelativePath": "api/User/update-profile",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "model",
+        "Type": "UserController\u002BUpdateProfileModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
   },
   {
     "ContainingType": "UniMarket.Controllers.UserProfileController",

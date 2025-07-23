@@ -85,11 +85,13 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var token = GenerateJwtToken(user, roles.FirstOrDefault() ?? "User");
 
+        // ✅ Thêm phoneNumber vào response
         return Ok(new
         {
             id = user.Id,
             email = user.Email,
             fullName = user.FullName,
+            phoneNumber = user.PhoneNumber, // ✅ Thêm số điện thoại
             role = roles.FirstOrDefault() ?? "User",
             token = token,
             avatarUrl = user.AvatarUrl,

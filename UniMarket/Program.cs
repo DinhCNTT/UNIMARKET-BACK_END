@@ -225,15 +225,12 @@ app.UseExceptionHandler(appBuilder =>
 // ==========================
 // 🧩 Middlewares
 // ==========================
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniMarket API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniMarket API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
@@ -255,6 +252,7 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
 app.MapHub<ChatHub>("/hub/chat");
+app.MapHub<CommentHub>("/hub/comment");
 
 // ==========================
 // 👑 Tạo Role + Admin mặc định

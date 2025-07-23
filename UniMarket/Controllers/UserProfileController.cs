@@ -13,6 +13,7 @@ using UniMarket.DTO;
 using UniMarket.Models;
 using UniMarket.Services;
 
+
 namespace UniMarket.Controllers
 {
     [ApiController]
@@ -45,7 +46,7 @@ namespace UniMarket.Controllers
             public string PhoneNumber { get; set; }
             public string FullName { get; set; }
             public bool CanChangeEmail { get; set; } // ✅ mới thêm
-
+            public string? AvatarUrl { get; set; }
         }
 
         // DTO: Cập nhật thông tin cá nhân
@@ -71,7 +72,6 @@ namespace UniMarket.Controllers
 
 
         [HttpGet("me")]
-        [Authorize]
         public async Task<IActionResult> GetUserProfile()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -80,12 +80,10 @@ namespace UniMarket.Controllers
                 return Unauthorized(new { message = "UserId claim not found in token." });
             }
 
-            var claimsList = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
-
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
-                return NotFound(new { message = "Người dùng không tồn tại.", userId, claimsList });
+                return NotFound(new { message = "Người dùng không tồn tại." });
             }
 
             var profile = new UserProfileDTO
@@ -95,8 +93,8 @@ namespace UniMarket.Controllers
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumber = user.PhoneNumber,
                 FullName = user.FullName,
-                CanChangeEmail = !user.EmailConfirmed
-
+                CanChangeEmail = !user.EmailConfirmed,
+                AvatarUrl = user.AvatarUrl
             };
 
             return Ok(profile);
