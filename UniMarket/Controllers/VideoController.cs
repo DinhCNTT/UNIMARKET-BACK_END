@@ -5,6 +5,7 @@ using System.Security.Claims;
 using UniMarket.DataAccess;
 using UniMarket.Models;
 using UniMarket.DTO;
+using Microsoft.AspNetCore.Identity;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -12,10 +13,13 @@ namespace UniMarket.Controllers
     public class VideoController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public VideoController(ApplicationDbContext context)
+        public VideoController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
+
         }
 
         [HttpGet]
@@ -148,6 +152,47 @@ namespace UniMarket.Controllers
 
             return Ok(result);
         }
+        // ham lay video video da tym
+        [HttpGet("liked")]
+        [Authorize]
+        public async Task<IActionResult> GetLikedVideos()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
+
+            var likedVideos = await _context.VideoLikes
+                .Where(v => v.UserId == user.Id)
+                .OrderByDescending(v => v.CreatedAt)
+                .Select(v => new
+                {
+                    v.MaTinDang,
+                    v.TinDang.TieuDe,
+                    v.TinDang.VideoUrl,
+                    v.TinDang.Gia,
+                    v.TinDang.DiaChi,
+                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
+                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    SoTym = _context.VideoLikes.Count(x => x.MaTinDang == v.MaTinDang),
+                    SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+                    NguoiDang = new
+                    {
+                        v.TinDang.NguoiBan.Id,
+                        v.TinDang.NguoiBan.FullName,
+                        v.TinDang.NguoiBan.AvatarUrl
+                    },
+                    CurrentUser = new
+                    {
+                        user.Id,
+                        user.FullName,
+                        user.AvatarUrl
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(likedVideos);
+        }
+
 
 
         [Authorize]
