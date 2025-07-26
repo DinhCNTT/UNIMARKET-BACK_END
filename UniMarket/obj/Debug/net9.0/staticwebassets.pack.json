@@ -1,167 +1,175 @@
 {
   "Files": [
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\css\\site.css",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\css\\site.css",
       "PackagePath": "staticwebassets\\css\\site.css"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\favicon.ico",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\favicon.ico",
       "PackagePath": "staticwebassets\\favicon.ico"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-08 165044.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-08 165044.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-08 165044.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-10 224233.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-10 224233.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-10 224233.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-10 225605.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-10 225605.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-10 225605.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 075736.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 075736.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-13 075736.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 081037.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 081037.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-13 081037.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 082608.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\Screenshot 2025-05-13 082608.png",
       "PackagePath": "staticwebassets\\images\\Posts\\Screenshot 2025-05-13 082608.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\iphone-12-pro-max-cu-01622619065.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\iphone-12-pro-max-cu-01622619065.jpg",
       "PackagePath": "staticwebassets\\images\\Posts\\iphone-12-pro-max-cu-01622619065.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\laptop.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\laptop.jpg",
       "PackagePath": "staticwebassets\\images\\Posts\\laptop.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\Posts\\noicomdien.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\Posts\\noicomdien.jpg",
       "PackagePath": "staticwebassets\\images\\Posts\\noicomdien.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\184e8b12-65c2-48f1-965b-5853bf8572cf_87f1e0540f73ce61125ae2addb5d7f49.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\184e8b12-65c2-48f1-965b-5853bf8572cf_87f1e0540f73ce61125ae2addb5d7f49.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\184e8b12-65c2-48f1-965b-5853bf8572cf_87f1e0540f73ce61125ae2addb5d7f49.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\384b6b5c-a034-42f0-89fe-af5f771c1643_z6481186650844_156b882af36b9d9ddfce9a8bb6cd2086.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\384b6b5c-a034-42f0-89fe-af5f771c1643_z6481186650844_156b882af36b9d9ddfce9a8bb6cd2086.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\384b6b5c-a034-42f0-89fe-af5f771c1643_z6481186650844_156b882af36b9d9ddfce9a8bb6cd2086.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\3b0cf16e-f650-4117-9ef9-518c877da523_c54bce4fda93901bc8e4145d0ac940b9.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\3b0cf16e-f650-4117-9ef9-518c877da523_c54bce4fda93901bc8e4145d0ac940b9.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\3b0cf16e-f650-4117-9ef9-518c877da523_c54bce4fda93901bc8e4145d0ac940b9.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\4078cf01-1501-4fb1-a9da-ee6b387f2012_R.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\4078cf01-1501-4fb1-a9da-ee6b387f2012_R.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\4078cf01-1501-4fb1-a9da-ee6b387f2012_R.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png",
       "PackagePath": "staticwebassets\\images\\categories\\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\80759f56-e111-40f9-96b1-e88843d37f25_ChatGPT Image Jul 3, 2025, 04_56_35 PM.png",
+      "PackagePath": "staticwebassets\\images\\categories\\80759f56-e111-40f9-96b1-e88843d37f25_ChatGPT Image Jul 3, 2025, 04_56_35 PM.png"
+    },
+    {
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png",
       "PackagePath": "staticwebassets\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\bff391d9-d348-4ead-9566-b66600850f04_interior-design.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\bb15ebc6-f1ce-4970-ad7c-ae605f3c7d29_snapedit_1746200704242.jpeg",
+      "PackagePath": "staticwebassets\\images\\categories\\bb15ebc6-f1ce-4970-ad7c-ae605f3c7d29_snapedit_1746200704242.jpeg"
+    },
+    {
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\bff391d9-d348-4ead-9566-b66600850f04_interior-design.png",
       "PackagePath": "staticwebassets\\images\\categories\\bff391d9-d348-4ead-9566-b66600850f04_interior-design.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png",
       "PackagePath": "staticwebassets\\images\\categories\\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png",
       "PackagePath": "staticwebassets\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\js\\site.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\js\\site.js",
       "PackagePath": "staticwebassets\\js\\site.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\LICENSE",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\LICENSE",
       "PackagePath": "staticwebassets\\lib\\bootstrap"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.css",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.css",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\css\\bootstrap.css"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.css.map",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.css.map",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\css\\bootstrap.css.map"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.min.css",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.min.css",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\css\\bootstrap.min.css"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.min.css.map",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.min.css.map",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\css\\bootstrap.min.css.map"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\js\\bootstrap.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\js\\bootstrap.js",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\js\\bootstrap.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\js\\bootstrap.min.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\bootstrap\\dist\\js\\bootstrap.min.js",
       "PackagePath": "staticwebassets\\lib\\bootstrap\\dist\\js\\bootstrap.min.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.min.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.min.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation-unobtrusive\\dist\\jquery.validate.unobtrusive.min.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation\\LICENSE.md",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation\\LICENSE.md",
       "PackagePath": "staticwebassets\\lib\\jquery-validation\\LICENSE.md"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\additional-methods.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\additional-methods.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation\\dist\\additional-methods.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\additional-methods.min.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\additional-methods.min.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation\\dist\\additional-methods.min.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\jquery.validate.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\jquery.validate.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation\\dist\\jquery.validate.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\jquery.validate.min.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery-validation\\dist\\jquery.validate.min.js",
       "PackagePath": "staticwebassets\\lib\\jquery-validation\\dist\\jquery.validate.min.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery\\LICENSE.txt",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery\\LICENSE.txt",
       "PackagePath": "staticwebassets\\lib\\jquery\\LICENSE.txt"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.js",
       "PackagePath": "staticwebassets\\lib\\jquery\\dist\\jquery.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.min.js",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.min.js",
       "PackagePath": "staticwebassets\\lib\\jquery\\dist\\jquery.min.js"
     },
     {
-      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.min.map",
+      "Id": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\wwwroot\\lib\\jquery\\dist\\jquery.min.map",
       "PackagePath": "staticwebassets\\lib\\jquery\\dist\\jquery.min.map"
     },
     {

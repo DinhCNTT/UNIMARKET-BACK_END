@@ -12890,23 +12890,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Tue Dinh\\.nuget\\packages\\": {},
+    "C:\\Users\\caol6\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\UniMarket.csproj",
+      "projectUniqueName": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\UniMarket.csproj",
       "projectName": "UniMarket",
-      "projectPath": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\UniMarket.csproj",
-      "packagesPath": "C:\\Users\\Tue Dinh\\.nuget\\packages\\",
-      "outputPath": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\obj\\",
+      "projectPath": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\UniMarket.csproj",
+      "packagesPath": "C:\\Users\\caol6\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\Tue Dinh\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\caol6\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
