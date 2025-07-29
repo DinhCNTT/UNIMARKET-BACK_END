@@ -99,19 +99,26 @@ namespace UniMarket.Controllers
 
             var danhSach = await _context.TinDangYeuThichs
                 .Where(x => x.MaNguoiDung == userId)
-                .Include(x => x.TinDang) // Bao gồm thông tin chi tiết của TinDang
-                .ThenInclude(td => td.AnhTinDangs) // Bao gồm ảnh liên quan đến tin đăng
+                .Include(x => x.TinDang)
+                    .ThenInclude(td => td.AnhTinDangs)
+                .Include(x => x.TinDang)
+                    .ThenInclude(td => td.QuanHuyen)
+                .Include(x => x.TinDang)
+                    .ThenInclude(td => td.TinhThanh)
                 .Select(x => new
                 {
                     MaTinDang = x.TinDang.MaTinDang,
                     Images = x.TinDang.AnhTinDangs.Select(a =>
                         a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                        ? a.DuongDan
-                        : $"http://localhost:5133{a.DuongDan}" // Ensure the path is absolute
-                    ).ToList(),
-                    x.TinDang.TieuDe, // Thêm tiêu đề tin đăng
-                    x.TinDang.Gia,    // Thêm giá của tin đăng
-                    x.TinDang.DiaChi  // Thêm địa chỉ tin đăng
+                            ? a.DuongDan
+                            : $"http://localhost:5133{a.DuongDan}"
+    ).ToList(),
+                    x.TinDang.TieuDe,
+                    x.TinDang.Gia,
+                    x.TinDang.DiaChi,
+                    QuanHuyen = x.TinDang.QuanHuyen != null ? x.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    TinhThanh = x.TinDang.TinhThanh != null ? x.TinDang.TinhThanh.TenTinhThanh : null,
+                    SavedCount = _context.TinDangYeuThichs.Count(y => y.MaTinDang == x.TinDang.MaTinDang) // Thêm dòng này
                 })
                 .ToListAsync();
 
@@ -120,7 +127,6 @@ namespace UniMarket.Controllers
 
             return Ok(danhSach);
         }
-
 
     }
 
