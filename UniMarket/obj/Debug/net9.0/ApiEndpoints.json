@@ -895,12 +895,12 @@
         "IsRequired": false
       },
       {
-        "Name": "oldImageOrder",
+        "Name": "imageOrderMap",
         "Type": "System.String",
         "IsRequired": false
       },
       {
-        "Name": "oldVideoOrder",
+        "Name": "videoOrderMap",
         "Type": "System.String",
         "IsRequired": false
       }

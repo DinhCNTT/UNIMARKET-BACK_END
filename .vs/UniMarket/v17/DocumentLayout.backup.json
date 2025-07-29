@@ -1,34 +1,106 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\",
+  "WorkspaceRootPath": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\controllers\\authcontroller .cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\authcontroller .cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\controllers\\tindangcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\tindangcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\videoview.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\videoview.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\models\\videolike.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\videolike.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\videolike.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\videocomment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\videocomment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\models\\tinhthanh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\userloginmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\userloginmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\tinnhandaxoa.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tinnhandaxoa.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\tinnhan.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tinnhan.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\tinhthanh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tinhthanh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\models\\quanhuyen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\tindangyeuthich.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tindangyeuthich.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\tindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\searchhistory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\searchhistory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\sd.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\sd.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\quanhuyen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\quanhuyen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|c:\\users\\caol6\\downloads\\unimarket-back_end\\unimarket\\models\\tindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\tindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\nguoithamgia.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\nguoithamgia.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\emailsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\emailsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\danhmuccha.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\danhmuccha.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\danhmuc.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\danhmuc.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\cuoctrochuyen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\cuoctrochuyen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\cloudinarysettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\cloudinarysettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\blockeduser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\blockeduser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\applicationuser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\applicationuser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\anhtindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\anhtindang.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\dto\\blockchatrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\dto\\blockchatrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     }
   ],
   "DocumentGroupContainers": [
@@ -38,16 +110,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 5,
           "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{75188d03-9892-4ae2-abf1-207126247ce5}"
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
@@ -57,99 +121,317 @@
               "Name": "ST:0:0:{b1e99781-ab81-11d0-b683-00aa00a3ee26}"
             },
             {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "AuthController .cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Controllers\\AuthController .cs",
-              "RelativeDocumentMoniker": "UniMarket\\Controllers\\AuthController .cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Controllers\\AuthController .cs",
-              "RelativeToolTip": "UniMarket\\Controllers\\AuthController .cs",
-              "ViewState": "AgIAADsAAAAAAAAAAAAtwJkAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T08:03:37.171Z",
-              "EditorCaption": ""
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
             },
             {
               "$type": "Bookmark",
-              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{75188d03-9892-4ae2-abf1-207126247ce5}"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "QuanHuyen.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\QuanHuyen.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Models\\QuanHuyen.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\QuanHuyen.cs",
-              "RelativeToolTip": "UniMarket\\Models\\QuanHuyen.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAA==",
+              "DocumentIndex": 0,
+              "Title": "TinDangController.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\TinDangController.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Controllers\\TinDangController.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\TinDangController.cs",
+              "RelativeToolTip": "UniMarket\\Controllers\\TinDangController.cs",
+              "ViewState": "AgIAAPYBAAAAAAAAAAAmwAcCAABCAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T07:21:10.416Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "TinhThanh.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\TinhThanh.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Models\\TinhThanh.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\TinhThanh.cs",
-              "RelativeToolTip": "UniMarket\\Models\\TinhThanh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T07:20:44.946Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "Program.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Program.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Program.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Program.cs",
-              "RelativeToolTip": "UniMarket\\Program.cs",
-              "ViewState": "AgIAAM8AAAAAAAAAAAAAABwBAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T07:14:19.561Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "TinDang.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\TinDang.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Models\\TinDang.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\TinDang.cs",
-              "RelativeToolTip": "UniMarket\\Models\\TinDang.cs",
-              "ViewState": "AgIAADgAAAAAAAAAAAA3wE4AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T06:30:07.492Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "VideoLike.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\VideoLike.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Models\\VideoLike.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Models\\VideoLike.cs",
-              "RelativeToolTip": "UniMarket\\Models\\VideoLike.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T06:29:35.495Z",
+              "WhenOpened": "2025-07-28T02:13:16.365Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "VideoController.cs",
-              "DocumentMoniker": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Controllers\\VideoController.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Controllers\\VideoController.cs",
-              "ToolTip": "C:\\Users\\caol6\\Downloads\\UNIMARKET-BACK_END\\UniMarket\\Controllers\\VideoController.cs",
-              "RelativeToolTip": "UniMarket\\Controllers\\VideoController.cs",
-              "ViewState": "AgIAAJQAAAAAAAAAAAAqwKYAAAAgAAAAAAAAAA==",
+              "Title": "VideoView.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoView.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\VideoView.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoView.cs",
+              "RelativeToolTip": "UniMarket\\Models\\VideoView.cs",
+              "ViewState": "AgIAAAEAAAAAAAAAAAAqwA8AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-07-26T06:21:12.556Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-07-27T11:43:24.303Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "VideoLike.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoLike.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\VideoLike.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoLike.cs",
+              "RelativeToolTip": "UniMarket\\Models\\VideoLike.cs",
+              "ViewState": "AgIAAAEAAAAAAAAAAAAqwBcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:43:19.724Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "VideoComment.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoComment.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\VideoComment.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoComment.cs",
+              "RelativeToolTip": "UniMarket\\Models\\VideoComment.cs",
+              "ViewState": "AgIAAA0AAAAAAAAAAAA8wCMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:43:15.908Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "UserLoginModel.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\UserLoginModel.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\UserLoginModel.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\UserLoginModel.cs",
+              "RelativeToolTip": "UniMarket\\Models\\UserLoginModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:43:09.748Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "TinNhanDaXoa.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinNhanDaXoa.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\TinNhanDaXoa.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinNhanDaXoa.cs",
+              "RelativeToolTip": "UniMarket\\Models\\TinNhanDaXoa.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:43:05.62Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "TinNhan.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinNhan.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\TinNhan.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinNhan.cs",
+              "RelativeToolTip": "UniMarket\\Models\\TinNhan.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAmwCMAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:58.813Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "TinhThanh.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinhThanh.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\TinhThanh.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinhThanh.cs",
+              "RelativeToolTip": "UniMarket\\Models\\TinhThanh.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:54.852Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "TinDangYeuThich.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinDangYeuThich.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\TinDangYeuThich.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinDangYeuThich.cs",
+              "RelativeToolTip": "UniMarket\\Models\\TinDangYeuThich.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:50.572Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "TinDang.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinDang.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\TinDang.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\TinDang.cs",
+              "RelativeToolTip": "UniMarket\\Models\\TinDang.cs",
+              "ViewState": "AgIAAEQAAAAAAAAAAAAmwFkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:46.072Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "SearchHistory.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\SearchHistory.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\SearchHistory.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\SearchHistory.cs",
+              "RelativeToolTip": "UniMarket\\Models\\SearchHistory.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:41.927Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "SD.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\SD.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\SD.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\SD.cs",
+              "RelativeToolTip": "UniMarket\\Models\\SD.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:38.007Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "QuanHuyen.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\QuanHuyen.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\QuanHuyen.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\QuanHuyen.cs",
+              "RelativeToolTip": "UniMarket\\Models\\QuanHuyen.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:33.778Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "NguoiThamGia.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\NguoiThamGia.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\NguoiThamGia.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\NguoiThamGia.cs",
+              "RelativeToolTip": "UniMarket\\Models\\NguoiThamGia.cs",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAqwBkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:29.731Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "EmailSettings.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\EmailSettings.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\EmailSettings.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\EmailSettings.cs",
+              "RelativeToolTip": "UniMarket\\Models\\EmailSettings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:25.035Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "DanhMucCha.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\DanhMucCha.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\DanhMucCha.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\DanhMucCha.cs",
+              "RelativeToolTip": "UniMarket\\Models\\DanhMucCha.cs",
+              "ViewState": "AgIAAAIAAAAAAAAAAAAuwBkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:20.885Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "DanhMuc.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\DanhMuc.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\DanhMuc.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\DanhMuc.cs",
+              "RelativeToolTip": "UniMarket\\Models\\DanhMuc.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:16.672Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "CuocTroChuyen.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\CuocTroChuyen.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\CuocTroChuyen.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\CuocTroChuyen.cs",
+              "RelativeToolTip": "UniMarket\\Models\\CuocTroChuyen.cs",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAiwB8AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:12.609Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "CloudinarySettings.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\CloudinarySettings.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\CloudinarySettings.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\CloudinarySettings.cs",
+              "RelativeToolTip": "UniMarket\\Models\\CloudinarySettings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:04.936Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "BlockedUser.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\BlockedUser.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\BlockedUser.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\BlockedUser.cs",
+              "RelativeToolTip": "UniMarket\\Models\\BlockedUser.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:42:00.776Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "ApplicationUser.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\ApplicationUser.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\ApplicationUser.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\ApplicationUser.cs",
+              "RelativeToolTip": "UniMarket\\Models\\ApplicationUser.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:41:56.127Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "AnhTinDang.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\AnhTinDang.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\AnhTinDang.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\AnhTinDang.cs",
+              "RelativeToolTip": "UniMarket\\Models\\AnhTinDang.cs",
+              "ViewState": "AgIAAA0AAAAAAAAAAAAqwCMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:41:45.45Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "BlockChatRequest.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\DTO\\BlockChatRequest.cs",
+              "RelativeDocumentMoniker": "UniMarket\\DTO\\BlockChatRequest.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\DTO\\BlockChatRequest.cs",
+              "RelativeToolTip": "UniMarket\\DTO\\BlockChatRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T11:41:41.218Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 24,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\appsettings.json",
+              "RelativeDocumentMoniker": "UniMarket\\appsettings.json",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\appsettings.json",
+              "RelativeToolTip": "UniMarket\\appsettings.json",
+              "ViewState": "AgIAAA4AAAAAAAAAAAAkwCoAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-07-26T12:16:57.826Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "VideoController.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Controllers\\VideoController.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
+              "RelativeToolTip": "UniMarket\\Controllers\\VideoController.cs",
+              "ViewState": "AgIAAFcBAAAAAAAAAAAcwGoBAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-26T12:15:40.046Z"
             }
           ]
         },
@@ -160,6 +442,10 @@
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
             }
           ]
         }
