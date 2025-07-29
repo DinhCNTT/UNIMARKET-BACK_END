@@ -30,7 +30,6 @@ namespace UniMarket.Controllers
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                 : null;
 
-            // Lấy tất cả tin đăng có video đã duyệt
             var tinDangsQuery = _context.TinDangs
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(td => td.NguoiBan)
@@ -40,7 +39,6 @@ namespace UniMarket.Controllers
             var tinDangs = await tinDangsQuery.ToListAsync();
             var maTinDangList = tinDangs.Select(td => td.MaTinDang).ToList();
 
-            // Lấy số tym và số bình luận
             var tymCounts = await _context.VideoLikes
                 .Where(v => maTinDangList.Contains(v.MaTinDang))
                 .GroupBy(v => v.MaTinDang)
@@ -58,12 +56,12 @@ namespace UniMarket.Controllers
                     .ToListAsync()
                 : new List<int>();
 
-            // Tạo danh sách kết quả kèm theo số tym + cmt để sort
             var result = tinDangs
                 .Select(td => new
                 {
                     td.MaTinDang,
                     td.TieuDe,
+                    td.MoTa, // Thêm trường này
                     td.VideoUrl,
                     td.Gia,
                     DiaChi = td.DiaChi,
@@ -81,7 +79,7 @@ namespace UniMarket.Controllers
                     IsLiked = likedVideoIds.Contains(td.MaTinDang)
                 })
                 .OrderByDescending(x => x.TongScore)
-                .ThenByDescending(x => x.MaTinDang) // fallback nếu điểm bằng nhau
+                .ThenByDescending(x => x.MaTinDang)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
@@ -101,10 +99,8 @@ namespace UniMarket.Controllers
             if (tin == null)
                 return NotFound();
 
-            // Mặc định là chưa tym
             bool isLiked = false;
 
-            // Nếu người dùng đã đăng nhập, kiểm tra đã tym hay chưa
             if (User.Identity.IsAuthenticated)
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -115,11 +111,11 @@ namespace UniMarket.Controllers
                 }
             }
 
-            // Trả về thông tin video
             var result = new
             {
                 tin.MaTinDang,
                 tin.TieuDe,
+                tin.MoTa, // Thêm trường này
                 tin.VideoUrl,
                 tin.Gia,
                 DiaChi = tin.DiaChi,
