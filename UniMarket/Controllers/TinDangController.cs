@@ -252,23 +252,23 @@ namespace UniMarket.Controllers
         }
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
-    int id,
-    [FromForm] string title,
-    [FromForm] string description,
-    [FromForm] decimal price,
-    [FromForm] string contactInfo,
-    [FromForm] string condition,
-    [FromForm] bool canNegotiate,
-    [FromForm] int province,
-    [FromForm] int district,
-    [FromForm] int categoryId,
-    [FromForm] string userId,
-    [FromForm] List<IFormFile>? newImages,
-    [FromForm] List<IFormFile>? newVideos,
-    [FromForm] string? oldImagesToDelete,
-    [FromForm] string? oldVideosToDelete,
-    [FromForm] string? imageOrderMap,
-    [FromForm] string? videoOrderMap)
+int id,
+[FromForm] string title,
+[FromForm] string description,
+[FromForm] decimal price,
+[FromForm] string contactInfo,
+[FromForm] string condition,
+[FromForm] bool canNegotiate,
+[FromForm] int province,
+[FromForm] int district,
+[FromForm] int categoryId,
+[FromForm] string userId,
+[FromForm] List<IFormFile>? newImages,
+[FromForm] List<IFormFile>? newVideos,
+[FromForm] string? oldImagesToDelete,
+[FromForm] string? oldVideosToDelete,
+[FromForm] string? imageOrderMap,
+[FromForm] string? videoOrderMap)
         {
             try
             {
@@ -476,13 +476,43 @@ namespace UniMarket.Controllers
                     await _context.SaveChangesAsync();
                 }
 
+                // **BƯỚC 6.5: CẬP NHẬT VideoUrl CHO VideoListCarouselMini** ✅ QUAN TRỌNG
+                var firstVideo = allMedia
+                    .Where(m => m.LoaiMedia == MediaType.Video)
+                    .OrderBy(m => m.Order)
+                    .FirstOrDefault();
+
+                bool videoUrlChanged = false;
+                if (firstVideo != null && firstVideo.DuongDan != post.VideoUrl)
+                {
+                    Console.WriteLine($"🎥 Cập nhật VideoUrl: {post.VideoUrl} -> {firstVideo.DuongDan}");
+                    post.VideoUrl = firstVideo.DuongDan;
+                    _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
+                    videoUrlChanged = true;
+                }
+                else if (firstVideo == null && !string.IsNullOrEmpty(post.VideoUrl))
+                {
+                    Console.WriteLine($"🎥 Xóa VideoUrl vì không còn video");
+                    post.VideoUrl = null;
+                    _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
+                    videoUrlChanged = true;
+                }
+
+                // Lưu thay đổi VideoUrl
+                if (videoUrlChanged)
+                {
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine("✅ Đã cập nhật VideoUrl thành công");
+                }
+
                 // **BƯỚC 7: SIGNALR NOTIFICATION**
                 var updatedPost = new
                 {
                     MaTinDang = post.MaTinDang,
                     TieuDe = post.TieuDe,
                     Gia = post.Gia,
-                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? ""
+                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? "",
+                    VideoUrl = post.VideoUrl // ✅ Thêm VideoUrl vào notification
                 };
 
                 Console.WriteLine($"[SignalR] Đang gửi CapNhatTinDang cho MaTinDang={updatedPost.MaTinDang}");
@@ -499,6 +529,8 @@ namespace UniMarket.Controllers
                     MaTinDang = finalPost.MaTinDang,
                     TotalMedia = finalPost.AnhTinDangs.Count,
                     HasOrderChanged = hasOrderChanged,
+                    VideoUrlChanged = videoUrlChanged,
+                    VideoUrl = finalPost.VideoUrl, // ✅ Trả về VideoUrl
                     AnhTinDangs = finalPost.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a => new {
