@@ -1457,6 +1457,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetSavedInfo",
+    "RelativePath": "api/Video/{maTinDang}/savedinfo",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "maTinDang",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
     "Method": "DeleteComment",
     "RelativePath": "api/Video/comment/{commentId}",
     "HttpMethod": "DELETE",
@@ -1556,6 +1572,22 @@
         "Name": "limit",
         "Type": "System.Int32",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "ToggleSaveVideo",
+    "RelativePath": "api/Video/ToggleSave",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.DTO.ToggleSaveRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
