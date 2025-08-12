@@ -571,5 +571,73 @@ namespace UniMarket.Controllers
             return Ok(result);
         }
 
+        [HttpPost("ToggleSave")]
+        [Authorize]
+        public async Task<IActionResult> ToggleSaveVideo([FromBody] ToggleSaveRequest request)
+        {
+            var maTinDang = request.MaTinDang;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null)
+                return Unauthorized("Bạn cần đăng nhập để lưu/bỏ lưu video.");
+
+            // ✅ Chỉ check tồn tại tin đăng thay vì load full object
+            bool tinDangExists = await _context.TinDangs
+                .AnyAsync(t => t.MaTinDang == maTinDang);
+            if (!tinDangExists)
+                return NotFound("Tin đăng không tồn tại.");
+
+            // ✅ Lấy dữ liệu lưu của user này + count cùng lúc
+            var saves = await _context.VideoTinDangSaves
+                .Where(v => v.MaTinDang == maTinDang)
+                .ToListAsync();
+
+            var videoSave = saves.FirstOrDefault(v => v.MaNguoiDung == userId);
+
+            bool saved;
+            if (videoSave == null)
+            {
+                _context.VideoTinDangSaves.Add(new VideoTinDangSave
+                {
+                    MaTinDang = maTinDang,
+                    MaNguoiDung = userId,
+                    NgayLuu = DateTime.Now
+                });
+                saved = true;
+            }
+            else
+            {
+                _context.VideoTinDangSaves.Remove(videoSave);
+                saved = false;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // ✅ Tính total ngay tại memory, không query DB lần 3
+            int totalSaves = saved ? saves.Count + 1 : saves.Count - 1;
+
+            return Ok(new { saved, totalSaves });
+        }
+
+
+
+        [HttpGet("{maTinDang}/savedinfo")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSavedInfo(int maTinDang)
+        {
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var result = await _context.VideoTinDangSaves
+                .Where(v => v.MaTinDang == maTinDang)
+                .GroupBy(v => 1)
+                .Select(g => new
+                {
+                    soNguoiLuu = g.Count(),
+                    isSaved = userId != null && g.Any(v => v.MaNguoiDung == userId)
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(result ?? new { soNguoiLuu = 0, isSaved = false });
+        }
+
     }
 }

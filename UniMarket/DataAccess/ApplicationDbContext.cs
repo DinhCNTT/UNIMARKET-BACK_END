@@ -28,6 +28,7 @@ namespace UniMarket.DataAccess
         public DbSet<VideoView> VideoViews { get; set; }
         public DbSet<SearchHistory> SearchHistories { get; set; }
         public DbSet<TinDangYeuThich> TinDangYeuThichs { get; set; }
+        public DbSet<VideoTinDangSave> VideoTinDangSaves { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -73,6 +74,21 @@ namespace UniMarket.DataAccess
                 .WithMany()
                 .HasForeignKey(t => t.MaNguoiDung)
                 .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<VideoTinDangSave>(entity =>
+            {
+                entity.HasKey(e => e.MaVideoSave);
+
+                entity.HasOne(e => e.NguoiDung)
+                    .WithMany()
+                    .HasForeignKey(e => e.MaNguoiDung)
+                    .OnDelete(DeleteBehavior.Restrict); // Tắt cascade delete
+
+                entity.HasOne(e => e.TinDang)
+                    .WithMany()
+                    .HasForeignKey(e => e.MaTinDang)
+                    .OnDelete(DeleteBehavior.Restrict); // Tắt cascade delete
+            });
+
         }
 
 
