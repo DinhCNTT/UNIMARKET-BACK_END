@@ -638,6 +638,44 @@ namespace UniMarket.Controllers
 
             return Ok(result ?? new { soNguoiLuu = 0, isSaved = false });
         }
+        [HttpGet("saved")]
+        [Authorize]
+        public async Task<IActionResult> GetSavedVideos()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
 
+            var savedVideos = await _context.VideoTinDangSaves
+                .Where(v => v.MaNguoiDung == user.Id)
+                .OrderByDescending(v => v.NgayLuu)
+                .Select(v => new
+                {
+                    v.MaTinDang,
+                    v.TinDang.TieuDe,
+                    v.TinDang.VideoUrl,
+                    v.TinDang.Gia,
+                    v.TinDang.DiaChi,
+                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
+                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    SoNguoiLuu = _context.VideoTinDangSaves.Count(x => x.MaTinDang == v.MaTinDang),
+                    SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+                    NguoiDang = new
+                    {
+                        v.TinDang.NguoiBan.Id,
+                        v.TinDang.NguoiBan.FullName,
+                        v.TinDang.NguoiBan.AvatarUrl
+                    },
+                    CurrentUser = new
+                    {
+                        user.Id,
+                        user.FullName,
+                        user.AvatarUrl
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(savedVideos);
+        }
     }
 }

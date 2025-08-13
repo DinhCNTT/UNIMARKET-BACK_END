@@ -1499,6 +1499,16 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetSavedVideos",
+    "RelativePath": "api/Video/saved",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
     "Method": "SearchVideos",
     "RelativePath": "api/Video/search",
     "HttpMethod": "GET",
