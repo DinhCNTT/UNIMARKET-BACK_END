@@ -668,6 +668,7 @@ int id,
             _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == id));
             _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == id));
             _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == id));
+            _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id)); // 👈 mới thêm
 
             // Xóa các cuộc trò chuyện liên quan tới TinDang
             var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == id).ToListAsync();
@@ -685,8 +686,6 @@ int id,
 
             return Ok(new { message = "Xóa tin đăng thành công" });
         }
-
-
 
 
         [HttpGet("xemtruoc/{id}")]

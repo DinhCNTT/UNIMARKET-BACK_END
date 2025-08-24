@@ -3,12 +3,28 @@
   "WorkspaceRootPath": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\controllers\\tindangcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\tindangcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\videocontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\services\\photoservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\services\\photoservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\controllers\\admincontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\controllers\\admincontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|f:\\downloads\\aaaaa6\\unimarket-backend\\unimarket\\models\\videotindangsave.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0AAAA58D-C2DD-4BE6-BF6C-97E7279CEB0B}|UniMarket\\UniMarket.csproj|solutionrelative:unimarket\\models\\videotindangsave.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,7 +34,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 9,
           "Children": [
             {
               "$type": "Bookmark",
@@ -42,29 +58,76 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "VideoController.cs",
-              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
-              "RelativeDocumentMoniker": "UniMarket\\Controllers\\VideoController.cs",
-              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
-              "RelativeToolTip": "UniMarket\\Controllers\\VideoController.cs",
-              "ViewState": "AgIAAGcCAAAAAAAAAAAIwHACAABEAAAAAAAAAA==",
+              "DocumentIndex": 2,
+              "Title": "PhotoService.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Services\\PhotoService.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Services\\PhotoService.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Services\\PhotoService.cs",
+              "RelativeToolTip": "UniMarket\\Services\\PhotoService.cs",
+              "ViewState": "AgIAAJcAAAAAAAAAAAAYwNsAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-13T04:17:33.711Z",
+              "WhenOpened": "2025-08-23T10:04:02.638Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "AdminController.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\AdminController.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Controllers\\AdminController.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\AdminController.cs",
+              "RelativeToolTip": "UniMarket\\Controllers\\AdminController.cs",
+              "ViewState": "AgIAADMCAAAAAAAAAAAAADMCAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-23T09:59:26.216Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Program.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Program.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Program.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Program.cs",
+              "RelativeToolTip": "UniMarket\\Program.cs",
+              "ViewState": "AgIAABQBAAAAAAAAAAAkwDABAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-23T09:57:03.648Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "VideoTinDangSave.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoTinDangSave.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Models\\VideoTinDangSave.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Models\\VideoTinDangSave.cs",
+              "RelativeToolTip": "UniMarket\\Models\\VideoTinDangSave.cs",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAuwCIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-23T09:30:01.103Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "TinDangController.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\TinDangController.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Controllers\\TinDangController.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\TinDangController.cs",
+              "RelativeToolTip": "UniMarket\\Controllers\\TinDangController.cs",
+              "ViewState": "AgIAAFACAAAAAAAAAAAMwLACAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-23T09:03:26.029Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "appsettings.json",
-              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\appsettings.json",
-              "RelativeDocumentMoniker": "UniMarket\\appsettings.json",
-              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\appsettings.json",
-              "RelativeToolTip": "UniMarket\\appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAASAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-08-12T12:42:08.131Z",
-              "EditorCaption": ""
+              "Title": "VideoController.cs",
+              "DocumentMoniker": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
+              "RelativeDocumentMoniker": "UniMarket\\Controllers\\VideoController.cs",
+              "ToolTip": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\Controllers\\VideoController.cs",
+              "RelativeToolTip": "UniMarket\\Controllers\\VideoController.cs",
+              "ViewState": "AgIAALEBAAAAAAAAAAAUwGACAAA9AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-18T01:57:28.412Z"
             }
           ]
         },

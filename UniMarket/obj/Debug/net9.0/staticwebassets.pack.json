@@ -97,6 +97,14 @@
       "PackagePath": "staticwebassets\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png"
     },
     {
+      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\98ba0470-68f2-4523-9e27-33c7b0486164.mp4",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\98ba0470-68f2-4523-9e27-33c7b0486164.mp4"
+    },
+    {
+      "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\b09e705c-de3d-4830-8865-42ac8337493b.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\b09e705c-de3d-4830-8865-42ac8337493b.jpg"
+    },
+    {
       "Id": "F:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\js\\site.js",
       "PackagePath": "staticwebassets\\js\\site.js"
     },
