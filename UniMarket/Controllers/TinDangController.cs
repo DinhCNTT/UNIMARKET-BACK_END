@@ -14,6 +14,7 @@ using CloudinaryDotNet.Actions;
 using Newtonsoft.Json;
 using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -904,7 +905,220 @@ int id,
                 SimilarPostsBySeller = similarPostsBySeller
             });
         }
+        // Thêm method này vào TinDangController.cs
 
+        [HttpGet("suggestions")]
+        public async Task<IActionResult> GetSuggestions([FromQuery] string query, [FromQuery] int limit = 8)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Ok(new List<object>());
+            }
+
+            try
+            {
+                // Tìm kiếm tin đăng có tiêu đề chứa từ khóa (không phân biệt hoa thường)
+                var suggestions = await _context.TinDangs
+                    .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet &&
+                               p.TieuDe.ToLower().Contains(query.ToLower()))
+                    .Include(p => p.DanhMuc)
+                        .ThenInclude(dm => dm.DanhMucCha)
+                    .Select(p => new
+                    {
+                        p.MaTinDang,
+                        TieuDe = p.TieuDe,
+                        DanhMucCha = p.DanhMuc.DanhMucCha != null ? p.DanhMuc.DanhMucCha.TenDanhMucCha : p.DanhMuc.TenDanhMuc
+                    })
+                    .Take(limit)
+                    .ToListAsync();
+
+                // Loại bỏ duplicate titles để tránh hiển thị trùng lặp
+                var uniqueSuggestions = suggestions
+                    .GroupBy(s => s.TieuDe.ToLower())
+                    .Select(group => group.First())
+                    .Take(limit)
+                    .ToList();
+
+                return Ok(uniqueSuggestions);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lấy gợi ý: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lấy gợi ý" });
+            }
+        }
+        [HttpPost("save-search-history")]
+        [Authorize] // Require authentication
+        public async Task<IActionResult> SaveSearchHistory([FromBody] SaveSearchHistoryRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Keyword))
+            {
+                return BadRequest(new { message = "Từ khóa tìm kiếm không được để trống" });
+            }
+
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                // Kiểm tra xem từ khóa này đã tồn tại trong lịch sử gần đây chưa (trong 24h)
+                var existingSearch = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId &&
+                                sh.Keyword.ToLower() == request.Keyword.ToLower() &&
+                                sh.CreatedAt > DateTime.Now.AddDays(-1))
+                    .FirstOrDefaultAsync();
+
+                if (existingSearch != null)
+                {
+                    // Cập nhật thời gian tìm kiếm
+                    existingSearch.CreatedAt = DateTime.Now;
+                }
+                else
+                {
+                    // Tạo lịch sử tìm kiếm mới
+                    var searchHistory = new SearchHistory
+                    {
+                        UserId = userId,
+                        Keyword = request.Keyword.Trim(),
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _context.SearchHistories.Add(searchHistory);
+                }
+
+                // Giới hạn số lượng lịch sử tìm kiếm (chỉ giữ 50 lịch sử mới nhất)
+                var userSearchCount = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .CountAsync();
+
+                if (userSearchCount > 50)
+                {
+                    var oldestSearches = await _context.SearchHistories
+                        .Where(sh => sh.UserId == userId)
+                        .OrderBy(sh => sh.CreatedAt)
+                        .Take(userSearchCount - 50)
+                        .ToListAsync();
+
+                    _context.SearchHistories.RemoveRange(oldestSearches);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã lưu lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lưu lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lưu lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpGet("search-history")]
+        [Authorize]
+        public async Task<IActionResult> GetSearchHistory([FromQuery] int limit = 10)
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var searchHistory = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .OrderByDescending(sh => sh.CreatedAt)
+                    .Take(limit)
+                    .Select(sh => new
+                    {
+                        sh.Id,
+                        sh.Keyword,
+                        sh.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(searchHistory);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lấy lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lấy lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpDelete("search-history/{id}")]
+        [Authorize]
+        public async Task<IActionResult> DeleteSearchHistory(int id)
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var searchHistory = await _context.SearchHistories
+                    .Where(sh => sh.Id == id && sh.UserId == userId)
+                    .FirstOrDefaultAsync();
+
+                if (searchHistory == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy lịch sử tìm kiếm" });
+                }
+
+                _context.SearchHistories.Remove(searchHistory);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã xóa lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi xóa lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi xóa lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpDelete("search-history")]
+        [Authorize]
+        public async Task<IActionResult> ClearSearchHistory()
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var userSearchHistories = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .ToListAsync();
+
+                _context.SearchHistories.RemoveRange(userSearchHistories);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã xóa toàn bộ lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi xóa lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi xóa lịch sử tìm kiếm" });
+            }
+        }
+
+        // DTO class for request
+        public class SaveSearchHistoryRequest
+        {
+            public string Keyword { get; set; } = null!;
+        }
     }
 
 }

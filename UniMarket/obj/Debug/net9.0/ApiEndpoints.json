@@ -1048,6 +1048,85 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "SaveSearchHistory",
+    "RelativePath": "api/TinDang/save-search-history",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.Controllers.TinDangController\u002BSaveSearchHistoryRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetSearchHistory",
+    "RelativePath": "api/TinDang/search-history",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "limit",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "ClearSearchHistory",
+    "RelativePath": "api/TinDang/search-history",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "DeleteSearchHistory",
+    "RelativePath": "api/TinDang/search-history/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetSuggestions",
+    "RelativePath": "api/TinDang/suggestions",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "query",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "limit",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
     "Method": "GetTinhThanhs",
     "RelativePath": "api/TinDang/tinhthanh",
     "HttpMethod": "GET",

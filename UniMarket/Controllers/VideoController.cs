@@ -677,5 +677,189 @@ namespace UniMarket.Controllers
 
             return Ok(savedVideos);
         }
+        // Thêm các API này vào VideoController
+
+        [HttpGet("search-history")]
+        [Authorize]
+        public async Task<IActionResult> GetSearchHistory()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var history = await _context.SearchHistories
+                .Where(sh => sh.UserId == userId)
+                .OrderByDescending(sh => sh.CreatedAt)
+                .Take(10) // Giới hạn 10 lịch sử gần nhất
+                .Select(sh => new { sh.Keyword, sh.CreatedAt })
+                .ToListAsync();
+
+            return Ok(history);
+        }
+
+        [HttpPost("search-history")]
+        [Authorize]
+        public async Task<IActionResult> SaveSearchHistory([FromBody] SearchHistoryRequest request)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(request.Keyword))
+                return BadRequest("Từ khóa không được để trống.");
+
+            // Kiểm tra xem từ khóa đã tồn tại chưa
+            var existing = await _context.SearchHistories
+                .FirstOrDefaultAsync(sh => sh.UserId == userId && sh.Keyword == request.Keyword);
+
+            if (existing != null)
+            {
+                // Cập nhật thời gian tìm kiếm
+                existing.CreatedAt = DateTime.UtcNow;
+                _context.SearchHistories.Update(existing);
+            }
+            else
+            {
+                // Tạo mới
+                var newHistory = new SearchHistory
+                {
+                    UserId = userId,
+                    Keyword = request.Keyword,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.SearchHistories.Add(newHistory);
+            }
+
+            // Giới hạn số lượng lịch sử tìm kiếm (chỉ giữ 10 cái gần nhất)
+            var historyCount = await _context.SearchHistories
+                .CountAsync(sh => sh.UserId == userId);
+
+            if (historyCount >= 10)
+            {
+                var oldestHistories = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .OrderBy(sh => sh.CreatedAt)
+                    .Take(historyCount - 9) // Xóa để chỉ còn 9, add thêm 1 thành 10
+                    .ToListAsync();
+
+                _context.SearchHistories.RemoveRange(oldestHistories);
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        [HttpDelete("search-history")]
+        [Authorize]
+        public async Task<IActionResult> DeleteSearchHistory([FromQuery] string keyword)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(keyword))
+                return BadRequest("Từ khóa không được để trống.");
+
+            var history = await _context.SearchHistories
+                .FirstOrDefaultAsync(sh => sh.UserId == userId && sh.Keyword == keyword);
+
+            if (history != null)
+            {
+                _context.SearchHistories.Remove(history);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
+        }
+
+        [HttpDelete("search-history/clear")]
+        [Authorize]
+        public async Task<IActionResult> ClearAllSearchHistory()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var histories = await _context.SearchHistories
+                .Where(sh => sh.UserId == userId)
+                .ToListAsync();
+
+            if (histories.Any())
+            {
+                _context.SearchHistories.RemoveRange(histories);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
+        }
+
+        // DTO class
+        public class SearchHistoryRequest
+        {
+            public string Keyword { get; set; } = null!;
+        }
+        [HttpGet("detail/{maTinDang}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetVideoDetailInfo(int maTinDang)
+        {
+            var tin = await _context.TinDangs
+                .Include(td => td.NguoiBan)
+                .Include(td => td.TinhThanh)
+                .Include(td => td.QuanHuyen)
+                .Include(td => td.AnhTinDangs)
+                .Include(td => td.DanhMuc)
+                    .ThenInclude(dm => dm.DanhMucCha)
+                .FirstOrDefaultAsync(td => td.MaTinDang == maTinDang);
+
+            if (tin == null)
+                return NotFound(new { message = "Tin đăng không tồn tại" });
+
+            // Lấy danh sách ảnh (MediaType.Image)
+            var danhSachAnh = tin.AnhTinDangs != null
+                ? tin.AnhTinDangs
+                    .Where(a => a.LoaiMedia == MediaType.Image)
+                    .OrderBy(a => a.Order)
+                    .Select(a => a.DuongDan)
+                    .ToList()
+                : new List<string>();
+
+            var result = new
+            {
+                tin.MaTinDang,
+                tin.TieuDe,
+                tin.MoTa,
+                tin.Gia,
+                tin.CoTheThoaThuan,
+                tin.TinhTrang,
+                tin.DiaChi,
+                NgayDang = tin.NgayDang.ToString("dd/MM/yyyy"),
+                TinhThanh = tin.TinhThanh?.TenTinhThanh,
+                QuanHuyen = tin.QuanHuyen?.TenQuanHuyen,
+
+                DanhSachAnh = danhSachAnh,
+
+                NguoiDang = tin.NguoiBan != null ? new
+                {
+                    tin.NguoiBan.Id,
+                    tin.NguoiBan.FullName,
+                    tin.NguoiBan.AvatarUrl,
+                    tin.NguoiBan.PhoneNumber
+                } : null,
+
+                DanhMuc = tin.DanhMuc != null ? new
+                {
+                    MaDanhMuc = tin.DanhMuc.MaDanhMuc,
+                    TenDanhMuc = tin.DanhMuc.TenDanhMuc,
+                    DanhMucCha = tin.DanhMuc.DanhMucCha != null ? new
+                    {
+                        MaDanhMucCha = tin.DanhMuc.DanhMucCha.MaDanhMucCha,
+                        TenDanhMucCha = tin.DanhMuc.DanhMucCha.TenDanhMucCha,
+                        tin.DanhMuc.DanhMucCha.Icon
+                    } : null
+                } : null
+            };
+
+            return Ok(result);
+        }
     }
 }
