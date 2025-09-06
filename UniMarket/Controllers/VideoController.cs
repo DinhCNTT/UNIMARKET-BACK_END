@@ -5,6 +5,7 @@ using System.Security.Claims;
 using UniMarket.DataAccess;
 using UniMarket.Models;
 using UniMarket.DTO;
+using Microsoft.AspNetCore.Identity;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -12,10 +13,13 @@ namespace UniMarket.Controllers
     public class VideoController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public VideoController(ApplicationDbContext context)
+        public VideoController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
+
         }
 
         [HttpGet]
@@ -26,7 +30,6 @@ namespace UniMarket.Controllers
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                 : null;
 
-            // Lấy tất cả tin đăng có video đã duyệt
             var tinDangsQuery = _context.TinDangs
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(td => td.NguoiBan)
@@ -36,7 +39,6 @@ namespace UniMarket.Controllers
             var tinDangs = await tinDangsQuery.ToListAsync();
             var maTinDangList = tinDangs.Select(td => td.MaTinDang).ToList();
 
-            // Lấy số tym và số bình luận
             var tymCounts = await _context.VideoLikes
                 .Where(v => maTinDangList.Contains(v.MaTinDang))
                 .GroupBy(v => v.MaTinDang)
@@ -54,12 +56,12 @@ namespace UniMarket.Controllers
                     .ToListAsync()
                 : new List<int>();
 
-            // Tạo danh sách kết quả kèm theo số tym + cmt để sort
             var result = tinDangs
                 .Select(td => new
                 {
                     td.MaTinDang,
                     td.TieuDe,
+                    td.MoTa, // Thêm trường này
                     td.VideoUrl,
                     td.Gia,
                     DiaChi = td.DiaChi,
@@ -77,7 +79,7 @@ namespace UniMarket.Controllers
                     IsLiked = likedVideoIds.Contains(td.MaTinDang)
                 })
                 .OrderByDescending(x => x.TongScore)
-                .ThenByDescending(x => x.MaTinDang) // fallback nếu điểm bằng nhau
+                .ThenByDescending(x => x.MaTinDang)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
@@ -97,10 +99,8 @@ namespace UniMarket.Controllers
             if (tin == null)
                 return NotFound();
 
-            // Mặc định là chưa tym
             bool isLiked = false;
 
-            // Nếu người dùng đã đăng nhập, kiểm tra đã tym hay chưa
             if (User.Identity.IsAuthenticated)
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -111,11 +111,11 @@ namespace UniMarket.Controllers
                 }
             }
 
-            // Trả về thông tin video
             var result = new
             {
                 tin.MaTinDang,
                 tin.TieuDe,
+                tin.MoTa, // Thêm trường này
                 tin.VideoUrl,
                 tin.Gia,
                 DiaChi = tin.DiaChi,
@@ -148,6 +148,47 @@ namespace UniMarket.Controllers
 
             return Ok(result);
         }
+        // ham lay video video da tym
+        [HttpGet("liked")]
+        [Authorize]
+        public async Task<IActionResult> GetLikedVideos()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
+
+            var likedVideos = await _context.VideoLikes
+                .Where(v => v.UserId == user.Id)
+                .OrderByDescending(v => v.CreatedAt)
+                .Select(v => new
+                {
+                    v.MaTinDang,
+                    v.TinDang.TieuDe,
+                    v.TinDang.VideoUrl,
+                    v.TinDang.Gia,
+                    v.TinDang.DiaChi,
+                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
+                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    SoTym = _context.VideoLikes.Count(x => x.MaTinDang == v.MaTinDang),
+                    SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+                    NguoiDang = new
+                    {
+                        v.TinDang.NguoiBan.Id,
+                        v.TinDang.NguoiBan.FullName,
+                        v.TinDang.NguoiBan.AvatarUrl
+                    },
+                    CurrentUser = new
+                    {
+                        user.Id,
+                        user.FullName,
+                        user.AvatarUrl
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(likedVideos);
+        }
+
 
 
         [Authorize]
@@ -530,5 +571,295 @@ namespace UniMarket.Controllers
             return Ok(result);
         }
 
+        [HttpPost("ToggleSave")]
+        [Authorize]
+        public async Task<IActionResult> ToggleSaveVideo([FromBody] ToggleSaveRequest request)
+        {
+            var maTinDang = request.MaTinDang;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null)
+                return Unauthorized("Bạn cần đăng nhập để lưu/bỏ lưu video.");
+
+            // ✅ Chỉ check tồn tại tin đăng thay vì load full object
+            bool tinDangExists = await _context.TinDangs
+                .AnyAsync(t => t.MaTinDang == maTinDang);
+            if (!tinDangExists)
+                return NotFound("Tin đăng không tồn tại.");
+
+            // ✅ Lấy dữ liệu lưu của user này + count cùng lúc
+            var saves = await _context.VideoTinDangSaves
+                .Where(v => v.MaTinDang == maTinDang)
+                .ToListAsync();
+
+            var videoSave = saves.FirstOrDefault(v => v.MaNguoiDung == userId);
+
+            bool saved;
+            if (videoSave == null)
+            {
+                _context.VideoTinDangSaves.Add(new VideoTinDangSave
+                {
+                    MaTinDang = maTinDang,
+                    MaNguoiDung = userId,
+                    NgayLuu = DateTime.Now
+                });
+                saved = true;
+            }
+            else
+            {
+                _context.VideoTinDangSaves.Remove(videoSave);
+                saved = false;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // ✅ Tính total ngay tại memory, không query DB lần 3
+            int totalSaves = saved ? saves.Count + 1 : saves.Count - 1;
+
+            return Ok(new { saved, totalSaves });
+        }
+
+
+
+        [HttpGet("{maTinDang}/savedinfo")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSavedInfo(int maTinDang)
+        {
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var result = await _context.VideoTinDangSaves
+                .Where(v => v.MaTinDang == maTinDang)
+                .GroupBy(v => 1)
+                .Select(g => new
+                {
+                    soNguoiLuu = g.Count(),
+                    isSaved = userId != null && g.Any(v => v.MaNguoiDung == userId)
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(result ?? new { soNguoiLuu = 0, isSaved = false });
+        }
+        [HttpGet("saved")]
+        [Authorize]
+        public async Task<IActionResult> GetSavedVideos()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
+
+            var savedVideos = await _context.VideoTinDangSaves
+                .Where(v => v.MaNguoiDung == user.Id)
+                .OrderByDescending(v => v.NgayLuu)
+                .Select(v => new
+                {
+                    v.MaTinDang,
+                    v.TinDang.TieuDe,
+                    v.TinDang.VideoUrl,
+                    v.TinDang.Gia,
+                    v.TinDang.DiaChi,
+                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
+                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    SoNguoiLuu = _context.VideoTinDangSaves.Count(x => x.MaTinDang == v.MaTinDang),
+                    SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+                    NguoiDang = new
+                    {
+                        v.TinDang.NguoiBan.Id,
+                        v.TinDang.NguoiBan.FullName,
+                        v.TinDang.NguoiBan.AvatarUrl
+                    },
+                    CurrentUser = new
+                    {
+                        user.Id,
+                        user.FullName,
+                        user.AvatarUrl
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(savedVideos);
+        }
+        // Thêm các API này vào VideoController
+
+        [HttpGet("search-history")]
+        [Authorize]
+        public async Task<IActionResult> GetSearchHistory()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var history = await _context.SearchHistories
+                .Where(sh => sh.UserId == userId)
+                .OrderByDescending(sh => sh.CreatedAt)
+                .Take(10) // Giới hạn 10 lịch sử gần nhất
+                .Select(sh => new { sh.Keyword, sh.CreatedAt })
+                .ToListAsync();
+
+            return Ok(history);
+        }
+
+        [HttpPost("search-history")]
+        [Authorize]
+        public async Task<IActionResult> SaveSearchHistory([FromBody] SearchHistoryRequest request)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(request.Keyword))
+                return BadRequest("Từ khóa không được để trống.");
+
+            // Kiểm tra xem từ khóa đã tồn tại chưa
+            var existing = await _context.SearchHistories
+                .FirstOrDefaultAsync(sh => sh.UserId == userId && sh.Keyword == request.Keyword);
+
+            if (existing != null)
+            {
+                // Cập nhật thời gian tìm kiếm
+                existing.CreatedAt = DateTime.UtcNow;
+                _context.SearchHistories.Update(existing);
+            }
+            else
+            {
+                // Tạo mới
+                var newHistory = new SearchHistory
+                {
+                    UserId = userId,
+                    Keyword = request.Keyword,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.SearchHistories.Add(newHistory);
+            }
+
+            // Giới hạn số lượng lịch sử tìm kiếm (chỉ giữ 10 cái gần nhất)
+            var historyCount = await _context.SearchHistories
+                .CountAsync(sh => sh.UserId == userId);
+
+            if (historyCount >= 10)
+            {
+                var oldestHistories = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .OrderBy(sh => sh.CreatedAt)
+                    .Take(historyCount - 9) // Xóa để chỉ còn 9, add thêm 1 thành 10
+                    .ToListAsync();
+
+                _context.SearchHistories.RemoveRange(oldestHistories);
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        [HttpDelete("search-history")]
+        [Authorize]
+        public async Task<IActionResult> DeleteSearchHistory([FromQuery] string keyword)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(keyword))
+                return BadRequest("Từ khóa không được để trống.");
+
+            var history = await _context.SearchHistories
+                .FirstOrDefaultAsync(sh => sh.UserId == userId && sh.Keyword == keyword);
+
+            if (history != null)
+            {
+                _context.SearchHistories.Remove(history);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
+        }
+
+        [HttpDelete("search-history/clear")]
+        [Authorize]
+        public async Task<IActionResult> ClearAllSearchHistory()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var histories = await _context.SearchHistories
+                .Where(sh => sh.UserId == userId)
+                .ToListAsync();
+
+            if (histories.Any())
+            {
+                _context.SearchHistories.RemoveRange(histories);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
+        }
+
+        // DTO class
+        public class SearchHistoryRequest
+        {
+            public string Keyword { get; set; } = null!;
+        }
+        [HttpGet("detail/{maTinDang}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetVideoDetailInfo(int maTinDang)
+        {
+            var tin = await _context.TinDangs
+                .Include(td => td.NguoiBan)
+                .Include(td => td.TinhThanh)
+                .Include(td => td.QuanHuyen)
+                .Include(td => td.AnhTinDangs)
+                .Include(td => td.DanhMuc)
+                    .ThenInclude(dm => dm.DanhMucCha)
+                .FirstOrDefaultAsync(td => td.MaTinDang == maTinDang);
+
+            if (tin == null)
+                return NotFound(new { message = "Tin đăng không tồn tại" });
+
+            // Lấy danh sách ảnh (MediaType.Image)
+            var danhSachAnh = tin.AnhTinDangs != null
+                ? tin.AnhTinDangs
+                    .Where(a => a.LoaiMedia == MediaType.Image)
+                    .OrderBy(a => a.Order)
+                    .Select(a => a.DuongDan)
+                    .ToList()
+                : new List<string>();
+
+            var result = new
+            {
+                tin.MaTinDang,
+                tin.TieuDe,
+                tin.MoTa,
+                tin.Gia,
+                tin.CoTheThoaThuan,
+                tin.TinhTrang,
+                tin.DiaChi,
+                NgayDang = tin.NgayDang.ToString("dd/MM/yyyy"),
+                TinhThanh = tin.TinhThanh?.TenTinhThanh,
+                QuanHuyen = tin.QuanHuyen?.TenQuanHuyen,
+
+                DanhSachAnh = danhSachAnh,
+
+                NguoiDang = tin.NguoiBan != null ? new
+                {
+                    tin.NguoiBan.Id,
+                    tin.NguoiBan.FullName,
+                    tin.NguoiBan.AvatarUrl,
+                    tin.NguoiBan.PhoneNumber
+                } : null,
+
+                DanhMuc = tin.DanhMuc != null ? new
+                {
+                    MaDanhMuc = tin.DanhMuc.MaDanhMuc,
+                    TenDanhMuc = tin.DanhMuc.TenDanhMuc,
+                    DanhMucCha = tin.DanhMuc.DanhMucCha != null ? new
+                    {
+                        MaDanhMucCha = tin.DanhMuc.DanhMucCha.MaDanhMucCha,
+                        TenDanhMucCha = tin.DanhMuc.DanhMucCha.TenDanhMucCha,
+                        tin.DanhMuc.DanhMucCha.Icon
+                    } : null
+                } : null
+            };
+
+            return Ok(result);
+        }
     }
 }

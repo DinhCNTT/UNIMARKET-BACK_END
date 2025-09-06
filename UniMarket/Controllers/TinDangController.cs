@@ -14,6 +14,7 @@ using CloudinaryDotNet.Actions;
 using Newtonsoft.Json;
 using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -252,23 +253,23 @@ namespace UniMarket.Controllers
         }
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
-    int id,
-    [FromForm] string title,
-    [FromForm] string description,
-    [FromForm] decimal price,
-    [FromForm] string contactInfo,
-    [FromForm] string condition,
-    [FromForm] bool canNegotiate,
-    [FromForm] int province,
-    [FromForm] int district,
-    [FromForm] int categoryId,
-    [FromForm] string userId,
-    [FromForm] List<IFormFile>? newImages,
-    [FromForm] List<IFormFile>? newVideos,
-    [FromForm] string? oldImagesToDelete,
-    [FromForm] string? oldVideosToDelete,
-    [FromForm] string? oldImageOrder,
-    [FromForm] string? oldVideoOrder)
+int id,
+[FromForm] string title,
+[FromForm] string description,
+[FromForm] decimal price,
+[FromForm] string contactInfo,
+[FromForm] string condition,
+[FromForm] bool canNegotiate,
+[FromForm] int province,
+[FromForm] int district,
+[FromForm] int categoryId,
+[FromForm] string userId,
+[FromForm] List<IFormFile>? newImages,
+[FromForm] List<IFormFile>? newVideos,
+[FromForm] string? oldImagesToDelete,
+[FromForm] string? oldVideosToDelete,
+[FromForm] string? imageOrderMap,
+[FromForm] string? videoOrderMap)
         {
             try
             {
@@ -296,13 +297,15 @@ namespace UniMarket.Controllers
                 // Deserialize JSON từ frontend
                 var idsToDeleteImage = string.IsNullOrEmpty(oldImagesToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
                 var idsToDeleteVideo = string.IsNullOrEmpty(oldVideosToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
-                var imageOrder = string.IsNullOrEmpty(oldImageOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImageOrder);
-                var videoOrder = string.IsNullOrEmpty(oldVideoOrder) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideoOrder);
+
+                // **MỚI: Deserialize order map từ frontend**
+                var imgOrderMap = string.IsNullOrEmpty(imageOrderMap) ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(imageOrderMap);
+                var vidOrderMap = string.IsNullOrEmpty(videoOrderMap) ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(videoOrderMap);
 
                 Console.WriteLine($"📋 IDs to delete images: [{string.Join(", ", idsToDeleteImage)}]");
                 Console.WriteLine($"📋 IDs to delete videos: [{string.Join(", ", idsToDeleteVideo)}]");
-                Console.WriteLine($"📋 Image order: [{string.Join(", ", imageOrder)}]");
-                Console.WriteLine($"📋 Video order: [{string.Join(", ", videoOrder)}]");
+                Console.WriteLine($"📋 Image order map: {imageOrderMap}");
+                Console.WriteLine($"📋 Video order map: {videoOrderMap}");
 
                 var allIdsToDelete = idsToDeleteImage.Concat(idsToDeleteVideo).ToList();
 
@@ -318,67 +321,19 @@ namespace UniMarket.Controllers
                     _context.AnhTinDangs.Remove(media);
                 }
 
-                // **BƯỚC 2: CẬP NHẬT THỨ TỰ - QUAN TRỌNG NHẤT**
-                // Lấy tất cả media còn lại sau khi xóa
-                var remainingMedia = post.AnhTinDangs.Where(m => !allIdsToDelete.Contains(m.MaAnh)).ToList();
+                // **LƯU THAY ĐỔI XÓA TRƯỚC**
+                await _context.SaveChangesAsync();
 
-                bool hasOrderChanged = false;
-                int newOrder = 1;
+                // **BƯỚC 2: UPLOAD ẢNH/VIDEO MỚI TRƯỚC**
+                var newlyUploadedImages = new List<AnhTinDang>();
+                var newlyUploadedVideos = new List<AnhTinDang>();
 
-                // **QUAN TRỌNG: Reset tất cả Order về 0 trước để tránh conflict**
-                foreach (var media in remainingMedia)
-                {
-                    if (media.Order != 0)
-                    {
-                        media.Order = 0;
-                        _context.Entry(media).Property(x => x.Order).IsModified = true;
-                    }
-                }
-
-                // **Cập nhật thứ tự cho images theo đúng thứ tự từ frontend**
-                for (int i = 0; i < imageOrder.Count; i++)
-                {
-                    var imageId = imageOrder[i];
-                    var media = remainingMedia.FirstOrDefault(m => m.MaAnh == imageId);
-                    if (media != null)
-                    {
-                        int expectedOrder = newOrder++;
-                        Console.WriteLine($"🔄 Cập nhật thứ tự image ID={media.MaAnh}: Order cũ={media.Order} -> Order mới={expectedOrder}");
-
-                        media.Order = expectedOrder;
-                        hasOrderChanged = true;
-
-                        // QUAN TRỌNG: Đánh dấu entity đã thay đổi để EF track
-                        _context.Entry(media).Property(x => x.Order).IsModified = true;
-                        _context.Entry(media).State = EntityState.Modified;
-                    }
-                }
-
-                // **Cập nhật thứ tự cho videos theo đúng thứ tự từ frontend**
-                for (int i = 0; i < videoOrder.Count; i++)
-                {
-                    var videoId = videoOrder[i];
-                    var media = remainingMedia.FirstOrDefault(m => m.MaAnh == videoId);
-                    if (media != null)
-                    {
-                        int expectedOrder = newOrder++;
-                        Console.WriteLine($"🔄 Cập nhật thứ tự video ID={media.MaAnh}: Order cũ={media.Order} -> Order mới={expectedOrder}");
-
-                        media.Order = expectedOrder;
-                        hasOrderChanged = true;
-
-                        // QUAN TRỌNG: Đánh dấu entity đã thay đổi
-                        _context.Entry(media).Property(x => x.Order).IsModified = true;
-                        _context.Entry(media).State = EntityState.Modified;
-                    }
-                }
-
-                // **BƯỚC 3: THÊM ẢNH MỚI**
                 if (newImages != null && newImages.Count > 0)
                 {
                     Console.WriteLine($"📸 Đang upload {newImages.Count} ảnh mới");
-                    foreach (var img in newImages)
+                    for (int i = 0; i < newImages.Count; i++)
                     {
+                        var img = newImages[i];
                         var result = await _photoService.UploadPhotoAsync(img);
                         if (result.Error != null)
                         {
@@ -391,21 +346,22 @@ namespace UniMarket.Controllers
                             MaTinDang = post.MaTinDang,
                             DuongDan = result.SecureUrl.ToString(),
                             LoaiMedia = MediaType.Image,
-                            Order = newOrder++,
+                            Order = 0, // Tạm thời set = 0, sẽ cập nhật sau
                             TinDang = post
                         };
 
-                        post.AnhTinDangs.Add(newImage);
-                        Console.WriteLine($"✅ Đã thêm ảnh mới: {result.SecureUrl} với Order={newImage.Order}");
+                        _context.AnhTinDangs.Add(newImage);
+                        newlyUploadedImages.Add(newImage);
+                        Console.WriteLine($"✅ Đã upload ảnh mới #{i + 1}");
                     }
                 }
 
-                // **BƯỚC 4: THÊM VIDEO MỚI**
                 if (newVideos != null && newVideos.Count > 0)
                 {
                     Console.WriteLine($"🎥 Đang upload {newVideos.Count} video mới");
-                    foreach (var vid in newVideos)
+                    for (int i = 0; i < newVideos.Count; i++)
                     {
+                        var vid = newVideos[i];
                         var result = await _photoService.UploadVideoAsync(vid);
                         if (result.Error != null)
                         {
@@ -418,52 +374,165 @@ namespace UniMarket.Controllers
                             MaTinDang = post.MaTinDang,
                             DuongDan = result.SecureUrl.ToString(),
                             LoaiMedia = MediaType.Video,
-                            Order = newOrder++,
+                            Order = 0, // Tạm thời set = 0, sẽ cập nhật sau
                             TinDang = post
                         };
 
-                        post.AnhTinDangs.Add(newVideo);
-                        Console.WriteLine($"✅ Đã thêm video mới: {result.SecureUrl} với Order={newVideo.Order}");
+                        _context.AnhTinDangs.Add(newVideo);
+                        newlyUploadedVideos.Add(newVideo);
+                        Console.WriteLine($"✅ Đã upload video mới #{i + 1}");
                     }
                 }
 
-                // **BƯỚC 5: LƯU THAY ĐỔI**
-                Console.WriteLine($"💾 Có thay đổi thứ tự: {hasOrderChanged}");
-                Console.WriteLine($"💾 Có ảnh mới: {newImages?.Count ?? 0}");
-                Console.WriteLine($"💾 Có video mới: {newVideos?.Count ?? 0}");
-                Console.WriteLine($"💾 Có xóa media: {allIdsToDelete.Count}");
+                // Lưu để có ID cho các media mới
+                await _context.SaveChangesAsync();
 
-                // **QUAN TRỌNG: Buộc EF Context phải lưu thay đổi**
-                if (hasOrderChanged || (newImages?.Count ?? 0) > 0 || (newVideos?.Count ?? 0) > 0 || allIdsToDelete.Count > 0)
+                // **BƯỚC 3: LẤY LẠI DỮ LIỆU ĐẦY ĐỦ**
+                post = await _context.TinDangs
+                    .Include(td => td.AnhTinDangs)
+                    .FirstOrDefaultAsync(td => td.MaTinDang == id);
+
+                var allMedia = post.AnhTinDangs.ToList();
+                Console.WriteLine($"📊 Tổng cộng {allMedia.Count} media (bao gồm cả mới)");
+
+                // **BƯỚC 4: TÍNH TOÁN THỨ TỰ MỚI DỰA TRÊN ORDER MAP**
+
+                // Tạo dictionary để map mediaId -> finalOrder
+                var finalOrderMap = new Dictionary<int, int>();
+
+                // **4.1: Xử lý images dựa trên imageOrderMap**
+                for (int i = 0; i < imgOrderMap.Count; i++)
                 {
-                    // Đánh dấu post entity cũng đã thay đổi
-                    _context.Entry(post).State = EntityState.Modified;
+                    var orderItem = imgOrderMap[i];
+                    var type = orderItem.type?.ToString();
+                    var finalOrder = i + 1; // Vị trí cuối cùng bắt đầu từ 1
+
+                    if (type == "old")
+                    {
+                        var mediaId = Convert.ToInt32(orderItem.id);
+                        finalOrderMap[mediaId] = finalOrder;
+                        Console.WriteLine($"📸 Ảnh cũ ID={mediaId} -> Order={finalOrder}");
+                    }
+                    else if (type == "new")
+                    {
+                        var fileIndex = Convert.ToInt32(orderItem.fileIndex);
+                        if (fileIndex < newlyUploadedImages.Count)
+                        {
+                            var newImage = newlyUploadedImages[fileIndex];
+                            finalOrderMap[newImage.MaAnh] = finalOrder;
+                            Console.WriteLine($"📸 Ảnh mới #{fileIndex} (ID={newImage.MaAnh}) -> Order={finalOrder}");
+                        }
+                    }
                 }
 
-                var changeCount = await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ Đã lưu {changeCount} thay đổi vào database cho tin đăng ID={id}");
+                // **4.2: Xử lý videos dựa trên videoOrderMap**
+                // Video bắt đầu từ order sau tất cả images
+                int videoStartOrder = imgOrderMap.Count + 1;
 
-                // **BƯỚC 6: SIGNALR NOTIFICATION**
+                for (int i = 0; i < vidOrderMap.Count; i++)
+                {
+                    var orderItem = vidOrderMap[i];
+                    var type = orderItem.type?.ToString();
+                    var finalOrder = videoStartOrder + i;
+
+                    if (type == "old")
+                    {
+                        var mediaId = Convert.ToInt32(orderItem.id);
+                        finalOrderMap[mediaId] = finalOrder;
+                        Console.WriteLine($"🎥 Video cũ ID={mediaId} -> Order={finalOrder}");
+                    }
+                    else if (type == "new")
+                    {
+                        var fileIndex = Convert.ToInt32(orderItem.fileIndex);
+                        if (fileIndex < newlyUploadedVideos.Count)
+                        {
+                            var newVideo = newlyUploadedVideos[fileIndex];
+                            finalOrderMap[newVideo.MaAnh] = finalOrder;
+                            Console.WriteLine($"🎥 Video mới #{fileIndex} (ID={newVideo.MaAnh}) -> Order={finalOrder}");
+                        }
+                    }
+                }
+
+                // **BƯỚC 5: CẬP NHẬT THỨ TỰ CHO TẤT CẢ MEDIA**
+                bool hasOrderChanged = false;
+                foreach (var media in allMedia)
+                {
+                    if (finalOrderMap.ContainsKey(media.MaAnh))
+                    {
+                        var newOrder = finalOrderMap[media.MaAnh];
+                        if (media.Order != newOrder)
+                        {
+                            Console.WriteLine($"🔄 Cập nhật Order cho media ID={media.MaAnh}: {media.Order} -> {newOrder}");
+                            media.Order = newOrder;
+                            hasOrderChanged = true;
+                            _context.Entry(media).Property(x => x.Order).IsModified = true;
+                        }
+                    }
+                }
+
+                // **BƯỚC 6: LƯU THAY ĐỔI THỨ TỰ CUỐI CÙNG**
+                if (hasOrderChanged)
+                {
+                    Console.WriteLine("💾 Đang lưu thay đổi thứ tự cuối cùng...");
+                    await _context.SaveChangesAsync();
+                }
+
+                // **BƯỚC 6.5: CẬP NHẬT VideoUrl CHO VideoListCarouselMini** ✅ QUAN TRỌNG
+                var firstVideo = allMedia
+                    .Where(m => m.LoaiMedia == MediaType.Video)
+                    .OrderBy(m => m.Order)
+                    .FirstOrDefault();
+
+                bool videoUrlChanged = false;
+                if (firstVideo != null && firstVideo.DuongDan != post.VideoUrl)
+                {
+                    Console.WriteLine($"🎥 Cập nhật VideoUrl: {post.VideoUrl} -> {firstVideo.DuongDan}");
+                    post.VideoUrl = firstVideo.DuongDan;
+                    _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
+                    videoUrlChanged = true;
+                }
+                else if (firstVideo == null && !string.IsNullOrEmpty(post.VideoUrl))
+                {
+                    Console.WriteLine($"🎥 Xóa VideoUrl vì không còn video");
+                    post.VideoUrl = null;
+                    _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
+                    videoUrlChanged = true;
+                }
+
+                // Lưu thay đổi VideoUrl
+                if (videoUrlChanged)
+                {
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine("✅ Đã cập nhật VideoUrl thành công");
+                }
+
+                // **BƯỚC 7: SIGNALR NOTIFICATION**
                 var updatedPost = new
                 {
                     MaTinDang = post.MaTinDang,
                     TieuDe = post.TieuDe,
                     Gia = post.Gia,
-                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? ""
+                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? "",
+                    VideoUrl = post.VideoUrl // ✅ Thêm VideoUrl vào notification
                 };
 
                 Console.WriteLine($"[SignalR] Đang gửi CapNhatTinDang cho MaTinDang={updatedPost.MaTinDang}");
                 await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPost);
 
-                // **TRẢ VỀ KẾT QUẢ**
+                // **BƯỚC 8: LẤY DỮ LIỆU MỚI NHẤT ĐỂ TRẢ VỀ**
+                var finalPost = await _context.TinDangs
+                    .Include(td => td.AnhTinDangs)
+                    .FirstOrDefaultAsync(td => td.MaTinDang == id);
+
                 return Ok(new
                 {
                     message = "Cập nhật thành công",
-                    MaTinDang = post.MaTinDang,
-                    TotalMedia = post.AnhTinDangs.Count,
+                    MaTinDang = finalPost.MaTinDang,
+                    TotalMedia = finalPost.AnhTinDangs.Count,
                     HasOrderChanged = hasOrderChanged,
-                    ChangesSaved = changeCount,
-                    AnhTinDangs = post.AnhTinDangs
+                    VideoUrlChanged = videoUrlChanged,
+                    VideoUrl = finalPost.VideoUrl, // ✅ Trả về VideoUrl
+                    AnhTinDangs = finalPost.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a => new {
                             a.MaAnh,
@@ -575,7 +644,7 @@ namespace UniMarket.Controllers
             if (tinDang == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng" });
 
-            // Xóa ảnh/video trên Cloudinary hoặc file tạm trên server
+            // Xóa ảnh trên Cloudinary hoặc trong thư mục tạm
             foreach (var img in tinDang.AnhTinDangs)
             {
                 var imagePath = img.DuongDan;
@@ -590,24 +659,34 @@ namespace UniMarket.Controllers
                     var localFilePath = Path.Combine(_env.WebRootPath, trimmedPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
 
                     if (System.IO.File.Exists(localFilePath))
-                    {
                         System.IO.File.Delete(localFilePath);
-                        Console.WriteLine($"Đã xóa file: {localFilePath}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"❌ File không tồn tại: {localFilePath}");
-                    }
                 }
             }
 
-            // Xóa tin đăng và ảnh/video liên quan (EF Cascade Delete)
+            // Xóa bảng phụ có khóa ngoại tới TinDang
+            _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == id));
+            _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == id));
+            _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == id));
+            _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == id));
+            _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == id));
+            _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id)); // 👈 mới thêm
+
+            // Xóa các cuộc trò chuyện liên quan tới TinDang
+            var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == id).ToListAsync();
+            foreach (var c in cuocTros)
+            {
+                _context.TinNhans.RemoveRange(_context.TinNhans.Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen));
+                _context.NguoiThamGias.RemoveRange(_context.NguoiThamGias.Where(n => n.MaCuocTroChuyen == c.MaCuocTroChuyen));
+            }
+            _context.CuocTroChuyens.RemoveRange(cuocTros);
+
+            // Cuối cùng: Xóa TinDang
             _context.TinDangs.Remove(tinDang);
+
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Xóa tin đăng thành công" });
         }
-
 
 
         [HttpGet("xemtruoc/{id}")]
@@ -826,7 +905,220 @@ namespace UniMarket.Controllers
                 SimilarPostsBySeller = similarPostsBySeller
             });
         }
+        // Thêm method này vào TinDangController.cs
 
+        [HttpGet("suggestions")]
+        public async Task<IActionResult> GetSuggestions([FromQuery] string query, [FromQuery] int limit = 8)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Ok(new List<object>());
+            }
+
+            try
+            {
+                // Tìm kiếm tin đăng có tiêu đề chứa từ khóa (không phân biệt hoa thường)
+                var suggestions = await _context.TinDangs
+                    .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet &&
+                               p.TieuDe.ToLower().Contains(query.ToLower()))
+                    .Include(p => p.DanhMuc)
+                        .ThenInclude(dm => dm.DanhMucCha)
+                    .Select(p => new
+                    {
+                        p.MaTinDang,
+                        TieuDe = p.TieuDe,
+                        DanhMucCha = p.DanhMuc.DanhMucCha != null ? p.DanhMuc.DanhMucCha.TenDanhMucCha : p.DanhMuc.TenDanhMuc
+                    })
+                    .Take(limit)
+                    .ToListAsync();
+
+                // Loại bỏ duplicate titles để tránh hiển thị trùng lặp
+                var uniqueSuggestions = suggestions
+                    .GroupBy(s => s.TieuDe.ToLower())
+                    .Select(group => group.First())
+                    .Take(limit)
+                    .ToList();
+
+                return Ok(uniqueSuggestions);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lấy gợi ý: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lấy gợi ý" });
+            }
+        }
+        [HttpPost("save-search-history")]
+        [Authorize] // Require authentication
+        public async Task<IActionResult> SaveSearchHistory([FromBody] SaveSearchHistoryRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Keyword))
+            {
+                return BadRequest(new { message = "Từ khóa tìm kiếm không được để trống" });
+            }
+
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                // Kiểm tra xem từ khóa này đã tồn tại trong lịch sử gần đây chưa (trong 24h)
+                var existingSearch = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId &&
+                                sh.Keyword.ToLower() == request.Keyword.ToLower() &&
+                                sh.CreatedAt > DateTime.Now.AddDays(-1))
+                    .FirstOrDefaultAsync();
+
+                if (existingSearch != null)
+                {
+                    // Cập nhật thời gian tìm kiếm
+                    existingSearch.CreatedAt = DateTime.Now;
+                }
+                else
+                {
+                    // Tạo lịch sử tìm kiếm mới
+                    var searchHistory = new SearchHistory
+                    {
+                        UserId = userId,
+                        Keyword = request.Keyword.Trim(),
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _context.SearchHistories.Add(searchHistory);
+                }
+
+                // Giới hạn số lượng lịch sử tìm kiếm (chỉ giữ 50 lịch sử mới nhất)
+                var userSearchCount = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .CountAsync();
+
+                if (userSearchCount > 50)
+                {
+                    var oldestSearches = await _context.SearchHistories
+                        .Where(sh => sh.UserId == userId)
+                        .OrderBy(sh => sh.CreatedAt)
+                        .Take(userSearchCount - 50)
+                        .ToListAsync();
+
+                    _context.SearchHistories.RemoveRange(oldestSearches);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã lưu lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lưu lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lưu lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpGet("search-history")]
+        [Authorize]
+        public async Task<IActionResult> GetSearchHistory([FromQuery] int limit = 10)
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var searchHistory = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .OrderByDescending(sh => sh.CreatedAt)
+                    .Take(limit)
+                    .Select(sh => new
+                    {
+                        sh.Id,
+                        sh.Keyword,
+                        sh.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(searchHistory);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi lấy lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi lấy lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpDelete("search-history/{id}")]
+        [Authorize]
+        public async Task<IActionResult> DeleteSearchHistory(int id)
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var searchHistory = await _context.SearchHistories
+                    .Where(sh => sh.Id == id && sh.UserId == userId)
+                    .FirstOrDefaultAsync();
+
+                if (searchHistory == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy lịch sử tìm kiếm" });
+                }
+
+                _context.SearchHistories.Remove(searchHistory);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã xóa lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi xóa lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi xóa lịch sử tìm kiếm" });
+            }
+        }
+
+        [HttpDelete("search-history")]
+        [Authorize]
+        public async Task<IActionResult> ClearSearchHistory()
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
+                }
+
+                var userSearchHistories = await _context.SearchHistories
+                    .Where(sh => sh.UserId == userId)
+                    .ToListAsync();
+
+                _context.SearchHistories.RemoveRange(userSearchHistories);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã xóa toàn bộ lịch sử tìm kiếm" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi khi xóa lịch sử tìm kiếm: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi xóa lịch sử tìm kiếm" });
+            }
+        }
+
+        // DTO class for request
+        public class SaveSearchHistoryRequest
+        {
+            public string Keyword { get; set; } = null!;
+        }
     }
 
 }

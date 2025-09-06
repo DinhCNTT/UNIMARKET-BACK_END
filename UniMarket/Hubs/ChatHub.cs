@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
@@ -10,35 +11,93 @@ using UniMarket.Services;
 
 namespace UniMarket.Hubs
 {
+    [Authorize]
     public class ChatHub : Hub
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<ChatHub> _logger;
         private readonly PhotoService _photoService;
-
-        public ChatHub(ApplicationDbContext context, ILogger<ChatHub> logger, PhotoService photoService)
+        private readonly UserPresenceService _presenceService;
+        public ChatHub(ApplicationDbContext context, ILogger<ChatHub> logger, PhotoService photoService, UserPresenceService presenceService)
         {
             _context = context;
             _logger = logger;
             _photoService = photoService;
+            _presenceService = presenceService;
             _logger.LogInformation("ChatHub initialized with ThuHoiAnhVideo method available.");
         }
 
         public override async Task OnConnectedAsync()
         {
-            var userId = Context.UserIdentifier ?? Context.ConnectionId;
-            _logger.LogInformation($"[SignalR] Client connected: ConnectionId={Context.ConnectionId}, UserId={userId}");
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
+            var userId = Context.UserIdentifier;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Update in-memory service
+                _presenceService.SetOnline(userId);
+
+                // Update database
+                using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var user = await db.Users.FindAsync(userId);
+                    if (user != null)
+                    {
+                        user.IsOnline = true;
+                        user.LastOnlineTime = null; // Clear last seen when online
+                        await db.SaveChangesAsync();
+                    }
+                }
+
+                // Broadcast to all clients
+                await Clients.All.SendAsync("UserStatusChanged", new
+                {
+                    userId = userId,
+                    isOnline = true,
+                    lastSeen = (DateTime?)null
+                });
+            }
             await base.OnConnectedAsync();
         }
-
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            if (exception != null)
-                _logger.LogWarning(exception, $"[SignalR] Client disconnected with error: ConnectionId={Context.ConnectionId}");
-            else
-                _logger.LogInformation($"[SignalR] Client disconnected gracefully: ConnectionId={Context.ConnectionId}");
+            var userId = Context.UserIdentifier;
+            using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var user = await db.Users.FindAsync(userId);
+                if (user != null)
+                {
+                    user.IsOnline = false;
+                    user.LastOnlineTime = DateTime.Now;
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            // Gửi event offline cho tất cả client
+            await Clients.All.SendAsync("UserStatusChanged", new
+            {
+                userId = userId,
+                isOnline = false,
+                lastSeen = DateTime.Now
+            });
             await base.OnDisconnectedAsync(exception);
+        }
+        // Client gọi ping mỗi 15s để báo "tôi vẫn online"
+        public async Task Ping()
+        {
+            var userId = Context.UserIdentifier;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                _presenceService.SetOnline(userId);
+
+                // Nếu muốn realtime hơn, có thể bắn sự kiện này luôn
+                await Clients.All.SendAsync("UserStatusChanged", new
+                {
+                    userId = userId,
+                    isOnline = true,
+                    lastSeen = (DateTime?)null
+                });
+            }
         }
 
         public async Task ThamGiaCuocTroChuyen(string maCuocTroChuyen)
@@ -340,6 +399,30 @@ namespace UniMarket.Hubs
                 throw;
             }
         }
+      public async Task CapNhatTrangThaiNguoiDung(string userId, bool isOnline)
+{
+    // Cập nhật trạng thái trong database (nếu có)
+    using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.IsOnline = isOnline;
+            user.LastOnlineTime = isOnline ? null : DateTime.Now;
+            await db.SaveChangesAsync();
+        }
+    }
+
+    // Gửi event cho tất cả client với payload thống nhất
+    await Clients.All.SendAsync("UserStatusChanged", new
+    {
+        userId = userId,
+        isOnline = isOnline,
+        lastSeen = isOnline ? (DateTime?)null : DateTime.Now
+    });
+}
+
 
         private string ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
@@ -374,5 +457,6 @@ namespace UniMarket.Hubs
                 return null;
             }
         }
+
     }
 }

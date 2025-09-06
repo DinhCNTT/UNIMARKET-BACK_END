@@ -410,6 +410,16 @@
   },
   {
     "ContainingType": "AuthController",
+    "Method": "GetCurrentUser",
+    "RelativePath": "api/Auth/me",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthController",
     "Method": "Register",
     "RelativePath": "api/Auth/register",
     "HttpMethod": "POST",
@@ -885,12 +895,12 @@
         "IsRequired": false
       },
       {
-        "Name": "oldImageOrder",
+        "Name": "imageOrderMap",
         "Type": "System.String",
         "IsRequired": false
       },
       {
-        "Name": "oldVideoOrder",
+        "Name": "videoOrderMap",
         "Type": "System.String",
         "IsRequired": false
       }
@@ -1034,6 +1044,85 @@
     "IsController": true,
     "Order": 0,
     "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "SaveSearchHistory",
+    "RelativePath": "api/TinDang/save-search-history",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.Controllers.TinDangController\u002BSaveSearchHistoryRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetSearchHistory",
+    "RelativePath": "api/TinDang/search-history",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "limit",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "ClearSearchHistory",
+    "RelativePath": "api/TinDang/search-history",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "DeleteSearchHistory",
+    "RelativePath": "api/TinDang/search-history/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.TinDangController",
+    "Method": "GetSuggestions",
+    "RelativePath": "api/TinDang/suggestions",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "query",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "limit",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": []
   },
   {
@@ -1447,6 +1536,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetSavedInfo",
+    "RelativePath": "api/Video/{maTinDang}/savedinfo",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "maTinDang",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
     "Method": "DeleteComment",
     "RelativePath": "api/Video/comment/{commentId}",
     "HttpMethod": "DELETE",
@@ -1459,6 +1564,26 @@
         "IsRequired": true
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetLikedVideos",
+    "RelativePath": "api/Video/liked",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetSavedVideos",
+    "RelativePath": "api/Video/saved",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   },
   {
@@ -1536,6 +1661,22 @@
         "Name": "limit",
         "Type": "System.Int32",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "ToggleSaveVideo",
+    "RelativePath": "api/Video/ToggleSave",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.DTO.ToggleSaveRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []

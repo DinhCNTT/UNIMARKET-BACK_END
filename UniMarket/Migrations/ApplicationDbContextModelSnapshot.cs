@@ -171,11 +171,13 @@ namespace UniMarket.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("SearchHistories");
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SearchHistories", (string)null);
                 });
 
             modelBuilder.Entity("TinNhanDaXoa", b =>
@@ -197,7 +199,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("TinNhanId");
 
-                    b.ToTable("TinNhanDaXoas");
+                    b.ToTable("TinNhanDaXoas", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.AnhTinDang", b =>
@@ -226,7 +228,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaTinDang");
 
-                    b.ToTable("AnhTinDangs");
+                    b.ToTable("AnhTinDangs", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.ApplicationUser", b =>
@@ -338,7 +340,7 @@ namespace UniMarket.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("BlockedUsers");
+                    b.ToTable("BlockedUsers", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.CuocTroChuyen", b =>
@@ -373,7 +375,7 @@ namespace UniMarket.Migrations
 
                     b.HasKey("MaCuocTroChuyen");
 
-                    b.ToTable("CuocTroChuyens");
+                    b.ToTable("CuocTroChuyens", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.DanhMuc", b =>
@@ -396,7 +398,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaDanhMucCha");
 
-                    b.ToTable("DanhMucs");
+                    b.ToTable("DanhMucs", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.DanhMucCha", b =>
@@ -420,7 +422,7 @@ namespace UniMarket.Migrations
 
                     b.HasKey("MaDanhMucCha");
 
-                    b.ToTable("DanhMucChas");
+                    b.ToTable("DanhMucChas", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.NguoiThamGia", b =>
@@ -448,7 +450,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaNguoiDung");
 
-                    b.ToTable("NguoiThamGias");
+                    b.ToTable("NguoiThamGias", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.QuanHuyen", b =>
@@ -471,7 +473,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaTinhThanh");
 
-                    b.ToTable("QuanHuyens");
+                    b.ToTable("QuanHuyens", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinDang", b =>
@@ -541,7 +543,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaTinhThanh");
 
-                    b.ToTable("TinDangs");
+                    b.ToTable("TinDangs", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinDangYeuThich", b =>
@@ -568,7 +570,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaTinDang");
 
-                    b.ToTable("TinDangYeuThichs");
+                    b.ToTable("TinDangYeuThichs", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinNhan", b =>
@@ -615,7 +617,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("MaNguoiGui");
 
-                    b.ToTable("TinNhans");
+                    b.ToTable("TinNhans", (string)null);
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinhThanh", b =>
@@ -633,7 +635,34 @@ namespace UniMarket.Migrations
 
                     b.HasKey("MaTinhThanh");
 
-                    b.ToTable("TinhThanhs");
+                    b.ToTable("TinhThanhs", (string)null);
+                });
+
+            modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
+                {
+                    b.Property<int>("MaVideoSave")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaVideoSave"));
+
+                    b.Property<string>("MaNguoiDung")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("MaTinDang")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("NgayLuu")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MaVideoSave");
+
+                    b.HasIndex("MaNguoiDung");
+
+                    b.HasIndex("MaTinDang");
+
+                    b.ToTable("VideoTinDangSaves", (string)null);
                 });
 
             modelBuilder.Entity("VideoComment", b =>
@@ -670,7 +699,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("VideoComments");
+                    b.ToTable("VideoComments", (string)null);
                 });
 
             modelBuilder.Entity("VideoLike", b =>
@@ -697,7 +726,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("VideoLikes");
+                    b.ToTable("VideoLikes", (string)null);
                 });
 
             modelBuilder.Entity("VideoView", b =>
@@ -723,7 +752,7 @@ namespace UniMarket.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("VideoViews");
+                    b.ToTable("VideoViews", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -775,6 +804,15 @@ namespace UniMarket.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("SearchHistory", b =>
+                {
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TinNhanDaXoa", b =>
@@ -907,6 +945,25 @@ namespace UniMarket.Migrations
                     b.Navigation("CuocTroChuyen");
 
                     b.Navigation("NguoiGui");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
+                {
+                    b.HasOne("UniMarket.Models.ApplicationUser", "NguoiDung")
+                        .WithMany()
+                        .HasForeignKey("MaNguoiDung")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany()
+                        .HasForeignKey("MaTinDang")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("NguoiDung");
+
+                    b.Navigation("TinDang");
                 });
 
             modelBuilder.Entity("VideoComment", b =>
