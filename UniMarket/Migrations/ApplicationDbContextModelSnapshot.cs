@@ -517,6 +517,9 @@ namespace UniMarket.Migrations
                     b.Property<DateTime>("NgayDang")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("SoLuotXem")
+                        .HasColumnType("int");
+
                     b.Property<string>("TieuDe")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -638,6 +641,46 @@ namespace UniMarket.Migrations
                     b.ToTable("TinhThanhs");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.UserChatState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ChatId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatId");
+
+                    b.HasIndex("UserId", "ChatId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserChatState_UserId_ChatId");
+
+                    b.ToTable("UserChatStates");
+                });
+
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
                 {
                     b.Property<int>("MaVideoSave")
@@ -737,14 +780,31 @@ namespace UniMarket.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("DeviceName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("bit");
+
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
+
+                    b.Property<int>("RewatchCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime>("ViewedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<int>("WatchedSeconds")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -945,6 +1005,25 @@ namespace UniMarket.Migrations
                     b.Navigation("CuocTroChuyen");
 
                     b.Navigation("NguoiGui");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.UserChatState", b =>
+                {
+                    b.HasOne("UniMarket.Models.CuocTroChuyen", "Chat")
+                        .WithMany()
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chat");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>

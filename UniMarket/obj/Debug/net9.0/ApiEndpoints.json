@@ -492,6 +492,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.ChatController",
+    "Method": "BulkSetChatState",
+    "RelativePath": "api/Chat/bulk-set-chat-state",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.DTO.BulkSetChatStateRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.ChatController",
     "Method": "CheckBlock",
     "RelativePath": "api/Chat/check-block/{blockerId}/{blockedId}",
     "HttpMethod": "GET",
@@ -634,6 +650,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.ChatController",
+    "Method": "SetChatState",
+    "RelativePath": "api/Chat/set-chat-state",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.DTO.SetChatStateRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.ChatController",
     "Method": "StartChat",
     "RelativePath": "api/Chat/start",
     "HttpMethod": "POST",
@@ -697,6 +729,22 @@
         "Name": "mediaFile",
         "Type": "Microsoft.AspNetCore.Http.IFormFile",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.ChatController",
+    "Method": "GetUserChatStates",
+    "RelativePath": "api/Chat/user-chat-states/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
@@ -1568,6 +1616,22 @@
   },
   {
     "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetVideoDetailInfo",
+    "RelativePath": "api/Video/detail/{maTinDang}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "maTinDang",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
     "Method": "GetLikedVideos",
     "RelativePath": "api/Video/liked",
     "HttpMethod": "GET",
@@ -1610,6 +1674,58 @@
         "IsRequired": false
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "GetSearchHistory",
+    "RelativePath": "api/Video/search-history",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "SaveSearchHistory",
+    "RelativePath": "api/Video/search-history",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.Controllers.VideoController\u002BSearchHistoryRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "DeleteSearchHistory",
+    "RelativePath": "api/Video/search-history",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "keyword",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "ClearAllSearchHistory",
+    "RelativePath": "api/Video/search-history/clear",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   },
   {
@@ -1676,6 +1792,22 @@
       {
         "Name": "request",
         "Type": "UniMarket.DTO.ToggleSaveRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UniMarket.Controllers.VideoController",
+    "Method": "TrackVideoView",
+    "RelativePath": "api/Video/track-view",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "UniMarket.Controllers.VideoController\u002BTrackViewRequest",
         "IsRequired": true
       }
     ],

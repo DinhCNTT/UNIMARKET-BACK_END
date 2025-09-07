@@ -110,6 +110,14 @@ namespace UniMarket.Hubs
                     var otherUserInfo = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
                     var senderUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == maNguoiGui);
 
+                    // Lấy trạng thái chat của người gửi
+                    var senderChatState = await _context.UserChatStates
+                        .FirstOrDefaultAsync(ucs => ucs.UserId == maNguoiGui && ucs.ChatId == maCuocTroChuyen);
+
+                    // Lấy trạng thái chat của người nhận
+                    var receiverChatState = otherUserInfo != null ? await _context.UserChatStates
+                        .FirstOrDefaultAsync(ucs => ucs.UserId == otherUserInfo.MaNguoiDung && ucs.ChatId == maCuocTroChuyen) : null;
+
                     var chatForSender = new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -122,7 +130,10 @@ namespace UniMarket.Hubs
                         TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
-                        HasUnreadMessages = false
+                        HasUnreadMessages = false,
+                        // Thêm trạng thái chat
+                        IsHidden = senderChatState?.IsHidden ?? false,
+                        IsDeleted = senderChatState?.IsDeleted ?? false
                     };
 
                     var chatForReceiver = new
@@ -137,7 +148,10 @@ namespace UniMarket.Hubs
                         TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
-                        HasUnreadMessages = true
+                        HasUnreadMessages = true,
+                        // Thêm trạng thái chat
+                        IsHidden = receiverChatState?.IsHidden ?? false,
+                        IsDeleted = receiverChatState?.IsDeleted ?? false
                     };
 
                     await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);

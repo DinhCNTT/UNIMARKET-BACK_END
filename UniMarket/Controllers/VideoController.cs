@@ -6,6 +6,8 @@ using UniMarket.DataAccess;
 using UniMarket.Models;
 using UniMarket.DTO;
 using Microsoft.AspNetCore.Identity;
+using UniMarket.Helpers;
+using UniMarket.Extensions;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -61,7 +63,7 @@ namespace UniMarket.Controllers
                 {
                     td.MaTinDang,
                     td.TieuDe,
-                    td.MoTa, // Thêm trường này
+                    td.MoTa,
                     td.VideoUrl,
                     td.Gia,
                     DiaChi = td.DiaChi,
@@ -69,7 +71,11 @@ namespace UniMarket.Controllers
                     QuanHuyen = td.QuanHuyen?.TenQuanHuyen,
                     SoTym = tymCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoBinhLuan = binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
-                    TongScore = tymCounts.GetValueOrDefault(td.MaTinDang, 0) + binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
+                    // ✅ SỬA: Lấy SoLuotXem từ TinDang model
+                    SoLuotXem = td.SoLuotXem,
+                    TongScore = tymCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                               binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                               td.SoLuotXem, // ✅ Sử dụng td.SoLuotXem
                     NguoiDang = td.NguoiBan != null ? new
                     {
                         td.NguoiBan.Id,
@@ -860,6 +866,139 @@ namespace UniMarket.Controllers
             };
 
             return Ok(result);
+        }
+        [HttpPost("track-view")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TrackVideoView([FromBody] TrackViewRequest request)
+        {
+            try
+            {
+                // ✅ Lưu giờ Việt Nam luôn
+                var now = DateTime.UtcNow.AddHours(7);
+
+                var userId = User.Identity?.IsAuthenticated == true
+                    ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    : null;
+
+                var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "";
+                var deviceName = UserAgentHelper.GetDeviceName(userAgent); // ✅ parse gọn
+                var ipAddress = Request.GetClientIp();
+
+                Console.WriteLine("=== TRACK VIEW DEBUG ===");
+                Console.WriteLine($"MaTinDang: {request.MaTinDang}");
+                Console.WriteLine($"UserId: {userId ?? "ANONYMOUS"}");
+                Console.WriteLine($"IP: {ipAddress}");
+                Console.WriteLine($"Device: {deviceName}");
+
+                VideoView lastView = null;
+                bool createNew;
+
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    lastView = await _context.VideoViews
+                        .Where(v => v.MaTinDang == request.MaTinDang && v.UserId == userId)
+                        .OrderByDescending(v => v.StartedAt)
+                        .FirstOrDefaultAsync();
+
+                    createNew = lastView == null || (now - lastView.StartedAt).TotalMinutes >= 30;
+                }
+                else
+                {
+                    lastView = await _context.VideoViews
+                        .Where(v => v.MaTinDang == request.MaTinDang
+                                 && v.UserId == null
+                                 && v.IpAddress == ipAddress
+                                 && v.DeviceName == deviceName) // ✅ dùng deviceName gọn
+                        .OrderByDescending(v => v.StartedAt)
+                        .FirstOrDefaultAsync();
+
+                    createNew = lastView == null || (now - lastView.StartedAt).TotalMinutes >= 30;
+                }
+
+                if (createNew)
+                {
+                    var newView = new VideoView
+                    {
+                        MaTinDang = request.MaTinDang,
+                        UserId = userId,
+                        IpAddress = ipAddress,
+                        DeviceName = deviceName,
+                        StartedAt = now, // ✅ giờ VN
+                        WatchedSeconds = request.WatchedSeconds,
+                        IsCompleted = request.IsCompleted,
+                        RewatchCount = request.RewatchCount
+                    };
+
+                    _context.VideoViews.Add(newView);
+
+                    if (request.WatchedSeconds >= 3 && !request.SkipViewCount)
+                    {
+                        var tinDang = await _context.TinDangs.FindAsync(request.MaTinDang);
+                        if (tinDang != null)
+                        {
+                            tinDang.SoLuotXem += 1;
+                            Console.WriteLine($"✅ Tăng view cho video {request.MaTinDang}: {tinDang.SoLuotXem}");
+                        }
+                    }
+
+                    await _context.SaveChangesAsync();
+                    var totalViews = await _context.TinDangs
+                        .Where(t => t.MaTinDang == request.MaTinDang)
+                        .Select(t => t.SoLuotXem)
+                        .FirstOrDefaultAsync();
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = $"New view tracked ({(userId != null ? "User" : "Anonymous")})",
+                        isNewView = true,
+                        totalViews,
+                        userType = userId != null ? "authenticated" : "anonymous",
+                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss") // ✅ format đẹp khi trả ra API
+                    });
+                }
+                else
+                {
+                    lastView.WatchedSeconds = Math.Max(lastView.WatchedSeconds, request.WatchedSeconds);
+                    if (request.RewatchCount > lastView.RewatchCount)
+                        lastView.RewatchCount = request.RewatchCount;
+                    if (request.IsCompleted && !lastView.IsCompleted)
+                        lastView.IsCompleted = true;
+
+                    await _context.SaveChangesAsync();
+
+                    var totalViews = await _context.TinDangs
+                        .Where(t => t.MaTinDang == request.MaTinDang)
+                        .Select(t => t.SoLuotXem)
+                        .FirstOrDefaultAsync();
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = $"Existing view updated ({(userId != null ? "User" : "Anonymous")})",
+                        isNewView = false,
+                        isCompleted = lastView.IsCompleted,
+                        rewatchCount = lastView.RewatchCount,
+                        totalViews,
+                        userType = userId != null ? "authenticated" : "anonymous",
+                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss") // ✅ format đẹp khi trả ra API
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Track view error: {ex.Message}");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        public class TrackViewRequest
+        {
+            public int MaTinDang { get; set; }
+            public int WatchedSeconds { get; set; }
+            public bool IsCompleted { get; set; }
+            public int RewatchCount { get; set; } = 0;
+            public bool SkipViewCount { get; set; } = false;
         }
     }
 }

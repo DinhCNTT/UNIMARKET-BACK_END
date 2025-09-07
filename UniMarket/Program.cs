@@ -14,6 +14,7 @@ using UniMarket.DataAccess;
 using UniMarket.Hubs;
 using UniMarket.Models;
 using UniMarket.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -205,6 +206,15 @@ builder.Services.AddControllers()
     });
 
 var app = builder.Build();
+
+// ✅ Cho phép ASP.NET Core đọc các header Forwarded
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+
+    // Nếu bạn muốn giới hạn proxy nào được tin cậy thì cấu hình KnownProxies
+    // KnownProxies = { IPAddress.Parse("127.0.0.1") }
+});
 
 // ==========================
 // 🧯 Exception Middleware

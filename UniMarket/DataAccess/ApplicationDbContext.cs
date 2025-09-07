@@ -29,6 +29,7 @@ namespace UniMarket.DataAccess
         public DbSet<SearchHistory> SearchHistories { get; set; }
         public DbSet<TinDangYeuThich> TinDangYeuThichs { get; set; }
         public DbSet<VideoTinDangSave> VideoTinDangSaves { get; set; }
+        public DbSet<UserChatState> UserChatStates { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -87,6 +88,33 @@ namespace UniMarket.DataAccess
                     .WithMany()
                     .HasForeignKey(e => e.MaTinDang)
                     .OnDelete(DeleteBehavior.Restrict); // Tắt cascade delete
+            });
+            // Cấu hình UserChatState
+            modelBuilder.Entity<UserChatState>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                // Tạo unique constraint cho UserId + ChatId
+                entity.HasIndex(e => new { e.UserId, e.ChatId })
+                      .IsUnique()
+                      .HasDatabaseName("IX_UserChatState_UserId_ChatId");
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Chat)
+                      .WithMany()
+                      .HasForeignKey(e => e.ChatId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(e => e.UserId)
+                      .IsRequired()
+                      .HasMaxLength(450);
+
+                entity.Property(e => e.ChatId)
+                      .IsRequired();
             });
 
         }

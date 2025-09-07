@@ -1628,3 +1628,4 @@ C:\Users\caol6\Downloads\UNIMARKET-BACK_END\UniMarket\obj\Debug\net9.0\refint\Un
 C:\Users\caol6\Downloads\UNIMARKET-BACK_END\UniMarket\obj\Debug\net9.0\UniMarket.pdb
 C:\Users\caol6\Downloads\UNIMARKET-BACK_END\UniMarket\obj\Debug\net9.0\UniMarket.genruntimeconfig.cache
 C:\Users\caol6\Downloads\UNIMARKET-BACK_END\UniMarket\obj\Debug\net9.0\ref\UniMarket.dll
+F:\Downloads\aaaaa6\UniMarket-Backend\UniMarket\bin\Debug\net9.0\UAParser.dll

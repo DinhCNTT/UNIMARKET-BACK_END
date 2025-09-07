@@ -52,7 +52,23 @@ namespace UniMarket.Controllers
                 .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
             if (existingChat != null)
+            {
+                // 🔧 KIỂM TRA TRẠNG THÁI UserChatState của người dùng hiện tại
+                var userChatState = await _context.UserChatStates
+                    .FirstOrDefaultAsync(ucs => ucs.UserId == request.MaNguoiDung1 &&
+                                              ucs.ChatId == maCuocTroChuyen);
+
+                // Nếu người dùng đã xóa cuộc trò chuyện này, reset trạng thái
+                if (userChatState?.IsDeleted == true)
+                {
+                    userChatState.IsDeleted = false;
+                    userChatState.IsHidden = false;
+                    userChatState.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+
                 return Ok(new { MaCuocTroChuyen = existingChat.MaCuocTroChuyen });
+            }
 
             var tinDang = await _context.TinDangs.Include(t => t.AnhTinDangs).FirstOrDefaultAsync(t => t.MaTinDang == request.MaTinDang);
             if (tinDang == null) return NotFound("Tin đăng không tồn tại.");
@@ -71,14 +87,15 @@ namespace UniMarket.Controllers
             _context.CuocTroChuyens.Add(newChat);
             _context.NguoiThamGias.AddRange(new[]
             {
-                new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung1 },
-                new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung2 }
-            });
+        new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung1 },
+        new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = request.MaNguoiDung2 }
+    });
 
             await _context.SaveChangesAsync();
             return Ok(new { MaCuocTroChuyen = maCuocTroChuyen });
         }
 
+        // Cập nhật API GetUserConversations để tích hợp UserChatState
         [HttpGet("user/{userId}")]
         public async Task<IActionResult> GetUserConversations(string userId)
         {
@@ -92,6 +109,7 @@ namespace UniMarket.Controllers
                     c.MaTinDang,
                     TinNhanCuoi = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
+                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
                         .OrderByDescending(t => t.ThoiGianGui)
                         .Select(t => new
                         {
@@ -113,12 +131,37 @@ namespace UniMarket.Controllers
                     GiaTinDang = c.GiaTinDang,
                     IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId),
                     HasUnreadMessages = _context.TinNhans
-                        .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem)
+                        .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
+                             !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
+                    // Thêm thông tin từ UserChatState
+                    UserChatState = _context.UserChatStates
+                        .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
+                        .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
+                        .FirstOrDefault()
                 })
                 .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
                 .ToListAsync();
 
-            return Ok(userChats);
+            // Xử lý thông tin UserChatState
+            var result = userChats.Select(c => new
+            {
+                c.MaCuocTroChuyen,
+                c.ThoiGianTao,
+                c.IsEmpty,
+                c.MaTinDang,
+                c.TinNhanCuoi,
+                c.MaNguoiConLai,
+                c.TenNguoiConLai,
+                c.TieuDeTinDang,
+                c.AnhDaiDienTinDang,
+                c.GiaTinDang,
+                c.IsSeller,
+                c.HasUnreadMessages,
+                IsHidden = c.UserChatState?.IsHidden ?? false,
+                IsDeleted = c.UserChatState?.IsDeleted ?? false
+            }).ToList();
+
+            return Ok(result);
         }
 
         [HttpGet("history/{maCuocTroChuyen}")]
@@ -448,5 +491,117 @@ namespace UniMarket.Controllers
 
             return Ok(new { message = "Đã xóa toàn bộ tin nhắn khỏi phía bạn." });
         }
+        // Thêm các API endpoints này vào ChatController.cs
+
+        [HttpGet("user-chat-states/{userId}")]
+        public async Task<IActionResult> GetUserChatStates(string userId)
+        {
+            try
+            {
+                var chatStates = await _context.UserChatStates
+                    .Where(ucs => ucs.UserId == userId)
+                    .Select(ucs => new UserChatStateResponse
+                    {
+                        ChatId = ucs.ChatId,
+                        IsHidden = ucs.IsHidden,
+                        IsDeleted = ucs.IsDeleted,
+                        UpdatedAt = ucs.UpdatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(chatStates);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi lấy trạng thái chat", error = ex.Message });
+            }
+        }
+
+        [HttpPost("set-chat-state")]
+        public async Task<IActionResult> SetChatState([FromBody] SetChatStateRequest request)
+        {
+            if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.ChatId))
+                return BadRequest("UserId và ChatId không được để trống.");
+
+            try
+            {
+                var existingState = await _context.UserChatStates
+                    .FirstOrDefaultAsync(ucs => ucs.UserId == request.UserId && ucs.ChatId == request.ChatId);
+
+                if (existingState != null)
+                {
+                    existingState.IsHidden = request.IsHidden;
+                    existingState.IsDeleted = request.IsDeleted;
+                    existingState.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    var newState = new UserChatState
+                    {
+                        UserId = request.UserId,
+                        ChatId = request.ChatId,
+                        IsHidden = request.IsHidden,
+                        IsDeleted = request.IsDeleted,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.UserChatStates.Add(newState);
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Cập nhật trạng thái chat thành công" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi cập nhật trạng thái chat", error = ex.Message });
+            }
+        }
+
+        [HttpPost("bulk-set-chat-state")]
+        public async Task<IActionResult> BulkSetChatState([FromBody] BulkSetChatStateRequest request)
+        {
+            if (string.IsNullOrEmpty(request.UserId) || request.ChatIds == null || !request.ChatIds.Any())
+                return BadRequest("UserId và ChatIds không được để trống.");
+
+            try
+            {
+                var existingStates = await _context.UserChatStates
+                    .Where(ucs => ucs.UserId == request.UserId && request.ChatIds.Contains(ucs.ChatId))
+                    .ToListAsync();
+
+                foreach (var chatId in request.ChatIds)
+                {
+                    var existingState = existingStates.FirstOrDefault(es => es.ChatId == chatId);
+
+                    if (existingState != null)
+                    {
+                        existingState.IsHidden = request.IsHidden;
+                        existingState.IsDeleted = request.IsDeleted;
+                        existingState.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        var newState = new UserChatState
+                        {
+                            UserId = request.UserId,
+                            ChatId = chatId,
+                            IsHidden = request.IsHidden,
+                            IsDeleted = request.IsDeleted,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _context.UserChatStates.Add(newState);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { message = $"Cập nhật trạng thái cho {request.ChatIds.Count} cuộc trò chuyện thành công" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi cập nhật trạng thái chat", error = ex.Message });
+            }
+        }
+
     }
 }
