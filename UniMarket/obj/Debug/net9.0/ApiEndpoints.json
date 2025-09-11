@@ -1295,6 +1295,22 @@
   },
   {
     "ContainingType": "UserController",
+    "Method": "GetStatus",
+    "RelativePath": "api/User/status/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "UserController",
     "Method": "UpdateProfile",
     "RelativePath": "api/User/update-profile",
     "HttpMethod": "PUT",

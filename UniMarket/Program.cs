@@ -15,6 +15,7 @@ using UniMarket.Hubs;
 using UniMarket.Models;
 using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
+using UniMarket.DTO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,7 +37,12 @@ builder.Services.AddSingleton(provider =>
 
     return cloudinary;
 });
-
+builder.Services.AddSignalR().AddHubOptions<ChatHub>(options =>
+{
+    options.EnableDetailedErrors = true;
+});
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
 // ==========================
 // 📧 Email Service (Gmail)
 // ==========================
@@ -96,6 +102,18 @@ builder.Services.AddAuthentication(options =>
 {
     options.Events = new JwtBearerEvents
     {
+        OnMessageReceived = context =>
+        {
+            // Allow JWT in query string for SignalR
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) &&
+                (path.StartsWithSegments("/hub/chat") || path.StartsWithSegments("/hub/comment")))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        },
         OnChallenge = context =>
         {
             context.HandleResponse();
@@ -118,6 +136,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<UserPresenceService>();
+builder.Services.AddHostedService<PresenceTimeoutService>();
 
 // ==========================
 // 💬 SignalR + Connection Mapping

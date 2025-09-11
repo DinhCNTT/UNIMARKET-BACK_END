@@ -19,12 +19,14 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly PhotoService _photoService;
         private readonly IHubContext<ChatHub> _hubContext;
+        private readonly UserPresenceService _presenceService; // Thêm dòng này
 
-        public ChatController(ApplicationDbContext context, PhotoService photoService, IHubContext<ChatHub> hubContext)
+        public ChatController(ApplicationDbContext context, PhotoService photoService, IHubContext<ChatHub> hubContext, UserPresenceService presenceService)
         {
             _context = context;
             _photoService = photoService;
             _hubContext = hubContext;
+            _presenceService = presenceService;
         }
 
         [HttpPost("start")]
@@ -97,72 +99,77 @@ namespace UniMarket.Controllers
 
         // Cập nhật API GetUserConversations để tích hợp UserChatState
         [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetUserConversations(string userId)
+public async Task<IActionResult> GetUserConversations(string userId)
+{
+    var userChats = await _context.CuocTroChuyens
+        .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
+        .Select(c => new
         {
-            var userChats = await _context.CuocTroChuyens
-                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
-                .Select(c => new
+            c.MaCuocTroChuyen,
+            c.ThoiGianTao,
+            c.IsEmpty,
+            c.MaTinDang,
+            TinNhanCuoi = _context.TinNhans
+                .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
+                .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                .OrderByDescending(t => t.ThoiGianGui)
+                .Select(t => new
                 {
-                    c.MaCuocTroChuyen,
-                    c.ThoiGianTao,
-                    c.IsEmpty,
-                    c.MaTinDang,
-                    TinNhanCuoi = _context.TinNhans
-                        .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
-                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
-                        .OrderByDescending(t => t.ThoiGianGui)
-                        .Select(t => new
-                        {
-                            NoiDung = t.NoiDung,
-                            MaNguoiGui = t.MaNguoiGui,
-                            LoaiTinNhan = t.Loai.ToString().ToLower()
-                        })
-                        .FirstOrDefault(),
-                    MaNguoiConLai = c.NguoiThamGias
-                        .Where(n => n.MaNguoiDung != userId)
-                        .Select(n => n.MaNguoiDung)
-                        .FirstOrDefault(),
-                    TenNguoiConLai = c.NguoiThamGias
-                        .Where(n => n.MaNguoiDung != userId)
-                        .Select(n => n.NguoiDung.FullName)
-                        .FirstOrDefault(),
-                    TieuDeTinDang = c.TieuDeTinDang,
-                    AnhDaiDienTinDang = c.AnhDaiDienTinDang,
-                    GiaTinDang = c.GiaTinDang,
-                    IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId),
-                    HasUnreadMessages = _context.TinNhans
-                        .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
-                             !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
-                    // Thêm thông tin từ UserChatState
-                    UserChatState = _context.UserChatStates
-                        .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
-                        .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
-                        .FirstOrDefault()
+                    NoiDung = t.NoiDung,
+                    MaNguoiGui = t.MaNguoiGui,
+                    LoaiTinNhan = t.Loai.ToString().ToLower(),
+                    ThoiGianGui = t.ThoiGianGui  // ✅ THÊM: Thời gian tin nhắn cuối
                 })
-                .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
-                .ToListAsync();
+                .FirstOrDefault(),
+            // ✅ THÊM: Thời gian cập nhật thực tế dựa trên tin nhắn cuối
+            ThoiGianCapNhat = _context.TinNhans
+                .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
+                .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                .Max(t => (DateTime?)t.ThoiGianGui) ?? c.ThoiGianTao,
+            MaNguoiConLai = c.NguoiThamGias
+                .Where(n => n.MaNguoiDung != userId)
+                .Select(n => n.MaNguoiDung)
+                .FirstOrDefault(),
+            TenNguoiConLai = c.NguoiThamGias
+                .Where(n => n.MaNguoiDung != userId)
+                .Select(n => n.NguoiDung.FullName)
+                .FirstOrDefault(),
+            c.TieuDeTinDang,
+            c.AnhDaiDienTinDang,
+            c.GiaTinDang,
+            IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId),
+            HasUnreadMessages = _context.TinNhans
+                .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
+                     !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
+            UserChatState = _context.UserChatStates
+                .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
+                .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
+                .FirstOrDefault()
+        })
+        .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
+        .ToListAsync();
 
-            // Xử lý thông tin UserChatState
-            var result = userChats.Select(c => new
-            {
-                c.MaCuocTroChuyen,
-                c.ThoiGianTao,
-                c.IsEmpty,
-                c.MaTinDang,
-                c.TinNhanCuoi,
-                c.MaNguoiConLai,
-                c.TenNguoiConLai,
-                c.TieuDeTinDang,
-                c.AnhDaiDienTinDang,
-                c.GiaTinDang,
-                c.IsSeller,
-                c.HasUnreadMessages,
-                IsHidden = c.UserChatState?.IsHidden ?? false,
-                IsDeleted = c.UserChatState?.IsDeleted ?? false
-            }).ToList();
+    var result = userChats.Select(c => new
+    {
+        c.MaCuocTroChuyen,
+        c.ThoiGianTao,
+        c.ThoiGianCapNhat,  // ✅ THÊM: Trả về thời gian cập nhật thực
+        c.IsEmpty,
+        c.MaTinDang,
+        c.TinNhanCuoi,
+        c.MaNguoiConLai,
+        c.TenNguoiConLai,
+        c.TieuDeTinDang,
+        c.AnhDaiDienTinDang,
+        c.GiaTinDang,
+        c.IsSeller,
+        c.HasUnreadMessages,
+        IsHidden = c.UserChatState?.IsHidden ?? false,
+        IsDeleted = c.UserChatState?.IsDeleted ?? false
+    }).ToList();
 
-            return Ok(result);
-        }
+    return Ok(result);
+}
 
         [HttpGet("history/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen, [FromQuery] string userId)
@@ -198,19 +205,109 @@ namespace UniMarket.Controllers
         [HttpGet("info/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetChatInfo(string maCuocTroChuyen)
         {
-            var chat = await _context.CuocTroChuyens
-                .Where(c => c.MaCuocTroChuyen == maCuocTroChuyen)
-                .Select(c => new
-                {
-                    c.MaTinDang,
-                    c.TieuDeTinDang,
-                    c.GiaTinDang,
-                    c.AnhDaiDienTinDang
-                }).FirstOrDefaultAsync();
+            var cuocTroChuyen = await _context.CuocTroChuyens
+                .Include(c => c.NguoiThamGias)
+                    .ThenInclude(ntg => ntg.NguoiDung)
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
-            if (chat == null) return NotFound();
+            if (cuocTroChuyen == null) return NotFound();
 
-            return Ok(chat);
+            // Lấy các trường cơ bản
+            var result = new
+            {
+                cuocTroChuyen.MaTinDang,
+                cuocTroChuyen.TieuDeTinDang,
+                cuocTroChuyen.GiaTinDang,
+                cuocTroChuyen.AnhDaiDienTinDang
+            };
+
+            // Lấy tin đăng + chủ sản phẩm
+            var tinDang = await _context.TinDangs
+                .Include(td => td.NguoiBan)
+                .FirstOrDefaultAsync(td => td.MaTinDang == cuocTroChuyen.MaTinDang);
+
+            var chuSanPham = tinDang?.NguoiBan;
+
+            // Lấy người còn lại
+            var nguoiConLai = cuocTroChuyen.NguoiThamGias
+                .Select(ntg => ntg.NguoiDung)
+                .FirstOrDefault(u => u.Id != chuSanPham?.Id);
+
+            // Get real-time presence status
+            var chuSanPhamStatus = GetUserPresenceStatus(chuSanPham?.Id);
+            var nguoiConLaiStatus = GetUserPresenceStatus(nguoiConLai?.Id);
+
+            return Ok(new
+            {
+                // Thông tin cơ bản
+                result.MaTinDang,
+                result.TieuDeTinDang,
+                result.GiaTinDang,
+                result.AnhDaiDienTinDang,
+
+                // Chủ sản phẩm
+                maChuSanPham = chuSanPham?.Id,
+                tenChuSanPham = chuSanPham?.FullName,
+                avatarChuSanPham = chuSanPham?.AvatarUrl,
+                daXacMinhEmailChuSanPham = chuSanPham?.EmailConfirmed ?? false,
+                trangThaiChuSanPham = chuSanPhamStatus,
+
+                // Người còn lại trong cuộc trò chuyện
+                maNguoiConLai = nguoiConLai?.Id,
+                tenNguoiConLai = nguoiConLai?.FullName,
+                avatarNguoiConLai = nguoiConLai?.AvatarUrl,
+                daXacMinhEmailNguoiConLai = nguoiConLai?.EmailConfirmed ?? false,
+                trangThaiNguoiConLai = nguoiConLaiStatus
+            });
+        }
+
+        private object GetUserPresenceStatus(string userId)
+        {
+            if (string.IsNullOrEmpty(userId)) return null;
+
+            var memoryStatus = _presenceService?.GetStatus(userId);
+            var user = _context.Users.Find(userId);
+
+            bool isOnline;
+            DateTime? lastActive;
+
+            if (memoryStatus.HasValue)
+            {
+                isOnline = memoryStatus.Value.IsOnline;
+                lastActive = memoryStatus.Value.IsOnline ? null : memoryStatus.Value.LastActive;
+            }
+            else if (user != null)
+            {
+                isOnline = user.IsOnline;
+                lastActive = user.IsOnline ? null : user.LastOnlineTime;
+            }
+            else
+            {
+                return null;
+            }
+
+            return new
+            {
+                isOnline = isOnline,
+                lastActive = lastActive,
+                formattedLastSeen = FormatLastSeen(lastActive)
+            };
+        }
+
+        private string FormatLastSeen(DateTime? lastActive)
+        {
+            if (!lastActive.HasValue) return null;
+
+            var timeAgo = DateTime.UtcNow - lastActive.Value;
+
+            if (timeAgo.TotalMinutes < 1)
+                return "vừa mới";
+            else if (timeAgo.TotalMinutes < 60)
+                return $"{(int)timeAgo.TotalMinutes} phút trước";
+            else if (timeAgo.TotalHours < 24)
+                return $"{(int)timeAgo.TotalHours} giờ trước";
+            else
+                return $"{(int)timeAgo.TotalDays} ngày trước";
         }
 
         [HttpGet("unread-count/{userId}")]

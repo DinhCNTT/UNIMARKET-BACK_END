@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using UniMarket.Models;
 using System.Security.Claims;
+using UniMarket.DTO;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -10,12 +11,61 @@ using System.Security.Claims;
 public class UserController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-
-    public UserController(UserManager<ApplicationUser> userManager)
+    private readonly UserPresenceService _presenceService;
+    public UserController(UserManager<ApplicationUser> userManager, UserPresenceService presenceService)
     {
         _userManager = userManager;
+        _presenceService = presenceService;
+    }
+    [HttpGet("status/{userId}")]
+    public async Task<IActionResult> GetStatus(string userId)
+    {
+        // First check in-memory service for most up-to-date status
+        var memoryStatus = _presenceService.GetStatus(userId);
+
+        // Also get database info for fallback
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        bool isOnline;
+        DateTime? lastActive;
+
+        if (memoryStatus.HasValue)
+        {
+            // Use in-memory data if available (more current)
+            isOnline = memoryStatus.Value.IsOnline;
+            lastActive = memoryStatus.Value.IsOnline ? null : memoryStatus.Value.LastActive;
+        }
+        else
+        {
+            // Fallback to database
+            isOnline = user.IsOnline;
+            lastActive = user.IsOnline ? null : user.LastOnlineTime;
+        }
+
+        return Ok(new
+        {
+            isOnline = isOnline,
+            lastActive = lastActive,
+            formattedLastSeen = FormatLastSeen(lastActive)
+        });
     }
 
+    private string FormatLastSeen(DateTime? lastActive)
+    {
+        if (!lastActive.HasValue) return null;
+
+        var timeAgo = DateTime.UtcNow - lastActive.Value;
+
+        if (timeAgo.TotalMinutes < 1)
+            return "vừa mới";
+        else if (timeAgo.TotalMinutes < 60)
+            return $"{(int)timeAgo.TotalMinutes} phút trước";
+        else if (timeAgo.TotalHours < 24)
+            return $"{(int)timeAgo.TotalHours} giờ trước";
+        else
+            return $"{(int)timeAgo.TotalDays} ngày trước";
+    }
     [HttpGet("profile/{userId}")]
     public async Task<IActionResult> GetUserProfile(string userId)
     {

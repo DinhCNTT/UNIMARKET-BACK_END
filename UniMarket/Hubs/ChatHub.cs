@@ -76,10 +76,12 @@ namespace UniMarket.Hubs
                         throw new HubException("Không thể gửi tin nhắn vì một trong hai người đã chặn người kia.");
                 }
 
+                // Xác định loại tin nhắn
                 LoaiTinNhan loai = LoaiTinNhan.Text;
                 if (!string.IsNullOrEmpty(loaiTinNhan) && Enum.TryParse<LoaiTinNhan>(loaiTinNhan, true, out var parsed))
                     loai = parsed;
 
+                // Tạo tin nhắn mới
                 var tinNhanMoi = new TinNhan
                 {
                     MaCuocTroChuyen = maCuocTroChuyen,
@@ -118,6 +120,22 @@ namespace UniMarket.Hubs
                     var receiverChatState = otherUserInfo != null ? await _context.UserChatStates
                         .FirstOrDefaultAsync(ucs => ucs.UserId == otherUserInfo.MaNguoiDung && ucs.ChatId == maCuocTroChuyen) : null;
 
+                    // ✅ FIX: Reset trạng thái nếu bị xóa/ẩn
+                    if (senderChatState != null && (senderChatState.IsDeleted || senderChatState.IsHidden))
+                    {
+                        senderChatState.IsDeleted = false;
+                        senderChatState.IsHidden = false;
+                    }
+
+                    if (receiverChatState != null && (receiverChatState.IsDeleted || receiverChatState.IsHidden))
+                    {
+                        receiverChatState.IsDeleted = false;
+                        receiverChatState.IsHidden = false;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    // Build object gửi cho client
                     var chatForSender = new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -131,7 +149,6 @@ namespace UniMarket.Hubs
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
                         HasUnreadMessages = false,
-                        // Thêm trạng thái chat
                         IsHidden = senderChatState?.IsHidden ?? false,
                         IsDeleted = senderChatState?.IsDeleted ?? false
                     };
@@ -149,16 +166,17 @@ namespace UniMarket.Hubs
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
                         HasUnreadMessages = true,
-                        // Thêm trạng thái chat
                         IsHidden = receiverChatState?.IsHidden ?? false,
                         IsDeleted = receiverChatState?.IsDeleted ?? false
                     };
 
+                    // Gửi cập nhật cho cả 2 phía
                     await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);
                     if (otherUserInfo != null)
                         await Clients.Group($"user-{otherUserInfo.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
                 }
 
+                // Gửi tin nhắn thực tế
                 await Clients.Group(maCuocTroChuyen).SendAsync("NhanTinNhan", new
                 {
                     maTinNhan = tinNhanMoi.MaTinNhan,
@@ -176,6 +194,7 @@ namespace UniMarket.Hubs
                 throw;
             }
         }
+
 
         public async Task DanhDauDaXem(string maCuocTroChuyen, string maNguoiXem)
         {

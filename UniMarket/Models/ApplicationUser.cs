@@ -15,6 +15,8 @@ namespace UniMarket.Models
         public string? EmailVerificationCode { get; set; }
         public DateTime? CodeGeneratedAt { get; set; }
         public string? AvatarUrl { get; set; }
+        public bool IsOnline { get; set; }
+        public DateTime? LastOnlineTime { get; set; }
 
     }
 }
