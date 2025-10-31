@@ -9,6 +9,7 @@ using UniMarket.DTO;
 using UniMarket.Models;
 using UniMarket.Services;
 using UniMarket.Hubs;
+using Microsoft.AspNetCore.Identity;
 
 namespace UniMarket.Controllers
 {
@@ -20,27 +21,48 @@ namespace UniMarket.Controllers
         private readonly PhotoService _photoService;
         private readonly IHubContext<ChatHub> _hubContext;
         private readonly UserPresenceService _presenceService; // Thêm dòng này
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public ChatController(ApplicationDbContext context, PhotoService photoService, IHubContext<ChatHub> hubContext, UserPresenceService presenceService)
+        public ChatController(ApplicationDbContext context, PhotoService photoService, IHubContext<ChatHub> hubContext, UserPresenceService presenceService, UserManager<ApplicationUser> userManager)
         {
             _context = context;
             _photoService = photoService;
             _hubContext = hubContext;
             _presenceService = presenceService;
+            _userManager = userManager;
         }
-
         [HttpPost("start")]
         public async Task<IActionResult> StartChat([FromBody] StartChatRequest request)
         {
             if (string.IsNullOrEmpty(request.MaNguoiDung1) || string.IsNullOrEmpty(request.MaNguoiDung2) || request.MaTinDang <= 0)
-                return BadRequest("Thông tin không đầy đủ.");
+                return BadRequest(new { message = "Thông tin không đầy đủ." });
 
-            var isBlocked = await _context.BlockedUsers
-                .AnyAsync(b => (b.BlockerId == request.MaNguoiDung1 && b.BlockedId == request.MaNguoiDung2) ||
-                               (b.BlockerId == request.MaNguoiDung2 && b.BlockedId == request.MaNguoiDung1));
-            if (isBlocked)
-                return Forbid("Không thể bắt đầu cuộc trò chuyện vì một trong hai người đã chặn người kia.");
+            // 🔎 Kiểm tra block
+            var blockRecord = await _context.BlockedUsers
+                .FirstOrDefaultAsync(b =>
+                    (b.BlockerId == request.MaNguoiDung1 && b.BlockedId == request.MaNguoiDung2) ||
+                    (b.BlockerId == request.MaNguoiDung2 && b.BlockedId == request.MaNguoiDung1));
 
+            if (blockRecord != null)
+            {
+                // 🔎 Lấy thông tin tên từ AspNetUsers (ApplicationUser)
+                var blocker = await _userManager.FindByIdAsync(blockRecord.BlockerId);
+                var blocked = await _userManager.FindByIdAsync(blockRecord.BlockedId);
+
+                var blockerName = blocker?.FullName ?? blocker?.UserName ?? "Người dùng";
+                var blockedName = blocked?.FullName ?? blocked?.UserName ?? "Người dùng";
+
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = $"{blockerName} đã chặn {blockedName}.",
+                    blockerId = blockRecord.BlockerId,
+                    blockedId = blockRecord.BlockedId,
+                    blockerName,
+                    blockedName
+                });
+            }
+
+            // 🔎 Hàm tạo Id cuộc trò chuyện
             string GenerateChatId(string u1, string u2, int maTinDang)
             {
                 var arr = new[] { u1, u2 };
@@ -50,17 +72,15 @@ namespace UniMarket.Controllers
 
             var maCuocTroChuyen = GenerateChatId(request.MaNguoiDung1, request.MaNguoiDung2, request.MaTinDang);
 
+            // 🔎 Kiểm tra đã tồn tại chưa
             var existingChat = await _context.CuocTroChuyens
                 .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
             if (existingChat != null)
             {
-                // 🔧 KIỂM TRA TRẠNG THÁI UserChatState của người dùng hiện tại
                 var userChatState = await _context.UserChatStates
-                    .FirstOrDefaultAsync(ucs => ucs.UserId == request.MaNguoiDung1 &&
-                                              ucs.ChatId == maCuocTroChuyen);
+                    .FirstOrDefaultAsync(ucs => ucs.UserId == request.MaNguoiDung1 && ucs.ChatId == maCuocTroChuyen);
 
-                // Nếu người dùng đã xóa cuộc trò chuyện này, reset trạng thái
                 if (userChatState?.IsDeleted == true)
                 {
                     userChatState.IsDeleted = false;
@@ -72,9 +92,14 @@ namespace UniMarket.Controllers
                 return Ok(new { MaCuocTroChuyen = existingChat.MaCuocTroChuyen });
             }
 
-            var tinDang = await _context.TinDangs.Include(t => t.AnhTinDangs).FirstOrDefaultAsync(t => t.MaTinDang == request.MaTinDang);
-            if (tinDang == null) return NotFound("Tin đăng không tồn tại.");
+            // 🔎 Kiểm tra tin đăng
+            var tinDang = await _context.TinDangs.Include(t => t.AnhTinDangs)
+                .FirstOrDefaultAsync(t => t.MaTinDang == request.MaTinDang);
 
+            if (tinDang == null)
+                return NotFound(new { message = "Tin đăng không tồn tại." });
+
+            // 🔎 Tạo mới cuộc trò chuyện
             var newChat = new CuocTroChuyen
             {
                 MaCuocTroChuyen = maCuocTroChuyen,
@@ -83,7 +108,9 @@ namespace UniMarket.Controllers
                 MaTinDang = tinDang.MaTinDang,
                 TieuDeTinDang = tinDang.TieuDe,
                 AnhDaiDienTinDang = tinDang.AnhTinDangs?.FirstOrDefault()?.DuongDan ?? "",
-                GiaTinDang = tinDang.Gia
+                GiaTinDang = tinDang.Gia,
+                MaNguoiBan = tinDang.MaNguoiBan,
+                IsPostDeleted = false
             };
 
             _context.CuocTroChuyens.Add(newChat);
@@ -94,82 +121,88 @@ namespace UniMarket.Controllers
     });
 
             await _context.SaveChangesAsync();
+
             return Ok(new { MaCuocTroChuyen = maCuocTroChuyen });
         }
 
-        // Cập nhật API GetUserConversations để tích hợp UserChatState
+
         [HttpGet("user/{userId}")]
-public async Task<IActionResult> GetUserConversations(string userId)
-{
-    var userChats = await _context.CuocTroChuyens
-        .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
-        .Select(c => new
+        public async Task<IActionResult> GetUserConversations(string userId)
         {
-            c.MaCuocTroChuyen,
-            c.ThoiGianTao,
-            c.IsEmpty,
-            c.MaTinDang,
-            TinNhanCuoi = _context.TinNhans
-                .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
-                .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
-                .OrderByDescending(t => t.ThoiGianGui)
-                .Select(t => new
+            var userChats = await _context.CuocTroChuyens
+                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
+                .Select(c => new
                 {
-                    NoiDung = t.NoiDung,
-                    MaNguoiGui = t.MaNguoiGui,
-                    LoaiTinNhan = t.Loai.ToString().ToLower(),
-                    ThoiGianGui = t.ThoiGianGui  // ✅ THÊM: Thời gian tin nhắn cuối
+                    c.MaCuocTroChuyen,
+                    c.ThoiGianTao,
+                    c.IsEmpty,
+                    c.MaTinDang,
+                    TinNhanCuoi = _context.TinNhans
+                        .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
+                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                        .OrderByDescending(t => t.ThoiGianGui)
+                        .Select(t => new
+                        {
+                            NoiDung = t.NoiDung,
+                            MaNguoiGui = t.MaNguoiGui,
+                            LoaiTinNhan = t.Loai.ToString().ToLower(),
+                            ThoiGianGui = t.ThoiGianGui
+                        })
+                        .FirstOrDefault(),
+                    ThoiGianCapNhat = _context.TinNhans
+                        .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
+                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                        .Max(t => (DateTime?)t.ThoiGianGui) ?? c.ThoiGianTao,
+                    MaNguoiConLai = c.NguoiThamGias
+                        .Where(n => n.MaNguoiDung != userId)
+                        .Select(n => n.MaNguoiDung)
+                        .FirstOrDefault(),
+                    TenNguoiConLai = c.NguoiThamGias
+                        .Where(n => n.MaNguoiDung != userId)
+                        .Select(n => n.NguoiDung.FullName)
+                        .FirstOrDefault(),
+                    c.TieuDeTinDang,
+                    c.AnhDaiDienTinDang,
+                    c.GiaTinDang,
+                    IsSeller = c.MaNguoiBan == userId,  // ✅ Dùng MaNguoiBan
+                    HasUnreadMessages = _context.TinNhans
+                        .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
+                             !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
+                    UserChatState = _context.UserChatStates
+                        .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
+                        .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
+                        .FirstOrDefault(),
+                    c.IsPostDeleted,  // ✅ Trả flag
+                    c.IsBlocked,  // Giữ nguyên
+                    c.MaNguoiChan  // Giữ nguyên
                 })
-                .FirstOrDefault(),
-            // ✅ THÊM: Thời gian cập nhật thực tế dựa trên tin nhắn cuối
-            ThoiGianCapNhat = _context.TinNhans
-                .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
-                .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
-                .Max(t => (DateTime?)t.ThoiGianGui) ?? c.ThoiGianTao,
-            MaNguoiConLai = c.NguoiThamGias
-                .Where(n => n.MaNguoiDung != userId)
-                .Select(n => n.MaNguoiDung)
-                .FirstOrDefault(),
-            TenNguoiConLai = c.NguoiThamGias
-                .Where(n => n.MaNguoiDung != userId)
-                .Select(n => n.NguoiDung.FullName)
-                .FirstOrDefault(),
-            c.TieuDeTinDang,
-            c.AnhDaiDienTinDang,
-            c.GiaTinDang,
-            IsSeller = _context.TinDangs.Any(t => t.MaTinDang == c.MaTinDang && t.MaNguoiBan == userId),
-            HasUnreadMessages = _context.TinNhans
-                .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
-                     !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
-            UserChatState = _context.UserChatStates
-                .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
-                .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
-                .FirstOrDefault()
-        })
-        .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
-        .ToListAsync();
+                .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
+                .ToListAsync();
 
-    var result = userChats.Select(c => new
-    {
-        c.MaCuocTroChuyen,
-        c.ThoiGianTao,
-        c.ThoiGianCapNhat,  // ✅ THÊM: Trả về thời gian cập nhật thực
-        c.IsEmpty,
-        c.MaTinDang,
-        c.TinNhanCuoi,
-        c.MaNguoiConLai,
-        c.TenNguoiConLai,
-        c.TieuDeTinDang,
-        c.AnhDaiDienTinDang,
-        c.GiaTinDang,
-        c.IsSeller,
-        c.HasUnreadMessages,
-        IsHidden = c.UserChatState?.IsHidden ?? false,
-        IsDeleted = c.UserChatState?.IsDeleted ?? false
-    }).ToList();
+            var result = userChats.Select(c => new
+            {
+                c.MaCuocTroChuyen,
+                c.ThoiGianTao,
+                c.ThoiGianCapNhat,
+                c.IsEmpty,
+                c.MaTinDang,
+                c.TinNhanCuoi,
+                c.MaNguoiConLai,
+                c.TenNguoiConLai,
+                c.TieuDeTinDang,
+                c.AnhDaiDienTinDang,
+                c.GiaTinDang,
+                c.IsSeller,
+                c.HasUnreadMessages,
+                IsHidden = c.UserChatState?.IsHidden ?? false,
+                IsDeleted = c.UserChatState?.IsDeleted ?? false,
+                c.IsPostDeleted,  // ✅ Trả flag
+                c.IsBlocked,  // Giữ nguyên
+                c.MaNguoiChan  // Giữ nguyên
+            }).ToList();
 
-    return Ok(result);
-}
+            return Ok(result);
+        }
 
         [HttpGet("history/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen, [FromQuery] string userId)
@@ -212,47 +245,78 @@ public async Task<IActionResult> GetUserConversations(string userId)
 
             if (cuocTroChuyen == null) return NotFound();
 
-            // Lấy các trường cơ bản
             var result = new
             {
-                cuocTroChuyen.MaTinDang,
-                cuocTroChuyen.TieuDeTinDang,
-                cuocTroChuyen.GiaTinDang,
-                cuocTroChuyen.AnhDaiDienTinDang
+                MaTinDang = cuocTroChuyen.MaTinDang,
+                TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
+                GiaTinDang = cuocTroChuyen.GiaTinDang,
+                AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
+                IsPostDeleted = cuocTroChuyen.IsPostDeleted,  // ✅ Flag
+                IsBlocked = cuocTroChuyen.IsBlocked,  // Giữ nguyên
+                MaNguoiChan = cuocTroChuyen.MaNguoiChan  // Giữ nguyên
             };
 
-            // Lấy tin đăng + chủ sản phẩm
-            var tinDang = await _context.TinDangs
-                .Include(td => td.NguoiBan)
-                .FirstOrDefaultAsync(td => td.MaTinDang == cuocTroChuyen.MaTinDang);
+            TinDang? tinDang = null;
+            string? chuSanPhamId = cuocTroChuyen.MaNguoiBan;  // ✅ Ưu tiên MaNguoiBan
+            try
+            {
+                tinDang = await _context.TinDangs
+                    .Include(td => td.NguoiBan)
+                    .FirstOrDefaultAsync(td => td.MaTinDang == cuocTroChuyen.MaTinDang);
 
-            var chuSanPham = tinDang?.NguoiBan;
+                if (tinDang != null)
+                {
+                    if (cuocTroChuyen.TieuDeTinDang != tinDang.TieuDe ||
+                        cuocTroChuyen.GiaTinDang != tinDang.Gia ||
+                        cuocTroChuyen.IsPostDeleted)
+                    {
+                        cuocTroChuyen.TieuDeTinDang = tinDang.TieuDe;
+                        cuocTroChuyen.GiaTinDang = tinDang.Gia;
+                        cuocTroChuyen.AnhDaiDienTinDang = tinDang.AnhTinDangs?.FirstOrDefault()?.DuongDan ?? "";
+                        cuocTroChuyen.IsPostDeleted = false;
+                        await _context.SaveChangesAsync();
+                    }
+                    chuSanPhamId = tinDang.MaNguoiBan;
+                }
+                else if (!cuocTroChuyen.IsPostDeleted)
+                {
+                    cuocTroChuyen.IsPostDeleted = true;
+                    cuocTroChuyen.TieuDeTinDang += " (đã xóa)";  // Optional
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching post: {ex.Message}");
+                if (!cuocTroChuyen.IsPostDeleted)
+                {
+                    cuocTroChuyen.IsPostDeleted = true;
+                    await _context.SaveChangesAsync();
+                }
+            }
 
-            // Lấy người còn lại
+            var chuSanPham = await _context.Users.FindAsync(chuSanPhamId);
             var nguoiConLai = cuocTroChuyen.NguoiThamGias
                 .Select(ntg => ntg.NguoiDung)
-                .FirstOrDefault(u => u.Id != chuSanPham?.Id);
+                .FirstOrDefault(u => u.Id != chuSanPhamId);
 
-            // Get real-time presence status
             var chuSanPhamStatus = GetUserPresenceStatus(chuSanPham?.Id);
             var nguoiConLaiStatus = GetUserPresenceStatus(nguoiConLai?.Id);
 
             return Ok(new
             {
-                // Thông tin cơ bản
                 result.MaTinDang,
                 result.TieuDeTinDang,
                 result.GiaTinDang,
                 result.AnhDaiDienTinDang,
-
-                // Chủ sản phẩm
+                result.IsPostDeleted,  // ✅ Flag
+                result.IsBlocked,  // Giữ nguyên
+                result.MaNguoiChan,  // Giữ nguyên
                 maChuSanPham = chuSanPham?.Id,
-                tenChuSanPham = chuSanPham?.FullName,
-                avatarChuSanPham = chuSanPham?.AvatarUrl,
+                tenChuSanPham = chuSanPham?.FullName ?? "Chủ sản phẩm (tin đã xóa)",
+                avatarChuSanPham = chuSanPham?.AvatarUrl ?? "",
                 daXacMinhEmailChuSanPham = chuSanPham?.EmailConfirmed ?? false,
                 trangThaiChuSanPham = chuSanPhamStatus,
-
-                // Người còn lại trong cuộc trò chuyện
                 maNguoiConLai = nguoiConLai?.Id,
                 tenNguoiConLai = nguoiConLai?.FullName,
                 avatarNguoiConLai = nguoiConLai?.AvatarUrl,
@@ -485,12 +549,14 @@ public async Task<IActionResult> GetUserConversations(string userId)
             if (string.IsNullOrEmpty(request.BlockerId) || string.IsNullOrEmpty(request.BlockedId))
                 return BadRequest("Thông tin không đầy đủ.");
 
+            // Check nếu đã chặn
             var existing = await _context.BlockedUsers
                 .FirstOrDefaultAsync(b => b.BlockerId == request.BlockerId && b.BlockedId == request.BlockedId);
 
             if (existing != null)
                 return Ok("Người dùng đã bị chặn.");
 
+            // Lưu vào bảng BlockedUsers
             var blockedUser = new BlockedUser
             {
                 BlockerId = request.BlockerId,
@@ -498,7 +564,56 @@ public async Task<IActionResult> GetUserConversations(string userId)
             };
 
             _context.BlockedUsers.Add(blockedUser);
+
+            // 👉 Lấy tất cả các cuộc trò chuyện có cả 2 user
+            var cuocTroChuyens = await _context.CuocTroChuyens
+                .Where(c =>
+                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
+                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
+                )
+                .ToListAsync();
+
+            foreach (var ctc in cuocTroChuyens)
+            {
+                ctc.IsBlocked = true;
+                ctc.MaNguoiChan = request.BlockerId;
+                _context.CuocTroChuyens.Update(ctc);
+            }
+
             await _context.SaveChangesAsync();
+
+            // ✅ THÊM: Broadcast realtime qua SignalR
+            await _hubContext.Clients.Group($"user-{request.BlockerId}").SendAsync("UserBlocked", new
+            {
+                blockedUserId = request.BlockedId,
+                isBlocked = true,
+                actionType = "block"
+            });
+
+            await _hubContext.Clients.Group($"user-{request.BlockedId}").SendAsync("UserBlocked", new
+            {
+                blockedUserId = request.BlockerId,
+                isBlocked = true,
+                actionType = "blocked_by"
+            });
+
+            // Broadcast cập nhật trạng thái chat cho cả 2 user
+            foreach (var ctc in cuocTroChuyens)
+            {
+                await _hubContext.Clients.Group($"user-{request.BlockerId}").SendAsync("ChatStatusChanged", new
+                {
+                    chatId = ctc.MaCuocTroChuyen,
+                    isBlocked = true,
+                    blockedByMe = true
+                });
+
+                await _hubContext.Clients.Group($"user-{request.BlockedId}").SendAsync("ChatStatusChanged", new
+                {
+                    chatId = ctc.MaCuocTroChuyen,
+                    isBlocked = true,
+                    blockedByMe = false
+                });
+            }
 
             return Ok("Đã chặn người dùng.");
         }
@@ -515,8 +630,65 @@ public async Task<IActionResult> GetUserConversations(string userId)
             if (blockedUser == null)
                 return NotFound("Không tìm thấy quan hệ chặn.");
 
+            // Xóa khỏi bảng BlockedUsers
             _context.BlockedUsers.Remove(blockedUser);
+
+            // 👉 Lấy tất cả các cuộc trò chuyện có cả 2 user
+            var cuocTroChuyens = await _context.CuocTroChuyens
+                .Where(c =>
+                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
+                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
+                )
+                .ToListAsync();
+
+            foreach (var ctc in cuocTroChuyens)
+            {
+                // Chỉ gỡ nếu đúng người đã chặn trước đó
+                if (ctc.IsBlocked && ctc.MaNguoiChan == request.BlockerId)
+                {
+                    ctc.IsBlocked = false;
+                    ctc.MaNguoiChan = null;
+                    _context.CuocTroChuyens.Update(ctc);
+                }
+            }
+
             await _context.SaveChangesAsync();
+
+            // ✅ THÊM: Broadcast realtime qua SignalR
+            await _hubContext.Clients.Group($"user-{request.BlockerId}").SendAsync("UserBlocked", new
+            {
+                blockedUserId = request.BlockedId,
+                isBlocked = false,
+                actionType = "unblock"
+            });
+
+            await _hubContext.Clients.Group($"user-{request.BlockedId}").SendAsync("UserBlocked", new
+            {
+                blockedUserId = request.BlockerId,
+                isBlocked = false,
+                actionType = "unblocked_by"
+            });
+
+            // Broadcast cập nhật trạng thái chat cho cả 2 user
+            foreach (var ctc in cuocTroChuyens)
+            {
+                if (ctc.IsBlocked == false) // Chỉ broadcast nếu thực sự đã gỡ chặn
+                {
+                    await _hubContext.Clients.Group($"user-{request.BlockerId}").SendAsync("ChatStatusChanged", new
+                    {
+                        chatId = ctc.MaCuocTroChuyen,
+                        isBlocked = false,
+                        blockedByMe = false
+                    });
+
+                    await _hubContext.Clients.Group($"user-{request.BlockedId}").SendAsync("ChatStatusChanged", new
+                    {
+                        chatId = ctc.MaCuocTroChuyen,
+                        isBlocked = false,
+                        blockedByMe = false
+                    });
+                }
+            }
 
             return Ok("Đã gỡ chặn người dùng.");
         }

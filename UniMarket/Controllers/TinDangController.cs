@@ -633,7 +633,6 @@ int id,
             return false;
         }
 
-        // DELETE api/tindang/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTinDang(int id)
         {
@@ -644,48 +643,43 @@ int id,
             if (tinDang == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng" });
 
-            // Xóa ảnh trên Cloudinary hoặc trong thư mục tạm
+            // Xóa ảnh trên Cloudinary
             foreach (var img in tinDang.AnhTinDangs)
             {
-                var imagePath = img.DuongDan;
-
-                if (!string.IsNullOrEmpty(imagePath) && imagePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
                 {
-                    await DeleteCloudinaryPhotoByUrlAsync(imagePath);
-                }
-                else if (!string.IsNullOrEmpty(imagePath) && imagePath.Contains("images/temp-uploads"))
-                {
-                    var trimmedPath = imagePath.TrimStart('/');
-                    var localFilePath = Path.Combine(_env.WebRootPath, trimmedPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
-
-                    if (System.IO.File.Exists(localFilePath))
-                        System.IO.File.Delete(localFilePath);
+                    await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
                 }
             }
 
-            // Xóa bảng phụ có khóa ngoại tới TinDang
+            // Xóa bảng phụ liên quan
             _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == id));
             _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == id));
             _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == id));
             _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == id));
             _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == id));
-            _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id)); // 👈 mới thêm
+            _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id));
 
-            // Xóa các cuộc trò chuyện liên quan tới TinDang
+            // ✅ SỬA: Không xóa chat, chỉ set flag IsPostDeleted
             var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == id).ToListAsync();
             foreach (var c in cuocTros)
             {
-                _context.TinNhans.RemoveRange(_context.TinNhans.Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen));
-                _context.NguoiThamGias.RemoveRange(_context.NguoiThamGias.Where(n => n.MaCuocTroChuyen == c.MaCuocTroChuyen));
+                c.IsPostDeleted = true;
+                c.TieuDeTinDang += " (đã xóa)";  // Optional
             }
-            _context.CuocTroChuyens.RemoveRange(cuocTros);
 
-            // Cuối cùng: Xóa TinDang
+            // Notify qua SignalR
+            await _hubContext.Clients.All.SendAsync("CapNhatTinDang", new
+            {
+                MaTinDang = id,
+                IsDeleted = true
+            });
+
+            // Xóa TinDang
             _context.TinDangs.Remove(tinDang);
-
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Xóa tin đăng thành công" });
+            return Ok(new { message = "Xóa tin đăng thành công. Cuộc trò chuyện liên quan vẫn được giữ nguyên." });
         }
 
 

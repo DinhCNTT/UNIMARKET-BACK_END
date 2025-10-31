@@ -26,31 +26,36 @@ namespace UniMarket.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetVideos([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetVideos([FromQuery] int page = 1, [FromQuery] int pageSize = 15)
         {
             var userId = User.Identity != null && User.Identity.IsAuthenticated
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                 : null;
 
+            // Lấy tin đã duyệt và có video
             var tinDangsQuery = _context.TinDangs
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
-                .Include(td => td.QuanHuyen);
+                .Include(td => td.QuanHuyen)
+                .Include(td => td.AnhTinDangs); // ✅ include ảnh
 
             var tinDangs = await tinDangsQuery.ToListAsync();
             var maTinDangList = tinDangs.Select(td => td.MaTinDang).ToList();
 
+            // Lấy số lượt like
             var tymCounts = await _context.VideoLikes
                 .Where(v => maTinDangList.Contains(v.MaTinDang))
                 .GroupBy(v => v.MaTinDang)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
+            // Lấy số lượt bình luận
             var binhLuanCounts = await _context.VideoComments
                 .Where(c => maTinDangList.Contains(c.MaTinDang))
                 .GroupBy(c => c.MaTinDang)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
+            // Lấy danh sách video đã like của user
             var likedVideoIds = !string.IsNullOrEmpty(userId)
                 ? await _context.VideoLikes
                     .Where(v => v.UserId == userId && maTinDangList.Contains(v.MaTinDang))
@@ -58,6 +63,7 @@ namespace UniMarket.Controllers
                     .ToListAsync()
                 : new List<int>();
 
+            // Chuẩn bị dữ liệu trả về
             var result = tinDangs
                 .Select(td => new
                 {
@@ -69,13 +75,28 @@ namespace UniMarket.Controllers
                     DiaChi = td.DiaChi,
                     TinhThanh = td.TinhThanh?.TenTinhThanh,
                     QuanHuyen = td.QuanHuyen?.TenQuanHuyen,
+                    td.TinhTrang,
+                    td.NgayDang,
+
+                    AnhCount = td.AnhTinDangs != null
+                        ? td.AnhTinDangs.Count(a => a.LoaiMedia == MediaType.Image)
+                        : 0,
+
+                                        AnhUrls = td.AnhTinDangs != null
+                        ? td.AnhTinDangs
+                            .Where(a => a.LoaiMedia == MediaType.Image)
+                            .Select(a => a.DuongDan.StartsWith("http")
+                                  ? a.DuongDan
+                                  : $"http://localhost:5133{a.DuongDan}")
+                            .ToList()
+                        : new List<string>(),
+
                     SoTym = tymCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoBinhLuan = binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
-                    // ✅ SỬA: Lấy SoLuotXem từ TinDang model
                     SoLuotXem = td.SoLuotXem,
                     TongScore = tymCounts.GetValueOrDefault(td.MaTinDang, 0) +
                                binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
-                               td.SoLuotXem, // ✅ Sử dụng td.SoLuotXem
+                               td.SoLuotXem,
                     NguoiDang = td.NguoiBan != null ? new
                     {
                         td.NguoiBan.Id,
@@ -92,6 +113,7 @@ namespace UniMarket.Controllers
 
             return Ok(result);
         }
+
         [AllowAnonymous]
         [HttpGet("{maTinDang}")]
         public async Task<IActionResult> GetVideoDetail(int maTinDang)

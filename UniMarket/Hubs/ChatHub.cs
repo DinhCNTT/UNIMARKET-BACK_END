@@ -28,11 +28,16 @@ namespace UniMarket.Hubs
             _logger.LogInformation("ChatHub initialized with ThuHoiAnhVideo method available.");
         }
 
+        // Thêm vào ChatHub.cs - trong method OnConnectedAsync
+
         public override async Task OnConnectedAsync()
         {
             var userId = Context.UserIdentifier;
             if (!string.IsNullOrEmpty(userId))
             {
+                // ✅ THÊM: Tham gia group user để nhận events realtime
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
+
                 // Update in-memory service
                 _presenceService.SetOnline(userId);
 
@@ -56,31 +61,42 @@ namespace UniMarket.Hubs
                     isOnline = true,
                     lastSeen = (DateTime?)null
                 });
+
+                _logger.LogInformation($"User {userId} connected and joined group user-{userId}");
             }
             await base.OnConnectedAsync();
         }
+
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userId = Context.UserIdentifier;
-            using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
+            if (!string.IsNullOrEmpty(userId))
             {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var user = await db.Users.FindAsync(userId);
-                if (user != null)
-                {
-                    user.IsOnline = false;
-                    user.LastOnlineTime = DateTime.Now;
-                    await db.SaveChangesAsync();
-                }
-            }
+                // ✅ THÊM: Rời khỏi group user khi disconnect
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{userId}");
 
-            // Gửi event offline cho tất cả client
-            await Clients.All.SendAsync("UserStatusChanged", new
-            {
-                userId = userId,
-                isOnline = false,
-                lastSeen = DateTime.Now
-            });
+                using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var user = await db.Users.FindAsync(userId);
+                    if (user != null)
+                    {
+                        user.IsOnline = false;
+                        user.LastOnlineTime = DateTime.Now;
+                        await db.SaveChangesAsync();
+                    }
+                }
+
+                // Gửi event offline cho tất cả client
+                await Clients.All.SendAsync("UserStatusChanged", new
+                {
+                    userId = userId,
+                    isOnline = false,
+                    lastSeen = DateTime.Now
+                });
+
+                _logger.LogInformation($"User {userId} disconnected and left group user-{userId}");
+            }
             await base.OnDisconnectedAsync(exception);
         }
         // Client gọi ping mỗi 15s để báo "tôi vẫn online"
@@ -180,22 +196,23 @@ namespace UniMarket.Hubs
                     var receiverChatState = otherUserInfo != null ? await _context.UserChatStates
                         .FirstOrDefaultAsync(ucs => ucs.UserId == otherUserInfo.MaNguoiDung && ucs.ChatId == maCuocTroChuyen) : null;
 
-                    // ✅ FIX: Reset trạng thái nếu bị xóa/ẩn
-                    if (senderChatState != null && (senderChatState.IsDeleted || senderChatState.IsHidden))
+                    // ✅ FIX: CHỈ reset trạng thái XÓA cho người gửi, GIỮ NGUYÊN TRẠNG THÁI ẨN
+                    if (senderChatState != null && senderChatState.IsDeleted)
                     {
                         senderChatState.IsDeleted = false;
-                        senderChatState.IsHidden = false;
+                        // ❌ KHÔNG reset IsHidden cho người gửi
                     }
 
-                    if (receiverChatState != null && (receiverChatState.IsDeleted || receiverChatState.IsHidden))
+                    // ✅ FIX: CHỈ reset trạng thái XÓA cho người nhận, GIỮ NGUYÊN TRẠNG THÁI ẨN
+                    if (receiverChatState != null && receiverChatState.IsDeleted)
                     {
                         receiverChatState.IsDeleted = false;
-                        receiverChatState.IsHidden = false;
+                        // ❌ KHÔNG reset IsHidden cho người nhận
                     }
 
                     await _context.SaveChangesAsync();
 
-                    // Build object gửi cho client
+                    // Build object gửi cho người gửi
                     var chatForSender = new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -208,11 +225,13 @@ namespace UniMarket.Hubs
                         TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
+                        ThoiGianCapNhat = DateTime.UtcNow, // ✅ Thêm timestamp
                         HasUnreadMessages = false,
                         IsHidden = senderChatState?.IsHidden ?? false,
                         IsDeleted = senderChatState?.IsDeleted ?? false
                     };
 
+                    // Build object gửi cho người nhận
                     var chatForReceiver = new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -225,7 +244,9 @@ namespace UniMarket.Hubs
                         TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
-                        HasUnreadMessages = true,
+                        ThoiGianCapNhat = DateTime.UtcNow, // ✅ Thêm timestamp
+                                                           // ✅ FIX: Chỉ set unread = true nếu chat KHÔNG BỊ ẨN
+                        HasUnreadMessages = !(receiverChatState?.IsHidden ?? false),
                         IsHidden = receiverChatState?.IsHidden ?? false,
                         IsDeleted = receiverChatState?.IsDeleted ?? false
                     };

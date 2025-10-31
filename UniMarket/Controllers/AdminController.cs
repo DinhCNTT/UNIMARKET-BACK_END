@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using static AuthController;
 using UniMarket.DataAccess;
 using UniMarket.Services;
+using UniMarket.DTO; // <-- THÊM DÒNG NÀY
 
 namespace UniMarket.Controllers
 {
@@ -315,14 +316,14 @@ namespace UniMarket.Controllers
 
         [HttpPost("add-parent-category")]
         public async Task<IActionResult> AddParentCategory(
-    [FromForm] string tenDanhMucCha,
-    [FromForm] IFormFile? anhDanhMucCha,
-    [FromForm] IFormFile? icon)
+    [FromForm] CategoryCreateRequest request) // <-- Tham số DTO đã đúng
         {
-            if (string.IsNullOrWhiteSpace(tenDanhMucCha))
+            // ✅ SỬA Ở ĐÂY: Dùng request.TenDanhMucCha
+            if (string.IsNullOrWhiteSpace(request.TenDanhMucCha))
                 return BadRequest("Tên danh mục không được để trống!");
 
-            bool exists = await _context.DanhMucChas.AnyAsync(d => d.TenDanhMucCha == tenDanhMucCha);
+            // ✅ SỬA Ở ĐÂY: Dùng request.TenDanhMucCha
+            bool exists = await _context.DanhMucChas.AnyAsync(d => d.TenDanhMucCha == request.TenDanhMucCha);
             if (exists)
                 return BadRequest("Danh mục cha đã tồn tại!");
 
@@ -331,28 +332,34 @@ namespace UniMarket.Controllers
                 Directory.CreateDirectory(folderPath);
 
             string? imageUrl = null;
-            if (anhDanhMucCha != null)
+            // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+            if (request.AnhDanhMucCha != null)
             {
-                var imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(anhDanhMucCha.FileName)}";
+                // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+                var imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.AnhDanhMucCha.FileName)}";
                 var imagePath = Path.Combine(folderPath, imageFileName);
 
                 using (var stream = new FileStream(imagePath, FileMode.Create))
                 {
-                    await anhDanhMucCha.CopyToAsync(stream);
+                    // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+                    await request.AnhDanhMucCha.CopyToAsync(stream);
                 }
 
                 imageUrl = $"/images/categories/{imageFileName}";
             }
 
             string? iconUrl = null;
-            if (icon != null)
+            // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+            if (request.Icon != null)
             {
-                var iconFileName = $"{Guid.NewGuid()}_{Path.GetFileName(icon.FileName)}";
+                // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+                var iconFileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.Icon.FileName)}";
                 var iconPath = Path.Combine(folderPath, iconFileName);
 
                 using (var stream = new FileStream(iconPath, FileMode.Create))
                 {
-                    await icon.CopyToAsync(stream);
+                    // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+                    await request.Icon.CopyToAsync(stream);
                 }
 
                 iconUrl = $"/images/categories/{iconFileName}";
@@ -360,7 +367,8 @@ namespace UniMarket.Controllers
 
             var newCategory = new DanhMucCha
             {
-                TenDanhMucCha = tenDanhMucCha,
+                // ✅ SỬA Ở ĐÂY: Dùng request.TenDanhMucCha
+                TenDanhMucCha = request.TenDanhMucCha,
                 AnhDanhMucCha = imageUrl,
                 Icon = iconUrl
             };
@@ -447,7 +455,9 @@ namespace UniMarket.Controllers
         }
         // cập nhập danh mục cha 
         [HttpPut("update-parent-category/{id}")]
-        public async Task<IActionResult> UpdateParentCategory(int id, [FromForm] string tenDanhMucCha, [FromForm] IFormFile? anhDanhMuc, [FromForm] IFormFile? icon)
+        public async Task<IActionResult> UpdateParentCategory(
+            int id, // <-- Tham số ID (từ route) giữ nguyên
+            [FromForm] CategoryCreateRequest request) // <-- SỬA Ở ĐÂY: Dùng DTO
         {
             var category = await _context.DanhMucChas.FindAsync(id);
             if (category == null)
@@ -455,12 +465,14 @@ namespace UniMarket.Controllers
                 return NotFound(new { message = "Danh mục cha không tồn tại!" });
             }
 
-            if (string.IsNullOrWhiteSpace(tenDanhMucCha))
+            // ✅ SỬA Ở ĐÂY: Dùng request.TenDanhMucCha
+            if (string.IsNullOrWhiteSpace(request.TenDanhMucCha))
             {
                 return BadRequest(new { message = "Tên danh mục không được để trống!" });
             }
 
-            category.TenDanhMucCha = tenDanhMucCha;
+            // ✅ SỬA Ở ĐÂY: Dùng request.TenDanhMucCha
+            category.TenDanhMucCha = request.TenDanhMucCha;
 
             var folderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories");
             if (!Directory.Exists(folderPath))
@@ -469,28 +481,34 @@ namespace UniMarket.Controllers
             string baseUrl = $"{Request.Scheme}://{Request.Host}";
 
             // Xử lý cập nhật ảnh
-            if (anhDanhMuc != null)
+            // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+            if (request.AnhDanhMucCha != null)
             {
-                string imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(anhDanhMuc.FileName)}";
+                // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+                string imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.AnhDanhMucCha.FileName)}";
                 string imagePath = Path.Combine(folderPath, imageFileName);
 
                 using (var stream = new FileStream(imagePath, FileMode.Create))
                 {
-                    await anhDanhMuc.CopyToAsync(stream);
+                    // ✅ SỬA Ở ĐÂY: Dùng request.AnhDanhMucCha
+                    await request.AnhDanhMucCha.CopyToAsync(stream);
                 }
 
                 category.AnhDanhMucCha = $"/images/categories/{imageFileName}";
             }
 
             // Xử lý cập nhật icon
-            if (icon != null)
+            // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+            if (request.Icon != null)
             {
-                string iconFileName = $"{Guid.NewGuid()}_{Path.GetFileName(icon.FileName)}";
+                // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+                string iconFileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.Icon.FileName)}";
                 string iconPath = Path.Combine(folderPath, iconFileName);
 
                 using (var stream = new FileStream(iconPath, FileMode.Create))
                 {
-                    await icon.CopyToAsync(stream);
+                    // ✅ SỬA Ở ĐÂY: Dùng request.Icon
+                    await request.Icon.CopyToAsync(stream);
                 }
 
                 category.Icon = $"/images/categories/{iconFileName}";

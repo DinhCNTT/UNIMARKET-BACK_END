@@ -16,6 +16,7 @@ using UniMarket.Models;
 using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
+using Microsoft.AspNetCore.Mvc.Infrastructure; // <-- ✅ 1. THÊM DÒNG NÀY
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,7 +75,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // 📦 FIX: Tăng giới hạn upload multipart/form-data (100MB)
 // ==========================
 builder.Services.Configure<FormOptions>(options =>
-{ 
+{
     options.MultipartBodyLengthLimit = 157286400; // 150MB
 
 });
@@ -293,7 +294,39 @@ using (var scope = app.Services.CreateScope())
     await InitializeRolesAndAdmin(services);
 }
 
-await app.RunAsync();
+// ==========================
+// 🕵️‍♂️ ✅ 2. THÊM ENDPOINT XEM TẤT CẢ API
+// ==========================
+app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
+{
+    var routes = provider.ActionDescriptors.Items.Select(item =>
+    {
+        var action = item as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor;
+        var controller = action?.ControllerName;
+        var method = action?.ActionName;
+
+        var httpMethod = item.EndpointMetadata
+                              .OfType<HttpMethodMetadata>()
+                              .FirstOrDefault()?
+                              .HttpMethods
+                              .FirstOrDefault(); // Lấy phương thức HTTP (GET, POST...)
+
+        return new
+        {
+            Path = item.AttributeRouteInfo?.Template,
+            Method = httpMethod,
+            Controller = controller,
+            Action = method
+        };
+    })
+    .Where(r => r.Path != null) // Chỉ lấy các route có định nghĩa Attribute
+    .OrderBy(r => r.Path);
+
+    return Results.Ok(routes);
+});
+
+
+await app.RunAsync(); // Dòng này ở cuối cùng
 
 async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
 {
