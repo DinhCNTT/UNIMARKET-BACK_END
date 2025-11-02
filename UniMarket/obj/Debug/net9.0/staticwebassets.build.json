@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "HCPATMDEo9onqQlxvmGyqF3F0qKL0xvQQAc4/S3Sx/c=",
+  "Hash": "QdfvVNMV+xQVtkOWVVkncyWwrRDgUN+kSPQ36SJPjEI=",
   "Source": "UniMarket",
   "BasePath": "_content/UniMarket",
   "Mode": "Default",
@@ -3209,6 +3209,27 @@
       "OriginalItemSpec": "wwwroot\\images\\categories\\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png"
     },
     {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/categories/4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP#[.{fingerprint}]?.webp",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "k6yo06c70z",
+      "Integrity": "9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp"
+    },
+    {
       "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg",
       "SourceId": "UniMarket",
       "SourceType": "Discovered",
@@ -3270,6 +3291,69 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/categories/926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment#[.{fingerprint}]?.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "dvb099cqu6",
+      "Integrity": "5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/categories/93b1312f-7faa-442a-9d3c-e08096aadafc_R#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "kr0qceqt4q",
+      "Integrity": "oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/categories/a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house#[.{fingerprint}]?.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "o4nyop6ymv",
+      "Integrity": "mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png"
     },
     {
       "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg",
@@ -3564,6 +3648,342 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\images\\Posts\\Screenshot 2025-05-13 082608.png"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/04e95676-fa6b-4c04-8a8f-593923d8de39#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "k32bqxuyto",
+      "Integrity": "YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/30cac1a7-230d-44d5-b614-0ec0030d7497#[.{fingerprint}]?.mp4",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2cv3togmc5",
+      "Integrity": "Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/35df4053-2566-4ea9-81bd-964b6b96ea61#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "22p627bd87",
+      "Integrity": "po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/382a0d54-c57c-4069-a739-ed4e99fd46c7#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2qysl56m5l",
+      "Integrity": "NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/398e7415-6ba3-4e57-85da-00acadd38b7f#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2vdp5b7pa1",
+      "Integrity": "kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "k32bqxuyto",
+      "Integrity": "YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/680a9ba9-23eb-4669-bf7c-d298d5c0726c#[.{fingerprint}]?.mp4",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2cv3togmc5",
+      "Integrity": "Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/71610d87-2024-40d5-a15f-51ed904c4c5c#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2qysl56m5l",
+      "Integrity": "NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/7222d5c5-2931-4e15-850f-9e528ca22dd5#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "22p627bd87",
+      "Integrity": "po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "dqjnsfmbfb",
+      "Integrity": "pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/8ee25d6e-c0e3-4be0-b6d4-e2654299e84b#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "bnx9jrkyms",
+      "Integrity": "ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/ba0c9b79-091b-4ae4-a2a3-305287b3f5af#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "bnx9jrkyms",
+      "Integrity": "ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/c6358978-31a9-47bf-923c-244e3383f189#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "cx3lg51ou2",
+      "Integrity": "4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/c901254d-734d-40d8-9fd5-0c1cc1a5e995#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "2vdp5b7pa1",
+      "Integrity": "kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/ced26a3a-df4b-46a2-ba11-fa02a8ab522a#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "md4s43sdtl",
+      "Integrity": "1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg"
+    },
+    {
+      "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg",
+      "SourceId": "UniMarket",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\",
+      "BasePath": "_content/UniMarket",
+      "RelativePath": "images/temp-uploads/d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "dqjnsfmbfb",
+      "Integrity": "pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg"
     },
     {
       "Identity": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\js\\site.js",
@@ -13578,6 +13998,88 @@
       ]
     },
     {
+      "Route": "images/categories/4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.k6yo06c70z.webp",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "16004"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/webp"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:25:21 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "k6yo06c70z"
+        },
+        {
+          "Name": "label",
+          "Value": "images/categories/4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "16004"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/webp"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:25:21 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac="
+        }
+      ]
+    },
+    {
       "Route": "images/categories/54983424-cf96-4edc-9be1-5124f23050cf_OIP.1qt8t8v44q.jpg",
       "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg",
       "Selectors": [],
@@ -13820,6 +14322,252 @@
         {
           "Name": "integrity",
           "Value": "sha256-gct6cx+W99Qsvufx5cZiF/sQIPTn9JYFdD2RLxNBN2I="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.dvb099cqu6.png",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "10919"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/png"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:25:21 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "dvb099cqu6"
+        },
+        {
+          "Name": "label",
+          "Value": "images/categories/926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "10919"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/png"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:25:21 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "308617"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:21:05 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/93b1312f-7faa-442a-9d3c-e08096aadafc_R.kr0qceqt4q.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "308617"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:21:05 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "kr0qceqt4q"
+        },
+        {
+          "Name": "label",
+          "Value": "images/categories/93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.o4nyop6ymv.png",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "26707"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/png"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:21:05 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "o4nyop6ymv"
+        },
+        {
+          "Name": "label",
+          "Value": "images/categories/a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug="
+        }
+      ]
+    },
+    {
+      "Route": "images/categories/a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "26707"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/png"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 15:21:05 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug="
         }
       ]
     },
@@ -14968,6 +15716,1318 @@
         {
           "Name": "integrity",
           "Value": "sha256-JsPUERf1+xuXu8TYRo8ifrBV3o8Mow9rxsZJvMY26g4="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/04e95676-fa6b-4c04-8a8f-593923d8de39.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "160451"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/04e95676-fa6b-4c04-8a8f-593923d8de39.k32bqxuyto.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "160451"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "k32bqxuyto"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/04e95676-fa6b-4c04-8a8f-593923d8de39.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/30cac1a7-230d-44d5-b614-0ec0030d7497.2cv3togmc5.mp4",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1500029"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "video/mp4"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2cv3togmc5"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/30cac1a7-230d-44d5-b614-0ec0030d7497.mp4"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/30cac1a7-230d-44d5-b614-0ec0030d7497.mp4",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1500029"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "video/mp4"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/35df4053-2566-4ea9-81bd-964b6b96ea61.22p627bd87.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "94044"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "22p627bd87"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/35df4053-2566-4ea9-81bd-964b6b96ea61.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/35df4053-2566-4ea9-81bd-964b6b96ea61.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "94044"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/382a0d54-c57c-4069-a739-ed4e99fd46c7.2qysl56m5l.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "87337"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2qysl56m5l"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "87337"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/398e7415-6ba3-4e57-85da-00acadd38b7f.2vdp5b7pa1.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "85120"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2vdp5b7pa1"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/398e7415-6ba3-4e57-85da-00acadd38b7f.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/398e7415-6ba3-4e57-85da-00acadd38b7f.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "85120"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "160451"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.k32bqxuyto.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "160451"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "k32bqxuyto"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/680a9ba9-23eb-4669-bf7c-d298d5c0726c.2cv3togmc5.mp4",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1500029"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "video/mp4"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2cv3togmc5"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1500029"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "video/mp4"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/71610d87-2024-40d5-a15f-51ed904c4c5c.2qysl56m5l.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "87337"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2qysl56m5l"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/71610d87-2024-40d5-a15f-51ed904c4c5c.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/71610d87-2024-40d5-a15f-51ed904c4c5c.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "87337"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/7222d5c5-2931-4e15-850f-9e528ca22dd5.22p627bd87.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "94044"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "22p627bd87"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "94044"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.dqjnsfmbfb.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "144839"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "dqjnsfmbfb"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "144839"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.bnx9jrkyms.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "77781"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "bnx9jrkyms"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "77781"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/ba0c9b79-091b-4ae4-a2a3-305287b3f5af.bnx9jrkyms.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "77781"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "bnx9jrkyms"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "77781"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/c6358978-31a9-47bf-923c-244e3383f189.cx3lg51ou2.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "123033"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "cx3lg51ou2"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/c6358978-31a9-47bf-923c-244e3383f189.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/c6358978-31a9-47bf-923c-244e3383f189.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "123033"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:27:26 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/c901254d-734d-40d8-9fd5-0c1cc1a5e995.2vdp5b7pa1.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "85120"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "2vdp5b7pa1"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "85120"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "53666"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/ced26a3a-df4b-46a2-ba11-fa02a8ab522a.md4s43sdtl.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "53666"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "md4s43sdtl"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.dqjnsfmbfb.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "144839"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "dqjnsfmbfb"
+        },
+        {
+          "Name": "label",
+          "Value": "images/temp-uploads/d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg="
+        }
+      ]
+    },
+    {
+      "Route": "images/temp-uploads/d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg",
+      "AssetFile": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "144839"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 01 Nov 2025 10:26:13 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg="
         }
       ]
     },

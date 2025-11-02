@@ -65,6 +65,10 @@
       "PackagePath": "staticwebassets\\images\\categories\\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png"
     },
     {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp",
+      "PackagePath": "staticwebassets\\images\\categories\\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp"
+    },
+    {
       "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg",
       "PackagePath": "staticwebassets\\images\\categories\\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg"
     },
@@ -75,6 +79,18 @@
     {
       "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png",
       "PackagePath": "staticwebassets\\images\\categories\\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png",
+      "PackagePath": "staticwebassets\\images\\categories\\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg",
+      "PackagePath": "staticwebassets\\images\\categories\\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png",
+      "PackagePath": "staticwebassets\\images\\categories\\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png"
     },
     {
       "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg",
@@ -95,6 +111,70 @@
     {
       "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png",
       "PackagePath": "staticwebassets\\images\\categories\\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\c6358978-31a9-47bf-923c-244e3383f189.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg"
+    },
+    {
+      "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg",
+      "PackagePath": "staticwebassets\\images\\temp-uploads\\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg"
     },
     {
       "Id": "E:\\Downloads\\aaaaa6\\UniMarket-Backend\\UniMarket\\wwwroot\\js\\site.js",

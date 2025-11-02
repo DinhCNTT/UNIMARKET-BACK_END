@@ -126,6 +126,24 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\421d4b9d-99ff-4120-95b6-5366e6487f88_fashion-design.png'))</OriginalItemSpec>
     </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/categories/4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>k6yo06c70z</Fingerprint>
+      <Integrity>9ORZjxEuOQjKvDMXzmGGffZ09mZHbFjINV96e2WA7ac=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\4bd85191-6f84-4c24-acf7-03adc4ebde04_OIP.webp'))</OriginalItemSpec>
+    </StaticWebAsset>
     <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\54983424-cf96-4edc-9be1-5124f23050cf_OIP.jpg'))">
       <SourceType>Package</SourceType>
       <SourceId>UniMarket</SourceId>
@@ -179,6 +197,60 @@
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\82705d1e-c9ce-4c09-b412-9aa90e7707bf_motorcycle.png'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/categories/926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>dvb099cqu6</Fingerprint>
+      <Integrity>5xZ8xcsqR1LDuxdv8/0thfRF74YcxB8HS6rVOWB8NUw=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\926a7f17-7949-4be5-b2ac-69cfeea936b8_equipment.png'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/categories/93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>kr0qceqt4q</Fingerprint>
+      <Integrity>oBVURBLMGYfWTEQm4cm4Z+/IfCnWG7bmR0kBOApeckA=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\93b1312f-7faa-442a-9d3c-e08096aadafc_R.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/categories/a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>o4nyop6ymv</Fingerprint>
+      <Integrity>mKV6eXj3/W0xxIRwVycHH4kFOf2o94+UeAC1+yiAgug=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\a73dc4b6-6675-400b-b4aa-a76dd8b1ae8f_house.png'))</OriginalItemSpec>
     </StaticWebAsset>
     <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\categories\b5d1468d-a9fd-4820-8ead-d70c642342df_anh_do_gia_dung.jpg'))">
       <SourceType>Package</SourceType>
@@ -431,6 +503,294 @@
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\Posts\Screenshot 2025-05-13 082608.png'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/04e95676-fa6b-4c04-8a8f-593923d8de39.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>k32bqxuyto</Fingerprint>
+      <Integrity>YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\04e95676-fa6b-4c04-8a8f-593923d8de39.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/30cac1a7-230d-44d5-b614-0ec0030d7497.mp4</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2cv3togmc5</Fingerprint>
+      <Integrity>Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\30cac1a7-230d-44d5-b614-0ec0030d7497.mp4'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/35df4053-2566-4ea9-81bd-964b6b96ea61.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>22p627bd87</Fingerprint>
+      <Integrity>po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\35df4053-2566-4ea9-81bd-964b6b96ea61.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2qysl56m5l</Fingerprint>
+      <Integrity>NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\382a0d54-c57c-4069-a739-ed4e99fd46c7.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/398e7415-6ba3-4e57-85da-00acadd38b7f.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2vdp5b7pa1</Fingerprint>
+      <Integrity>kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\398e7415-6ba3-4e57-85da-00acadd38b7f.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>k32bqxuyto</Fingerprint>
+      <Integrity>YL12Nzy9SWsnqY6NCDCkkJ7uMzqSXImSvLz61QTHuMw=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\5b9504c1-c0e6-45f9-be6b-9d2d8c021d1c.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2cv3togmc5</Fingerprint>
+      <Integrity>Yt5zXjewVv8UhTmlOsXOlXco2sK5g+k/anBHGlCSI0Y=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\680a9ba9-23eb-4669-bf7c-d298d5c0726c.mp4'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/71610d87-2024-40d5-a15f-51ed904c4c5c.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2qysl56m5l</Fingerprint>
+      <Integrity>NhhfSzJkChT8gnhbC3RXN7pME85BhMzSRsqVpg8QjIc=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\71610d87-2024-40d5-a15f-51ed904c4c5c.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>22p627bd87</Fingerprint>
+      <Integrity>po3aGlHNNjanJimdGeTaFrXYkskNdd53PJmxgKhmY8A=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\7222d5c5-2931-4e15-850f-9e528ca22dd5.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>dqjnsfmbfb</Fingerprint>
+      <Integrity>pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\779f1ba3-e1e1-4c7d-b1f3-11f9d6aa9dc4.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>bnx9jrkyms</Fingerprint>
+      <Integrity>ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\8ee25d6e-c0e3-4be0-b6d4-e2654299e84b.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>bnx9jrkyms</Fingerprint>
+      <Integrity>ae46YwJYM4GHupjWAfKnmnUsar6eitE/1BM46Q178R4=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\ba0c9b79-091b-4ae4-a2a3-305287b3f5af.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\c6358978-31a9-47bf-923c-244e3383f189.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/c6358978-31a9-47bf-923c-244e3383f189.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>cx3lg51ou2</Fingerprint>
+      <Integrity>4KRG+6VrpJnUm3sFfCHFmj/0tRvqPBL6IseSLaGrn/M=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\c6358978-31a9-47bf-923c-244e3383f189.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>2vdp5b7pa1</Fingerprint>
+      <Integrity>kgztcjl+CcK1GLpqCS2x9Zx8JnE/M4B8EjJXZ6FvNdg=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\c901254d-734d-40d8-9fd5-0c1cc1a5e995.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>md4s43sdtl</Fingerprint>
+      <Integrity>1opVcousYe/gct4Jqt+bRbSVadedPVLRnTJk2i9IrJY=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\ced26a3a-df4b-46a2-ba11-fa02a8ab522a.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>UniMarket</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/UniMarket</BasePath>
+      <RelativePath>images/temp-uploads/d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>dqjnsfmbfb</Fingerprint>
+      <Integrity>pRsxv0d0VndTEf6NEUU5a3APrqAmnmf3um9DAmIFOhg=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\images\temp-uploads\d83d0d45-e2a5-4fdf-a2a2-67d2e7ffec46.jpg'))</OriginalItemSpec>
     </StaticWebAsset>
     <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\js\site.js'))">
       <SourceType>Package</SourceType>

@@ -26,19 +26,47 @@ namespace UniMarket.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetVideos([FromQuery] int page = 1, [FromQuery] int pageSize = 15)
+        public async Task<IActionResult> GetVideos([FromQuery] int page = 1,
+                                                 [FromQuery] int pageSize = 15,
+                                                 [FromQuery] int? categoryId = null,
+                                                 [FromQuery] decimal? minPrice = null,
+                                                 [FromQuery] decimal? maxPrice = null)
         {
             var userId = User.Identity != null && User.Identity.IsAuthenticated
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                 : null;
 
-            // Lấy tin đã duyệt và có video
-            var tinDangsQuery = _context.TinDangs
+            // ✅ LỖI ĐƯỢC SỬA TẠI ĐÂY
+            // Khai báo rõ kiểu 'IQueryable<TinDang>' thay vì dùng 'var'
+            IQueryable<TinDang> tinDangsQuery = _context.TinDangs
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
                 .Include(td => td.QuanHuyen)
-                .Include(td => td.AnhTinDangs); // ✅ include ảnh
+                .Include(td => td.AnhTinDangs)
+                .Include(td => td.DanhMuc); // Phải Include DanhMuc ở đây
+
+            // Áp dụng các bộ lọc (filter)
+            if (categoryId.HasValue)
+            {
+                // Giờ đây .Where() trả về IQueryable<TinDang>, khớp với kiểu của biến
+                tinDangsQuery = tinDangsQuery.Where(td =>
+                    td.MaDanhMuc == categoryId.Value ||
+                    (td.DanhMuc != null && td.DanhMuc.MaDanhMucCha == categoryId.Value)
+                );
+            }
+
+            if (minPrice.HasValue && minPrice.Value > 0)
+            {
+                tinDangsQuery = tinDangsQuery.Where(td => td.Gia >= minPrice.Value);
+            }
+
+            if (maxPrice.HasValue && maxPrice.Value < 100000000)
+            {
+                tinDangsQuery = tinDangsQuery.Where(td => td.Gia <= maxPrice.Value);
+            }
+
+            // (Toàn bộ code còn lại giữ nguyên...)
 
             var tinDangs = await tinDangsQuery.ToListAsync();
             var maTinDangList = tinDangs.Select(td => td.MaTinDang).ToList();
@@ -82,12 +110,12 @@ namespace UniMarket.Controllers
                         ? td.AnhTinDangs.Count(a => a.LoaiMedia == MediaType.Image)
                         : 0,
 
-                                        AnhUrls = td.AnhTinDangs != null
+                    AnhUrls = td.AnhTinDangs != null
                         ? td.AnhTinDangs
                             .Where(a => a.LoaiMedia == MediaType.Image)
                             .Select(a => a.DuongDan.StartsWith("http")
-                                  ? a.DuongDan
-                                  : $"http://localhost:5133{a.DuongDan}")
+                                ? a.DuongDan
+                                : $"http://localhost:5133{a.DuongDan}")
                             .ToList()
                         : new List<string>(),
 
@@ -95,8 +123,8 @@ namespace UniMarket.Controllers
                     SoBinhLuan = binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoLuotXem = td.SoLuotXem,
                     TongScore = tymCounts.GetValueOrDefault(td.MaTinDang, 0) +
-                               binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
-                               td.SoLuotXem,
+                                binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                                td.SoLuotXem,
                     NguoiDang = td.NguoiBan != null ? new
                     {
                         td.NguoiBan.Id,
