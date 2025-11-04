@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -16,7 +17,6 @@ using UniMarket.Models;
 using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
-using Microsoft.AspNetCore.Mvc.Infrastructure; // <-- ✅ 1. THÊM DÒNG NÀY
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,18 +32,10 @@ builder.Services.AddSingleton(provider =>
     config.GetSection("CloudinarySettings").Bind(settings);
 
     var cloudinary = new Cloudinary(new Account(settings.CloudName, settings.ApiKey, settings.ApiSecret));
-
-    // ✅ FIX lỗi TaskCanceledException khi upload video lớn
-    cloudinary.Api.Timeout = 180000; // 3 phút timeout (100s mặc định là quá ngắn cho video)
-
+    cloudinary.Api.Timeout = 180000; // 3 phút timeout
     return cloudinary;
 });
-builder.Services.AddSignalR().AddHubOptions<ChatHub>(options =>
-{
-    options.EnableDetailedErrors = true;
-});
-builder.Services.AddAuthentication();
-builder.Services.AddAuthorization();
+
 // ==========================
 // 📧 Email Service (Gmail)
 // ==========================
@@ -72,12 +64,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ==========================
-// 📦 FIX: Tăng giới hạn upload multipart/form-data (100MB)
+// 📦 FIX: Tăng giới hạn upload
 // ==========================
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 157286400; // 150MB
-
 });
 
 // ==========================
@@ -105,11 +96,14 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            // Allow JWT in query string for SignalR
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
+
+            // SỬA LỖI 1: Thêm đường dẫn của SocialChatHub vào
             if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/hub/chat") || path.StartsWithSegments("/hub/comment")))
+                (path.StartsWithSegments("/hub/chat") ||
+                 path.StartsWithSegments("/hub/comment") ||
+                 path.StartsWithSegments("/SocialChatHub"))) // <-- ĐÃ THÊM
             {
                 context.Token = accessToken;
             }
@@ -136,23 +130,17 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
-builder.Services.AddSingleton<UserPresenceService>();
-builder.Services.AddHostedService<PresenceTimeoutService>();
-
 // ==========================
-// 💬 SignalR + Connection Mapping
+// 💬 SignalR
 // ==========================
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<UserPresenceService>();
+builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddSingleton<ConnectionMapping<string>>();
-
-// ==========================
-// 🧹 HostedService CleanUpEmptyConversationsJob
-// ==========================
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
 // ==========================
-// 🔍 Swagger + Upload Filter
+// 🔍 Swagger
 // ==========================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -160,13 +148,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "UniMarket API",
-        Version = "v1",
-        Description = "API cho hệ thống mua bán UniMarket",
-        Contact = new OpenApiContact
-        {
-            Name = "Nguyễn Xuân Đạt",
-            Email = "contact@unimarket.com"
-        }
+        Version = "v1"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -184,11 +166,7 @@ builder.Services.AddSwaggerGen(c =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             new string[] { }
         }
@@ -212,29 +190,16 @@ builder.Services.AddControllers()
         {
             var errors = context.ModelState
                 .Where(x => x.Value?.Errors.Count > 0)
-                .Select(x => new
-                {
-                    Field = x.Key,
-                    Errors = x.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                });
-
-            return new BadRequestObjectResult(new
-            {
-                Message = "Dữ liệu không hợp lệ.",
-                Errors = errors
-            });
+                .Select(x => new { Field = x.Key, Errors = x.Value?.Errors.Select(e => e.ErrorMessage).ToArray() });
+            return new BadRequestObjectResult(new { Message = "Dữ liệu không hợp lệ.", Errors = errors });
         };
     });
 
 var app = builder.Build();
 
-// ✅ Cho phép ASP.NET Core đọc các header Forwarded
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-
-    // Nếu bạn muốn giới hạn proxy nào được tin cậy thì cấu hình KnownProxies
-    // KnownProxies = { IPAddress.Parse("127.0.0.1") }
 });
 
 // ==========================
@@ -246,7 +211,6 @@ app.UseExceptionHandler(appBuilder =>
     {
         context.Response.StatusCode = 500;
         context.Response.ContentType = "application/json";
-
         var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
         var result = JsonConvert.SerializeObject(new { message = error?.Message });
         await context.Response.WriteAsync(result);
@@ -256,12 +220,15 @@ app.UseExceptionHandler(appBuilder =>
 // ==========================
 // 🧩 Middlewares
 // ==========================
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniMarket API v1");
-    c.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniMarket API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
@@ -275,6 +242,10 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/images/Posts"
 });
 
+// SỬA LỖI 2: KÍCH HOẠT WEBSOCKET
+app.UseWebSockets();
+
+app.UseRouting();
 app.UseCors(MyAllowSpecificOrigins);
 app.UseHttpsRedirection();
 app.UseAuthentication();
@@ -282,8 +253,11 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 app.MapControllers();
+
+// SỬA LỖI 3: Đồng bộ đường dẫn Hub
 app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
+app.MapHub<SocialChatHub>("/SocialChatHub"); // <-- ĐÃ SỬA
 
 // ==========================
 // 👑 Tạo Role + Admin mặc định
@@ -295,7 +269,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ==========================
-// 🕵️‍♂️ ✅ 2. THÊM ENDPOINT XEM TẤT CẢ API
+// 🕵️‍♂️ ✅ DÁN ENDPOINT XEM TẤT CẢ API (TỪ CODE CỦA ĐỊNH) VÀO ĐÂY
 // ==========================
 app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
 {
@@ -306,12 +280,12 @@ app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
         var method = action?.ActionName;
 
         var httpMethod = item.EndpointMetadata
-                              .OfType<HttpMethodMetadata>()
-                              .FirstOrDefault()?
-                              .HttpMethods
-                              .FirstOrDefault(); // Lấy phương thức HTTP (GET, POST...)
+                   .OfType<HttpMethodMetadata>()
+                   .FirstOrDefault()?
+                   .HttpMethods
+                   .FirstOrDefault(); // Lấy phương thức HTTP (GET, POST...)
 
-        return new
+        return new
         {
             Path = item.AttributeRouteInfo?.Template,
             Method = httpMethod,
@@ -320,13 +294,12 @@ app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
         };
     })
     .Where(r => r.Path != null) // Chỉ lấy các route có định nghĩa Attribute
-    .OrderBy(r => r.Path);
+      .OrderBy(r => r.Path);
 
     return Results.Ok(routes);
 });
 
-
-await app.RunAsync(); // Dòng này ở cuối cùng
+await app.RunAsync();
 
 async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
 {

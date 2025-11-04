@@ -82,7 +82,8 @@ namespace UniMarket.Hubs
                     if (user != null)
                     {
                         user.IsOnline = false;
-                        user.LastOnlineTime = DateTime.Now;
+                        // SỬA LỖI: Sử dụng UtcNow thay vì Now
+                        user.LastOnlineTime = DateTime.UtcNow;
                         await db.SaveChangesAsync();
                     }
                 }
@@ -92,7 +93,8 @@ namespace UniMarket.Hubs
                 {
                     userId = userId,
                     isOnline = false,
-                    lastSeen = DateTime.Now
+                    // SỬA LỖI: Sử dụng UtcNow thay vì Now
+                    lastSeen = DateTime.UtcNow
                 });
 
                 _logger.LogInformation($"User {userId} disconnected and left group user-{userId}");
@@ -498,7 +500,8 @@ namespace UniMarket.Hubs
                 if (user != null)
                 {
                     user.IsOnline = isOnline;
-                    user.LastOnlineTime = isOnline ? null : DateTime.Now;
+                    // SỬA LỖI: Sử dụng UtcNow thay vì Now
+                    user.LastOnlineTime = isOnline ? null : DateTime.UtcNow;
                     await db.SaveChangesAsync();
                 }
             }
@@ -508,7 +511,8 @@ namespace UniMarket.Hubs
             {
                 userId = userId,
                 isOnline = isOnline,
-                lastSeen = isOnline ? (DateTime?)null : DateTime.Now
+                // SỬA LỖI: Sử dụng UtcNow thay vì Now
+                lastSeen = isOnline ? (DateTime?)null : DateTime.UtcNow
             });
         }
     }

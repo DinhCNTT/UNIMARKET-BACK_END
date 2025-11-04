@@ -656,7 +656,7 @@ namespace UniMarket.Controllers
                 {
                     MaTinDang = maTinDang,
                     MaNguoiDung = userId,
-                    NgayLuu = DateTime.Now
+                    NgayLuu = DateTime.UtcNow
                 });
                 saved = true;
             }

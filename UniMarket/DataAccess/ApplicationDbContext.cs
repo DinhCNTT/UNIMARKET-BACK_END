@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using System.ComponentModel;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using UniMarket.Models;
 
@@ -10,31 +11,107 @@ namespace UniMarket.DataAccess
             : base(options)
         {
         }
-        // 🔥 Thêm DbSet để chắc chắn ApplicationUser được ánh xạ vào database
+
+        // ==========================================================
+        // 💾 DANH SÁCH ĐẦY ĐỦ CÁC DBSET
+        // ==========================================================
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
         public DbSet<TinDang> TinDangs { get; set; }
         public DbSet<DanhMuc> DanhMucs { get; set; }
         public DbSet<AnhTinDang> AnhTinDangs { get; set; }
         public DbSet<TinhThanh> TinhThanhs { get; set; }
         public DbSet<QuanHuyen> QuanHuyens { get; set; }
-        public DbSet<DanhMucCha> DanhMucChas { get; set; } // ✅ Kiểm tra có DbSet<DanhMuc> không
+        public DbSet<DanhMucCha> DanhMucChas { get; set; }
+
         public DbSet<CuocTroChuyen> CuocTroChuyens { get; set; }
         public DbSet<TinNhan> TinNhans { get; set; }
         public DbSet<TinNhanDaXoa> TinNhanDaXoas { get; set; }
         public DbSet<NguoiThamGia> NguoiThamGias { get; set; }
         public DbSet<BlockedUser> BlockedUsers { get; set; }
+
         public DbSet<VideoLike> VideoLikes { get; set; }
         public DbSet<VideoComment> VideoComments { get; set; }
         public DbSet<VideoView> VideoViews { get; set; }
+
         public DbSet<SearchHistory> SearchHistories { get; set; }
+
+        // 💬 Social Chat
+        public DbSet<CuocTroChuyenSocial> CuocTroChuyenSocials { get; set; }
+        public DbSet<TinNhanSocial> TinNhanSocials { get; set; }
+        public DbSet<NguoiThamGiaSocial> NguoiThamGiaSocials { get; set; }
+        public DbSet<UserActivity> UserActivities { get; set; }
+
+        // ✨ Thêm bảng mới cho "xóa tin nhắn 1 phía"
+        public DbSet<DeletedMessageForUser> DeletedMessagesForUsers { get; set; }
+
+        // ❤️ Favorite + Save
         public DbSet<TinDangYeuThich> TinDangYeuThichs { get; set; }
         public DbSet<VideoTinDangSave> VideoTinDangSaves { get; set; }
+
+        // 🗨️ Chat state, Follow, Share, Hidden Chat
         public DbSet<UserChatState> UserChatStates { get; set; }
+        public DbSet<Share> Shares { get; set; }
+        public DbSet<Follow> Follows { get; set; }
+        public DbSet<UserHiddenConversation> UserHiddenConversations { get; set; }
+
+        // ==========================================================
+        // 🔧 CONFIGURATION
+        // ==========================================================
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Ngăn nhiều cascade từ TinDang
+            modelBuilder.Entity<UserHiddenConversation>(entity =>
+            {
+                entity.HasKey(e => new { e.UserId, e.MaCuocTroChuyen });
+            });
+
+            // ✨ SỬA LỖI CASCADE PATHS: Cấu hình chi tiết quan hệ cho DeletedMessageForUser
+            modelBuilder.Entity<DeletedMessageForUser>(entity =>
+            {
+                // Định nghĩa khóa chính kép (Composite Key)
+                entity.HasKey(e => new { e.UserId, e.TinNhanSocialId });
+
+                // Quan hệ với TinNhanSocial
+                entity.HasOne(d => d.TinNhanSocial)
+                      .WithMany(t => t.DeletedForUsers)
+                      .HasForeignKey(d => d.TinNhanSocialId)
+                      .OnDelete(DeleteBehavior.Restrict); // <-- THAY ĐỔI QUAN TRỌNG NHẤT
+                                                          // Ngăn chặn xóa dây chuyền từ TinNhanSocial
+
+                // Quan hệ với User (giữ nguyên Cascade)
+                entity.HasOne(d => d.User)
+                      .WithMany()
+                      .HasForeignKey(d => d.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Cấu hình quan hệ tự tham chiếu cho TinNhanSocial (Reply)
+            modelBuilder.Entity<TinNhanSocial>()
+                .HasOne(m => m.ParentMessage)
+                .WithMany()
+                .HasForeignKey(m => m.ParentMessageId)
+                .OnDelete(DeleteBehavior.ClientSetNull); // Tránh xóa cascade vòng lặp
+
+            // =================================================================
+            // CẤU HÌNH CHUYỂN ĐỔI MÚI GIỜ (DateTime -> DateTimeOffset)
+            // =================================================================
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    {
+                        modelBuilder.Entity(entityType.Name)
+                                    .Property(property.Name)
+                                    .HasConversion(typeof(DateTimeOffsetConverter));
+                    }
+                }
+            }
+
+            // =================================================================
+            // CÁC QUAN HỆ KHÁC (GIỮ NGUYÊN)
+            // =================================================================
             modelBuilder.Entity<VideoLike>()
                 .HasOne(v => v.TinDang)
                 .WithMany()
@@ -53,14 +130,12 @@ namespace UniMarket.DataAccess
                 .HasForeignKey(v => v.MaTinDang)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ Cấu hình quan hệ bình luận cha - con (replies)
             modelBuilder.Entity<VideoComment>()
                 .HasOne(vc => vc.ParentComment)
                 .WithMany(vc => vc.Replies)
                 .HasForeignKey(vc => vc.ParentCommentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ Cấu hình TinDangYeuThich
             modelBuilder.Entity<TinDangYeuThich>()
                 .HasKey(t => t.MaYeuThich);
 
@@ -75,50 +150,50 @@ namespace UniMarket.DataAccess
                 .WithMany()
                 .HasForeignKey(t => t.MaNguoiDung)
                 .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<VideoTinDangSave>(entity =>
             {
                 entity.HasKey(e => e.MaVideoSave);
-
                 entity.HasOne(e => e.NguoiDung)
-                    .WithMany()
-                    .HasForeignKey(e => e.MaNguoiDung)
-                    .OnDelete(DeleteBehavior.Restrict); // Tắt cascade delete
-
+                      .WithMany()
+                      .HasForeignKey(e => e.MaNguoiDung)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.TinDang)
-                    .WithMany()
-                    .HasForeignKey(e => e.MaTinDang)
-                    .OnDelete(DeleteBehavior.Restrict); // Tắt cascade delete
+                      .WithMany()
+                      .HasForeignKey(e => e.MaTinDang)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
-            // Cấu hình UserChatState
+
             modelBuilder.Entity<UserChatState>(entity =>
             {
                 entity.HasKey(e => e.Id);
-
-                // Tạo unique constraint cho UserId + ChatId
                 entity.HasIndex(e => new { e.UserId, e.ChatId })
                       .IsUnique()
                       .HasDatabaseName("IX_UserChatState_UserId_ChatId");
-
                 entity.HasOne(e => e.User)
                       .WithMany()
                       .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
-
                 entity.HasOne(e => e.Chat)
                       .WithMany()
                       .HasForeignKey(e => e.ChatId)
                       .OnDelete(DeleteBehavior.Cascade);
-
-                entity.Property(e => e.UserId)
-                      .IsRequired()
-                      .HasMaxLength(450);
-
-                entity.Property(e => e.ChatId)
-                      .IsRequired();
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.ChatId).IsRequired();
             });
 
+            modelBuilder.Entity<Follow>(entity =>
+            {
+                entity.HasKey(f => f.Id);
+                entity.HasOne(f => f.Follower)
+                      .WithMany()
+                      .HasForeignKey(f => f.FollowerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(f => f.Following)
+                      .WithMany()
+                      .HasForeignKey(f => f.FollowingId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
         }
-
-
     }
 }
