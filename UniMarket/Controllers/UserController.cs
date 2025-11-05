@@ -51,7 +51,7 @@ public class UserController : ControllerBase
         });
     }
 
-    private string FormatLastSeen(DateTime? lastActive)
+    public static string FormatLastSeen(DateTime? lastActive)
     {
         if (!lastActive.HasValue) return null;
 

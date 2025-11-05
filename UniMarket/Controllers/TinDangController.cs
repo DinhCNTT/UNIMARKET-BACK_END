@@ -94,90 +94,98 @@ namespace UniMarket.Controllers
             [FromForm] string condition,
             [FromForm] int province,
             [FromForm] int district,
-            [FromForm] List<IFormFile> images,
+            [FromForm] List<IFormFile> images, // Frontend gửi cả ảnh và video qua đây
             [FromForm] string userId,
             [FromForm] int categoryId,
-            [FromForm] string categoryName,
+            [FromForm] string categoryName, // Tham số này không thấy dùng, nhưng giữ nguyên
             [FromForm] bool canNegotiate)
         {
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return BadRequest("Người bán không tồn tại!");
-
-            if (!await _context.TinhThanhs.AnyAsync(t => t.MaTinhThanh == province))
-                return BadRequest("Tỉnh thành không hợp lệ!");
-
-            if (!await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district))
-                return BadRequest("Quận huyện không hợp lệ!");
-
-            // Kiểm tra giới hạn file
-            if (images != null && images.Count > 8) // 7 ảnh + 1 video tối đa
-                return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh và 1 video.");
-
-            // Phân loại ảnh và video
-            var imageFiles = new List<IFormFile>();
-            var videoFiles = new List<IFormFile>();
-
-            if (images != null)
+            try
             {
-                foreach (var file in images)
-                {
-                    var extension = Path.GetExtension(file.FileName).ToLower();
-                    var isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
-                                 extension == ".wmv" || extension == ".flv" || extension == ".webm";
+                // =================================
+                // 1. KIỂM TRA DỮ LIỆU ĐẦU VÀO
+                // =================================
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null) return BadRequest("Người bán không tồn tại!");
 
-                    if (isVideo)
-                        videoFiles.Add(file);
-                    else
-                        imageFiles.Add(file);
+                if (!await _context.TinhThanhs.AnyAsync(t => t.MaTinhThanh == province))
+                    return BadRequest("Tỉnh thành không hợp lệ!");
+
+                if (!await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district))
+                    return BadRequest("Quận huyện không hợp lệ!");
+
+                // ✅ SỬA LỖI 1: Thêm kiểm tra MaDanhMuc (Rất quan trọng)
+                if (!await _context.DanhMucs.AnyAsync(c => c.MaDanhMuc == categoryId))
+                    return BadRequest("Danh mục không hợp lệ!");
+
+                // Kiểm tra giới hạn file (tổng)
+                if (images != null && images.Count > 8)
+                    return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh và 1 video.");
+
+                // Phân loại ảnh và video
+                var imageFiles = new List<IFormFile>();
+                var videoFiles = new List<IFormFile>();
+
+                if (images != null)
+                {
+                    foreach (var file in images)
+                    {
+                        var extension = Path.GetExtension(file.FileName).ToLower();
+                        var isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                                      extension == ".wmv" || extension == ".flv" || extension == ".webm";
+
+                        if (isVideo)
+                            videoFiles.Add(file);
+                        else
+                            imageFiles.Add(file);
+                    }
+
+                    if (imageFiles.Count > 7)
+                        return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh.");
+                    if (videoFiles.Count > 1)
+                        return BadRequest("Chỉ được phép tải lên tối đa 1 video.");
                 }
 
-                // Kiểm tra giới hạn cụ thể
-                if (imageFiles.Count > 7)
-                    return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh.");
+                // =================================
+                // 2. TẠO ĐỐI TƯỢNG TIN ĐĂNG
+                // =================================
+                var post = new TinDang
+                {
+                    TieuDe = title,
+                    MoTa = description,
+                    Gia = price,
+                    CoTheThoaThuan = canNegotiate,
+                    TinhTrang = condition,
+                    DiaChi = contactInfo,
+                    MaTinhThanh = province,
+                    MaQuanHuyen = district,
+                    MaNguoiBan = userId,
+                    NgayDang = DateTime.UtcNow, // ✅ SỬA LỖI 3: Dùng UtcNow
+                    TrangThai = TrangThaiTinDang.ChoDuyet,
+                    MaDanhMuc = categoryId,
+                    AnhTinDangs = new List<AnhTinDang>(),
+                    VideoUrl = null // Sẽ được set bên dưới
+                };
 
-                if (videoFiles.Count > 1)
-                    return BadRequest("Chỉ được phép tải lên tối đa 1 video.");
-            }
-
-            var post = new TinDang
-            {
-                TieuDe = title,
-                MoTa = description,
-                Gia = price,
-                CoTheThoaThuan = canNegotiate,
-                TinhTrang = condition,
-                DiaChi = contactInfo,
-                MaTinhThanh = province,
-                MaQuanHuyen = district,
-                MaNguoiBan = userId,
-                NgayDang = DateTime.Now,
-                TrangThai = TrangThaiTinDang.ChoDuyet,
-                MaDanhMuc = categoryId,
-                AnhTinDangs = new List<AnhTinDang>()
-            };
-
-            if (images != null && images.Count > 0)
-            {
-                var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "temp-uploads");
-                if (!Directory.Exists(tempFolder))
-                    Directory.CreateDirectory(tempFolder);
-
-                int order = 1; // Thứ tự hiển thị
+                // =================================
+                // 3. UPLOAD FILE LÊN CLOUDINARY (SỬA LỖI 2)
+                // =================================
+                int order = 1;
 
                 // Xử lý ảnh trước
                 foreach (var image in imageFiles)
                 {
-                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(image.FileName);
-                    var filePath = Path.Combine(tempFolder, fileName);
-
-                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    // Dùng PhotoService (Cloudinary) thay vì lưu local
+                    var result = await _photoService.UploadPhotoAsync(image);
+                    if (result.Error != null)
                     {
-                        await image.CopyToAsync(stream);
+                        Console.WriteLine("❌ Lỗi upload ảnh: " + result.Error.Message);
+                        return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
                     }
 
                     post.AnhTinDangs.Add(new AnhTinDang
                     {
-                        DuongDan = $"/images/temp-uploads/{fileName}",
+                        DuongDan = result.SecureUrl.ToString(), // Dùng URL của Cloudinary
                         LoaiMedia = MediaType.Image,
                         Order = order++,
                         TinDang = post
@@ -187,37 +195,57 @@ namespace UniMarket.Controllers
                 // Xử lý video sau
                 foreach (var video in videoFiles)
                 {
-                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(video.FileName);
-                    var filePath = Path.Combine(tempFolder, fileName);
-
-                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    // Dùng PhotoService (Cloudinary) thay vì lưu local
+                    var result = await _photoService.UploadVideoAsync(video);
+                    if (result.Error != null)
                     {
-                        await video.CopyToAsync(stream);
+                        Console.WriteLine("❌ Lỗi upload video: " + result.Error.Message);
+                        return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
                     }
 
-                    post.AnhTinDangs.Add(new AnhTinDang
+                    var newVideo = new AnhTinDang
                     {
-                        DuongDan = $"/images/temp-uploads/{fileName}",
+                        DuongDan = result.SecureUrl.ToString(), // Dùng URL của Cloudinary
                         LoaiMedia = MediaType.Video,
                         Order = order++,
                         TinDang = post
-                    });
+                    };
+                    post.AnhTinDangs.Add(newVideo);
+
+                    // Set VideoUrl cho tin đăng (lấy video đầu tiên làm đại diện)
+                    if (string.IsNullOrEmpty(post.VideoUrl))
+                    {
+                        post.VideoUrl = newVideo.DuongDan;
+                    }
                 }
+
+                // =================================
+                // 4. LƯU VÀO DATABASE
+                // =================================
+                _context.TinDangs.Add(post);
+                await _context.SaveChangesAsync(); // Lưu 1 lần duy nhất
+
+                var responseMessage = $"Bài đăng đã được thêm thành công và đang chờ duyệt! " +
+                                      $"(Đã tải lên: {imageFiles.Count} ảnh, {videoFiles.Count} video)";
+
+                return Ok(new
+                {
+                    message = responseMessage,
+                    imageCount = imageFiles.Count,
+                    videoCount = videoFiles.Count,
+                    newPostId = post.MaTinDang // Trả về ID của bài post mới
+                });
             }
-
-            _context.TinDangs.Add(post);
-            await _context.SaveChangesAsync();
-
-            // Trả về thông tin chi tiết về số lượng file đã upload
-            var responseMessage = $"Bài đăng đã được thêm thành công và đang chờ duyệt! " +
-                                 $"(Đã tải lên: {imageFiles.Count} ảnh, {videoFiles.Count} video)";
-
-            return Ok(new
+            catch (Exception ex)
             {
-                message = responseMessage,
-                imageCount = imageFiles.Count,
-                videoCount = videoFiles.Count
-            });
+                // Thêm try-catch để bắt các lỗi 500 khác và log chi tiết
+                Console.WriteLine("❌ LỖI KHÔNG XÁC ĐỊNH KHI ĐĂNG TIN (add-post):");
+                Console.WriteLine("Message: " + ex.Message);
+                if (ex.InnerException != null)
+                    Console.WriteLine("InnerException: " + ex.InnerException.Message);
+
+                return StatusCode(500, new { message = "Lỗi server khi thêm tin đăng", error = ex.Message });
+            }
         }
 
 

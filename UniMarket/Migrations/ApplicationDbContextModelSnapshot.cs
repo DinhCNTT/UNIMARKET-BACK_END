@@ -765,6 +765,9 @@ namespace UniMarket.Migrations
                     b.Property<bool>("DaXem")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsRecalled")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsVisible")
                         .HasColumnType("bit");
 
@@ -787,6 +790,9 @@ namespace UniMarket.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("ThoiGianGui")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ThoiGianThuHoi")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset?>("ThoiGianXem")

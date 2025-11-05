@@ -9,6 +9,7 @@ using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
 using UniMarket.Services;
+using UniMarket.Controllers;
 
 namespace UniMarket.Hubs
 {
@@ -72,8 +73,10 @@ namespace UniMarket.Hubs
             var userId = Context.UserIdentifier;
             if (!string.IsNullOrEmpty(userId))
             {
-                // ✅ THÊM: Rời khỏi group user khi disconnect
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{userId}");
+
+                // ✅ GHI LẠI THỜI GIAN ĐỂ DÙNG CHUNG
+                var lastSeenTime = DateTime.UtcNow;
 
                 using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
                 {
@@ -82,8 +85,7 @@ namespace UniMarket.Hubs
                     if (user != null)
                     {
                         user.IsOnline = false;
-                        // SỬA LỖI: Sử dụng UtcNow thay vì Now
-                        user.LastOnlineTime = DateTime.UtcNow;
+                        user.LastOnlineTime = lastSeenTime; // Dùng biến lastSeenTime
                         await db.SaveChangesAsync();
                     }
                 }
@@ -93,8 +95,10 @@ namespace UniMarket.Hubs
                 {
                     userId = userId,
                     isOnline = false,
-                    // SỬA LỖI: Sử dụng UtcNow thay vì Now
-                    lastSeen = DateTime.UtcNow
+                    lastSeen = lastSeenTime, // Dùng biến lastSeenTime
+
+                    // ✅ THÊM DÒNG NÀY ĐỂ GỬI CHUỖI ĐÃ FORMAT
+                    formattedLastSeen = UserController.FormatLastSeen(lastSeenTime)
                 });
 
                 _logger.LogInformation($"User {userId} disconnected and left group user-{userId}");
@@ -359,18 +363,27 @@ namespace UniMarket.Hubs
                 }
 
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-                _context.TinNhans.Remove(tinNhan);
+
+                // ✅ THAY ĐỔI: Đánh dấu thu hồi thay vì xóa
+                tinNhan.IsRecalled = true;
+                tinNhan.ThoiGianThuHoi = DateTime.UtcNow;
+
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"[SignalR] Text message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
 
+                // ✅ Broadcast event thu hồi
                 await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
                 {
                     maTinNhan = maTinNhan,
                     maCuocTroChuyen = maCuocTroChuyen,
                     maNguoiThuHoi = maNguoiGui,
-                    loaiTinNhan = "text"
+                    loaiTinNhan = "text",
+                    isRecalled = true  // Flag mới
                 });
+
+                // ✅ Cập nhật preview trong ChatList
+                await UpdateChatPreviewAfterRecall(maCuocTroChuyen);
             }
             catch (Exception ex)
             {
@@ -416,6 +429,7 @@ namespace UniMarket.Hubs
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
                 var mediaUrl = tinNhan.NoiDung;
 
+                // ✅ VẪN XÓA TRÊN CLOUDINARY
                 if (!string.IsNullOrEmpty(mediaUrl))
                 {
                     var resourceType = tinNhan.Loai == LoaiTinNhan.Image
@@ -437,7 +451,10 @@ namespace UniMarket.Hubs
                         _logger.LogWarning($"Could not extract publicId from URL: {mediaUrl}");
                 }
 
-                _context.TinNhans.Remove(tinNhan);
+                // ✅ THAY ĐỔI: Đánh dấu thu hồi thay vì xóa
+                tinNhan.IsRecalled = true;
+                tinNhan.ThoiGianThuHoi = DateTime.UtcNow;
+
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"[SignalR] Media message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
@@ -447,8 +464,12 @@ namespace UniMarket.Hubs
                     maTinNhan = maTinNhan,
                     maCuocTroChuyen = maCuocTroChuyen,
                     maNguoiThuHoi = maNguoiGui,
-                    loaiTinNhan = tinNhan.Loai == LoaiTinNhan.Image ? "image" : "video"
+                    loaiTinNhan = tinNhan.Loai == LoaiTinNhan.Image ? "image" : "video",
+                    isRecalled = true
                 });
+
+                // ✅ Cập nhật preview trong ChatList
+                await UpdateChatPreviewAfterRecall(maCuocTroChuyen);
             }
             catch (Exception ex)
             {
@@ -514,6 +535,54 @@ namespace UniMarket.Hubs
                 // SỬA LỖI: Sử dụng UtcNow thay vì Now
                 lastSeen = isOnline ? (DateTime?)null : DateTime.UtcNow
             });
+        }
+        private async Task UpdateChatPreviewAfterRecall(string maCuocTroChuyen)
+        {
+            var cuocTroChuyen = await _context.CuocTroChuyens
+                .Include(c => c.NguoiThamGias)
+                    .ThenInclude(ntg => ntg.NguoiDung)
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+
+            if (cuocTroChuyen == null) return;
+
+            foreach (var nguoiThamGia in cuocTroChuyen.NguoiThamGias)
+            {
+                var tinNhanCuoi = await _context.TinNhans
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == nguoiThamGia.MaNguoiDung))
+                    .OrderByDescending(t => t.ThoiGianGui)
+                    .Select(t => new
+                    {
+                        t.NoiDung,
+                        t.MaNguoiGui,
+                        LoaiTinNhan = t.Loai.ToString().ToLower(),
+                        t.IsRecalled,
+                        TenNguoiGui = t.NguoiGui.FullName
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (tinNhanCuoi != null)
+                {
+                    var otherUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != nguoiThamGia.MaNguoiDung);
+
+                    await Clients.Group($"user-{nguoiThamGia.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        IsEmpty = false,
+                        TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
+                        AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
+                        GiaTinDang = cuocTroChuyen.GiaTinDang,
+                        MaNguoiConLai = otherUser?.MaNguoiDung,
+                        TenNguoiConLai = otherUser?.NguoiDung?.FullName,
+                        TinNhanCuoi = tinNhanCuoi.IsRecalled ? "Đã thu hồi tin nhắn" : tinNhanCuoi.NoiDung,
+                        MaNguoiGui = tinNhanCuoi.MaNguoiGui,
+                        LoaiTinNhan = tinNhanCuoi.IsRecalled ? "text" : tinNhanCuoi.LoaiTinNhan,
+                        IsRecalled = tinNhanCuoi.IsRecalled,
+                        TenNguoiThuHoi = tinNhanCuoi.TenNguoiGui,
+                        ThoiGianCapNhat = DateTime.UtcNow
+                    });
+                }
+            }
         }
     }
 }

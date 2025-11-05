@@ -37,6 +37,8 @@ namespace UniMarket.Models
         public string? MediaUrl { get; set; }
         // Trường mới để kiểm soát hiển thị tin nhắn
         public bool IsVisible { get; set; } = true;  // Mặc định là hiển thị
+        public bool IsRecalled { get; set; } = false;
+        public DateTime? ThoiGianThuHoi { get; set; }
 
         [ForeignKey("MaCuocTroChuyen")]
         public CuocTroChuyen? CuocTroChuyen { get; set; }

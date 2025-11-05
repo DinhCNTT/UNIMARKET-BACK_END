@@ -143,10 +143,12 @@ namespace UniMarket.Controllers
                         .OrderByDescending(t => t.ThoiGianGui)
                         .Select(t => new
                         {
-                            NoiDung = t.NoiDung,
+                            NoiDung = t.IsRecalled ? "Tin nhắn đã được thu hồi" : t.NoiDung,
                             MaNguoiGui = t.MaNguoiGui,
-                            LoaiTinNhan = t.Loai.ToString().ToLower(),
-                            ThoiGianGui = t.ThoiGianGui
+                            LoaiTinNhan = t.IsRecalled ? "text" : t.Loai.ToString().ToLower(),
+                            ThoiGianGui = t.ThoiGianGui,
+                            IsRecalled = t.IsRecalled,  // ✅ THÊM FIELD
+                            TenNguoiGui = t.NguoiGui.FullName  // ✅ THÊM TÊN NGƯỜI GỬI
                         })
                         .FirstOrDefault(),
                     ThoiGianCapNhat = _context.TinNhans
@@ -164,7 +166,7 @@ namespace UniMarket.Controllers
                     c.TieuDeTinDang,
                     c.AnhDaiDienTinDang,
                     c.GiaTinDang,
-                    IsSeller = c.MaNguoiBan == userId,  // ✅ Dùng MaNguoiBan
+                    IsSeller = c.MaNguoiBan == userId,
                     HasUnreadMessages = _context.TinNhans
                         .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
                              !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
@@ -172,9 +174,9 @@ namespace UniMarket.Controllers
                         .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
                         .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
                         .FirstOrDefault(),
-                    c.IsPostDeleted,  // ✅ Trả flag
-                    c.IsBlocked,  // Giữ nguyên
-                    c.MaNguoiChan  // Giữ nguyên
+                    c.IsPostDeleted,
+                    c.IsBlocked,
+                    c.MaNguoiChan
                 })
                 .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
                 .ToListAsync();
@@ -196,9 +198,9 @@ namespace UniMarket.Controllers
                 c.HasUnreadMessages,
                 IsHidden = c.UserChatState?.IsHidden ?? false,
                 IsDeleted = c.UserChatState?.IsDeleted ?? false,
-                c.IsPostDeleted,  // ✅ Trả flag
-                c.IsBlocked,  // Giữ nguyên
-                c.MaNguoiChan  // Giữ nguyên
+                c.IsPostDeleted,
+                c.IsBlocked,
+                c.MaNguoiChan
             }).ToList();
 
             return Ok(result);
@@ -222,7 +224,8 @@ namespace UniMarket.Controllers
                         LoaiTinNhan = t.Loai.ToString().ToLower(),
                         ThoiGianGui = t.ThoiGianGui.ToString("O"),
                         t.DaXem,
-                        t.ThoiGianXem
+                        t.ThoiGianXem,
+                        t.IsRecalled  // ✅ THÊM FIELD MỚI
                     })
                     .ToListAsync();
 
