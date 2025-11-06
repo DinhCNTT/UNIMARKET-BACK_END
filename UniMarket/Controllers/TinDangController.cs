@@ -970,9 +970,14 @@ int id,
             }
         }
         [HttpPost("save-search-history")]
-        [Authorize] // Require authentication
+        [Authorize]
         public async Task<IActionResult> SaveSearchHistory([FromBody] SaveSearchHistoryRequest request)
         {
+            if (request == null)
+            {
+                return BadRequest(new { message = "Dữ liệu gửi lên không hợp lệ (request null)" });
+            }
+
             if (string.IsNullOrWhiteSpace(request.Keyword))
             {
                 return BadRequest(new { message = "Từ khóa tìm kiếm không được để trống" });
@@ -981,51 +986,34 @@ int id,
             try
             {
                 var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                Console.WriteLine($"📦 userId: {userId}");
+                Console.WriteLine($"📦 keyword: {request.Keyword}");
 
                 if (string.IsNullOrEmpty(userId))
                 {
                     return Unauthorized(new { message = "Người dùng chưa đăng nhập" });
                 }
 
-                // Kiểm tra xem từ khóa này đã tồn tại trong lịch sử gần đây chưa (trong 24h)
                 var existingSearch = await _context.SearchHistories
                     .Where(sh => sh.UserId == userId &&
-                                sh.Keyword.ToLower() == request.Keyword.ToLower() &&
-                                sh.CreatedAt > DateTime.Now.AddDays(-1))
+                                (sh.Keyword ?? "").ToLower() == request.Keyword.ToLower() &&
+                                sh.CreatedAt > DateTimeOffset.UtcNow.AddDays(-1))
                     .FirstOrDefaultAsync();
 
                 if (existingSearch != null)
                 {
-                    // Cập nhật thời gian tìm kiếm
-                    existingSearch.CreatedAt = DateTime.Now;
+                    existingSearch.CreatedAt = DateTimeOffset.UtcNow;
                 }
                 else
                 {
-                    // Tạo lịch sử tìm kiếm mới
                     var searchHistory = new SearchHistory
                     {
                         UserId = userId,
                         Keyword = request.Keyword.Trim(),
-                        CreatedAt = DateTime.Now
+                        CreatedAt = DateTimeOffset.UtcNow
                     };
 
                     _context.SearchHistories.Add(searchHistory);
-                }
-
-                // Giới hạn số lượng lịch sử tìm kiếm (chỉ giữ 50 lịch sử mới nhất)
-                var userSearchCount = await _context.SearchHistories
-                    .Where(sh => sh.UserId == userId)
-                    .CountAsync();
-
-                if (userSearchCount > 50)
-                {
-                    var oldestSearches = await _context.SearchHistories
-                        .Where(sh => sh.UserId == userId)
-                        .OrderBy(sh => sh.CreatedAt)
-                        .Take(userSearchCount - 50)
-                        .ToListAsync();
-
-                    _context.SearchHistories.RemoveRange(oldestSearches);
                 }
 
                 await _context.SaveChangesAsync();
@@ -1034,10 +1022,13 @@ int id,
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Lỗi khi lưu lịch sử tìm kiếm: {ex.Message}");
-                return StatusCode(500, new { message = "Lỗi server khi lưu lịch sử tìm kiếm" });
+                Console.WriteLine("🔥 Lỗi khi lưu lịch sử tìm kiếm:");
+                Console.WriteLine(ex.ToString());
+                return StatusCode(500, new { message = ex.Message });
             }
         }
+
+
 
         [HttpGet("search-history")]
         [Authorize]
