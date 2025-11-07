@@ -281,24 +281,36 @@ namespace UniMarket.Controllers
         }
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
-int id,
-[FromForm] string title,
-[FromForm] string description,
-[FromForm] decimal price,
-[FromForm] string contactInfo,
-[FromForm] string condition,
-[FromForm] bool canNegotiate,
-[FromForm] int province,
-[FromForm] int district,
-[FromForm] int categoryId,
-[FromForm] string userId,
-[FromForm] List<IFormFile>? newImages,
-[FromForm] List<IFormFile>? newVideos,
-[FromForm] string? oldImagesToDelete,
-[FromForm] string? oldVideosToDelete,
-[FromForm] string? imageOrderMap,
-[FromForm] string? videoOrderMap)
+    int id,
+    [FromForm] string title,
+    [FromForm] string description,
+    [FromForm] decimal price,
+    [FromForm] string contactInfo,
+    [FromForm] string condition,
+    [FromForm] bool canNegotiate,
+    [FromForm] int province,
+    [FromForm] int district,
+    [FromForm] int categoryId,
+    [FromForm] string userId, // ✅ Bổ sung: Bạn có trường userId trong form
+    [FromForm] List<IFormFile>? newImages,
+    [FromForm] List<IFormFile>? newVideos,
+    [FromForm] string? oldImagesToDelete,
+    [FromForm] string? oldVideosToDelete,
+    [FromForm] string? imageOrderMap,
+    [FromForm] string? videoOrderMap)
         {
+            // =================================================================
+            // 1. GHI LOG DỮ LIỆU ĐẦU VÀO (ĐỂ DEBUG)
+            // =================================================================
+            Console.WriteLine($"\n--- [START] CẬP NHẬT TIN ĐĂNG ID: {id} ---");
+            Console.WriteLine($"Data (Text): title={title}, price={price}, province={province}, district={district}, categoryId={categoryId}");
+            Console.WriteLine($"Data (Files): newImages={newImages?.Count ?? 0}, newVideos={newVideos?.Count ?? 0}");
+            Console.WriteLine($"Data (JSON Raw): oldImagesToDelete = {oldImagesToDelete ?? "null"}");
+            Console.WriteLine($"Data (JSON Raw): oldVideosToDelete = {oldVideosToDelete ?? "null"}");
+            Console.WriteLine($"Data (JSON Raw): imageOrderMap = {imageOrderMap ?? "null"}");
+            Console.WriteLine($"Data (JSON Raw): videoOrderMap = {videoOrderMap ?? "null"}");
+            // =================================================================
+
             try
             {
                 var post = await _context.TinDangs
@@ -306,9 +318,18 @@ int id,
                     .FirstOrDefaultAsync(td => td.MaTinDang == id);
 
                 if (post == null)
+                {
+                    Console.WriteLine($"[LỖI] Không tìm thấy tin đăng ID={id} để cập nhật.");
                     return NotFound(new { message = "Không tìm thấy tin đăng" });
+                }
 
-                Console.WriteLine($"🔄 Đang cập nhật tin đăng ID={id}, tiêu đề={title}, giá={price}");
+                // TODO: Kiểm tra xem userId có phải là chủ sở hữu của bài đăng không (nếu cần)
+                // if (post.MaNguoiBan != userId)
+                // {
+                //     return Unauthorized(new { message = "Bạn không có quyền cập nhật tin đăng này" });
+                // }
+
+                Console.WriteLine($"[OK] Đã tìm thấy tin đăng. Bắt đầu cập nhật thông tin cơ bản...");
 
                 // Update thông tin cơ bản
                 post.TieuDe = title;
@@ -320,52 +341,72 @@ int id,
                 post.MaTinhThanh = province;
                 post.MaQuanHuyen = district;
                 post.MaDanhMuc = categoryId;
-                post.NgayCapNhat = DateTime.Now;
+                post.NgayCapNhat = DateTime.UtcNow; // ✅ Dùng UtcNow cho nhất quán
+                post.TrangThai = TrangThaiTinDang.ChoDuyet; // ✅ Set lại trạng thái chờ duyệt
 
-                // Deserialize JSON từ frontend
-                var idsToDeleteImage = string.IsNullOrEmpty(oldImagesToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
-                var idsToDeleteVideo = string.IsNullOrEmpty(oldVideosToDelete) ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
+                // =================================================================
+                // 2. DESERIALIZE JSON (FIX #1 - An toàn)
+                // =================================================================
+                var idsToDeleteImage = (string.IsNullOrEmpty(oldImagesToDelete) || oldImagesToDelete == "null")
+                    ? new List<int>()
+                    : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
 
-                // **MỚI: Deserialize order map từ frontend**
-                var imgOrderMap = string.IsNullOrEmpty(imageOrderMap) ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(imageOrderMap);
-                var vidOrderMap = string.IsNullOrEmpty(videoOrderMap) ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(videoOrderMap);
+                var idsToDeleteVideo = (string.IsNullOrEmpty(oldVideosToDelete) || oldVideosToDelete == "null")
+                    ? new List<int>()
+                    : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
 
-                Console.WriteLine($"📋 IDs to delete images: [{string.Join(", ", idsToDeleteImage)}]");
-                Console.WriteLine($"📋 IDs to delete videos: [{string.Join(", ", idsToDeleteVideo)}]");
-                Console.WriteLine($"📋 Image order map: {imageOrderMap}");
-                Console.WriteLine($"📋 Video order map: {videoOrderMap}");
+                var imgOrderMap = (string.IsNullOrEmpty(imageOrderMap) || imageOrderMap == "null")
+                    ? new List<dynamic>()
+                    : JsonConvert.DeserializeObject<List<dynamic>>(imageOrderMap);
+
+                var vidOrderMap = (string.IsNullOrEmpty(videoOrderMap) || videoOrderMap == "null")
+                    ? new List<dynamic>()
+                    : JsonConvert.DeserializeObject<List<dynamic>>(videoOrderMap);
+
+                Console.WriteLine($"[JSON] IDs to delete images: [{string.Join(", ", idsToDeleteImage)}]");
+                Console.WriteLine($"[JSON] IDs to delete videos: [{string.Join(", ", idsToDeleteVideo)}]");
+                Console.WriteLine($"[JSON] Image order map count: {imgOrderMap.Count}");
+                Console.WriteLine($"[JSON] Video order map count: {vidOrderMap.Count}");
 
                 var allIdsToDelete = idsToDeleteImage.Concat(idsToDeleteVideo).ToList();
 
-                // **BƯỚC 1: XÓA MEDIA CŨ**
-                var mediaToDelete = post.AnhTinDangs.Where(m => allIdsToDelete.Contains(m.MaAnh)).ToList();
-                foreach (var media in mediaToDelete)
+                // =================================================================
+                // BƯỚC 1: XÓA MEDIA CŨ
+                // =================================================================
+                if (allIdsToDelete.Any())
                 {
-                    Console.WriteLine($"🗑️ Đang xóa media ID={media.MaAnh}, URL={media.DuongDan}");
-                    if (!string.IsNullOrEmpty(media.DuongDan) && media.DuongDan.StartsWith("http"))
+                    var mediaToDelete = post.AnhTinDangs.Where(m => allIdsToDelete.Contains(m.MaAnh)).ToList();
+                    Console.WriteLine($"[BƯỚC 1] Đang xóa {mediaToDelete.Count} media cũ...");
+                    foreach (var media in mediaToDelete)
                     {
-                        await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
+                        Console.WriteLine($"    -> 🗑️ Đang xóa media ID={media.MaAnh}, URL={media.DuongDan}");
+                        if (!string.IsNullOrEmpty(media.DuongDan) && media.DuongDan.StartsWith("http"))
+                        {
+                            await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
+                        }
+                        _context.AnhTinDangs.Remove(media);
                     }
-                    _context.AnhTinDangs.Remove(media);
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine($"[BƯỚC 1] Đã xóa media cũ thành công.");
                 }
 
-                // **LƯU THAY ĐỔI XÓA TRƯỚC**
-                await _context.SaveChangesAsync();
-
-                // **BƯỚC 2: UPLOAD ẢNH/VIDEO MỚI TRƯỚC**
+                // =================================================================
+                // BƯỚC 2: UPLOAD ẢNH/VIDEO MỚI
+                // =================================================================
+                Console.WriteLine($"[BƯỚC 2] Bắt đầu upload media mới...");
                 var newlyUploadedImages = new List<AnhTinDang>();
                 var newlyUploadedVideos = new List<AnhTinDang>();
 
                 if (newImages != null && newImages.Count > 0)
                 {
-                    Console.WriteLine($"📸 Đang upload {newImages.Count} ảnh mới");
+                    Console.WriteLine($"    -> 📸 Đang upload {newImages.Count} ảnh mới");
                     for (int i = 0; i < newImages.Count; i++)
                     {
                         var img = newImages[i];
                         var result = await _photoService.UploadPhotoAsync(img);
                         if (result.Error != null)
                         {
-                            Console.WriteLine("❌ Lỗi upload ảnh: " + result.Error.Message);
+                            Console.WriteLine($"    -> ❌ Lỗi upload ảnh: {result.Error.Message}");
                             return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
                         }
 
@@ -374,26 +415,24 @@ int id,
                             MaTinDang = post.MaTinDang,
                             DuongDan = result.SecureUrl.ToString(),
                             LoaiMedia = MediaType.Image,
-                            Order = 0, // Tạm thời set = 0, sẽ cập nhật sau
+                            Order = 0, // Tạm thời
                             TinDang = post
                         };
-
                         _context.AnhTinDangs.Add(newImage);
                         newlyUploadedImages.Add(newImage);
-                        Console.WriteLine($"✅ Đã upload ảnh mới #{i + 1}");
                     }
                 }
 
                 if (newVideos != null && newVideos.Count > 0)
                 {
-                    Console.WriteLine($"🎥 Đang upload {newVideos.Count} video mới");
+                    Console.WriteLine($"    -> 🎥 Đang upload {newVideos.Count} video mới");
                     for (int i = 0; i < newVideos.Count; i++)
                     {
                         var vid = newVideos[i];
                         var result = await _photoService.UploadVideoAsync(vid);
                         if (result.Error != null)
                         {
-                            Console.WriteLine("❌ Lỗi upload video: " + result.Error.Message);
+                            Console.WriteLine($"    -> ❌ Lỗi upload video: {result.Error.Message}");
                             return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
                         }
 
@@ -402,86 +441,149 @@ int id,
                             MaTinDang = post.MaTinDang,
                             DuongDan = result.SecureUrl.ToString(),
                             LoaiMedia = MediaType.Video,
-                            Order = 0, // Tạm thời set = 0, sẽ cập nhật sau
+                            Order = 0, // Tạm thời
                             TinDang = post
                         };
-
                         _context.AnhTinDangs.Add(newVideo);
                         newlyUploadedVideos.Add(newVideo);
-                        Console.WriteLine($"✅ Đã upload video mới #{i + 1}");
                     }
                 }
 
                 // Lưu để có ID cho các media mới
-                await _context.SaveChangesAsync();
+                if (newlyUploadedImages.Any() || newlyUploadedVideos.Any())
+                {
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine($"[BƯỚC 2] Đã upload và lưu media mới thành công.");
+                }
+                else
+                {
+                    Console.WriteLine($"[BƯỚC 2] Không có media mới nào được upload.");
+                }
 
-                // **BƯỚC 3: LẤY LẠI DỮ LIỆU ĐẦY ĐỦ**
+
+                // =================================================================
+                // BƯỚC 3: LẤY LẠI DỮ LIỆU ĐẦY ĐỦ (FIX #3 - An toàn)
+                // =================================================================
+                Console.WriteLine($"[BƯỚC 3] Lấy lại dữ liệu đầy đủ từ DB...");
                 post = await _context.TinDangs
                     .Include(td => td.AnhTinDangs)
                     .FirstOrDefaultAsync(td => td.MaTinDang == id);
 
+                // ✅ THÊM KIỂM TRA NULL (FIX #3)
+                if (post == null)
+                {
+                    Console.WriteLine($"[LỖI] Không tìm thấy post ID={id} sau khi cập nhật media.");
+                    return StatusCode(500, new { message = "Lỗi server: Bài đăng không tồn tại sau khi cập nhật." });
+                }
+
                 var allMedia = post.AnhTinDangs.ToList();
-                Console.WriteLine($"📊 Tổng cộng {allMedia.Count} media (bao gồm cả mới)");
+                Console.WriteLine($"[BƯỚC 3] Tổng cộng {allMedia.Count} media (cũ + mới) trong DB.");
 
-                // **BƯỚC 4: TÍNH TOÁN THỨ TỰ MỚI DỰA TRÊN ORDER MAP**
-
-                // Tạo dictionary để map mediaId -> finalOrder
+                // =================================================================
+                // BƯỚC 4: TÍNH TOÁN THỨ TỰ MỚI (FIX #2 - An toàn)
+                // =================================================================
+                Console.WriteLine($"[BƯỚC 4] Bắt đầu tính toán thứ tự mới...");
                 var finalOrderMap = new Dictionary<int, int>();
 
-                // **4.1: Xử lý images dựa trên imageOrderMap**
+                // 4.1: Xử lý images dựa trên imageOrderMap
                 for (int i = 0; i < imgOrderMap.Count; i++)
                 {
                     var orderItem = imgOrderMap[i];
-                    var type = orderItem.type?.ToString();
                     var finalOrder = i + 1; // Vị trí cuối cùng bắt đầu từ 1
+
+                    string? type = orderItem.type?.ToString();
+                    if (string.IsNullOrEmpty(type))
+                    {
+                        Console.WriteLine($"    -> ⚠️ Bỏ qua image item #{i} vì 'type' bị null hoặc rỗng.");
+                        continue;
+                    }
 
                     if (type == "old")
                     {
-                        var mediaId = Convert.ToInt32(orderItem.id);
-                        finalOrderMap[mediaId] = finalOrder;
-                        Console.WriteLine($"📸 Ảnh cũ ID={mediaId} -> Order={finalOrder}");
+                        if (int.TryParse(orderItem.id?.ToString(), out int mediaId))
+                        {
+                            finalOrderMap[mediaId] = finalOrder;
+                            Console.WriteLine($"    -> 📸 Ảnh cũ ID={mediaId} -> Order={finalOrder}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    -> ⚠️ Bỏ qua ảnh cũ vì 'id' không hợp lệ: {orderItem.id}");
+                        }
                     }
                     else if (type == "new")
                     {
-                        var fileIndex = Convert.ToInt32(orderItem.fileIndex);
-                        if (fileIndex < newlyUploadedImages.Count)
+                        if (int.TryParse(orderItem.fileIndex?.ToString(), out int fileIndex))
                         {
-                            var newImage = newlyUploadedImages[fileIndex];
-                            finalOrderMap[newImage.MaAnh] = finalOrder;
-                            Console.WriteLine($"📸 Ảnh mới #{fileIndex} (ID={newImage.MaAnh}) -> Order={finalOrder}");
+                            if (fileIndex >= 0 && fileIndex < newlyUploadedImages.Count)
+                            {
+                                var newImage = newlyUploadedImages[fileIndex];
+                                finalOrderMap[newImage.MaAnh] = finalOrder;
+                                Console.WriteLine($"    -> 📸 Ảnh mới #{fileIndex} (ID={newImage.MaAnh}) -> Order={finalOrder}");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"    -> ⚠️ Bỏ qua ảnh mới vì 'fileIndex'={fileIndex} nằm ngoài phạm vi mảng ({newlyUploadedImages.Count}).");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    -> ⚠️ Bỏ qua ảnh mới vì 'fileIndex' không hợp lệ: {orderItem.fileIndex}");
                         }
                     }
                 }
 
-                // **4.2: Xử lý videos dựa trên videoOrderMap**
-                // Video bắt đầu từ order sau tất cả images
+                // 4.2: Xử lý videos dựa trên videoOrderMap
                 int videoStartOrder = imgOrderMap.Count + 1;
-
                 for (int i = 0; i < vidOrderMap.Count; i++)
                 {
                     var orderItem = vidOrderMap[i];
-                    var type = orderItem.type?.ToString();
                     var finalOrder = videoStartOrder + i;
+
+                    string? type = orderItem.type?.ToString();
+                    if (string.IsNullOrEmpty(type))
+                    {
+                        Console.WriteLine($"    -> ⚠️ Bỏ qua video item #{i} vì 'type' bị null hoặc rỗng.");
+                        continue;
+                    }
 
                     if (type == "old")
                     {
-                        var mediaId = Convert.ToInt32(orderItem.id);
-                        finalOrderMap[mediaId] = finalOrder;
-                        Console.WriteLine($"🎥 Video cũ ID={mediaId} -> Order={finalOrder}");
+                        if (int.TryParse(orderItem.id?.ToString(), out int mediaId))
+                        {
+                            finalOrderMap[mediaId] = finalOrder;
+                            Console.WriteLine($"    -> 🎥 Video cũ ID={mediaId} -> Order={finalOrder}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    -> ⚠️ Bỏ qua video cũ vì 'id' không hợp lệ: {orderItem.id}");
+                        }
                     }
                     else if (type == "new")
                     {
-                        var fileIndex = Convert.ToInt32(orderItem.fileIndex);
-                        if (fileIndex < newlyUploadedVideos.Count)
+                        if (int.TryParse(orderItem.fileIndex?.ToString(), out int fileIndex))
                         {
-                            var newVideo = newlyUploadedVideos[fileIndex];
-                            finalOrderMap[newVideo.MaAnh] = finalOrder;
-                            Console.WriteLine($"🎥 Video mới #{fileIndex} (ID={newVideo.MaAnh}) -> Order={finalOrder}");
+                            if (fileIndex >= 0 && fileIndex < newlyUploadedVideos.Count)
+                            {
+                                var newVideo = newlyUploadedVideos[fileIndex];
+                                finalOrderMap[newVideo.MaAnh] = finalOrder;
+                                Console.WriteLine($"    -> 🎥 Video mới #{fileIndex} (ID={newVideo.MaAnh}) -> Order={finalOrder}");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"    -> ⚠️ Bỏ qua video mới vì 'fileIndex'={fileIndex} nằm ngoài phạm vi mảng ({newlyUploadedVideos.Count}).");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    -> ⚠️ Bỏ qua video mới vì 'fileIndex' không hợp lệ: {orderItem.fileIndex}");
                         }
                     }
                 }
 
-                // **BƯỚC 5: CẬP NHẬT THỨ TỰ CHO TẤT CẢ MEDIA**
+                // =================================================================
+                // BƯỚC 5: CẬP NHẬT THỨ TỰ CHO TẤT CẢ MEDIA
+                // =================================================================
+                Console.WriteLine($"[BƯỚC 5] Bắt đầu cập nhật Order trong DB...");
                 bool hasOrderChanged = false;
                 foreach (var media in allMedia)
                 {
@@ -490,7 +592,7 @@ int id,
                         var newOrder = finalOrderMap[media.MaAnh];
                         if (media.Order != newOrder)
                         {
-                            Console.WriteLine($"🔄 Cập nhật Order cho media ID={media.MaAnh}: {media.Order} -> {newOrder}");
+                            Console.WriteLine($"    -> 🔄 Cập nhật Order cho media ID={media.MaAnh}: {media.Order} -> {newOrder}");
                             media.Order = newOrder;
                             hasOrderChanged = true;
                             _context.Entry(media).Property(x => x.Order).IsModified = true;
@@ -498,14 +600,19 @@ int id,
                     }
                 }
 
-                // **BƯỚC 6: LƯU THAY ĐỔI THỨ TỰ CUỐI CÙNG**
                 if (hasOrderChanged)
                 {
-                    Console.WriteLine("💾 Đang lưu thay đổi thứ tự cuối cùng...");
+                    Console.WriteLine($"[BƯỚC 5] Đang lưu thay đổi thứ tự...");
                     await _context.SaveChangesAsync();
                 }
+                else
+                {
+                    Console.WriteLine($"[BƯỚC 5] Không có thay đổi thứ tự nào.");
+                }
 
-                // **BƯỚC 6.5: CẬP NHẬT VideoUrl CHO VideoListCarouselMini** ✅ QUAN TRỌNG
+                // =================================================================
+                // BƯỚC 6: CẬP NHẬT VideoUrl (Ảnh bìa cho video list)
+                // =================================================================
                 var firstVideo = allMedia
                     .Where(m => m.LoaiMedia == MediaType.Video)
                     .OrderBy(m => m.Order)
@@ -514,14 +621,14 @@ int id,
                 bool videoUrlChanged = false;
                 if (firstVideo != null && firstVideo.DuongDan != post.VideoUrl)
                 {
-                    Console.WriteLine($"🎥 Cập nhật VideoUrl: {post.VideoUrl} -> {firstVideo.DuongDan}");
+                    Console.WriteLine($"[BƯỚC 6] Cập nhật VideoUrl: {post.VideoUrl} -> {firstVideo.DuongDan}");
                     post.VideoUrl = firstVideo.DuongDan;
                     _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
                     videoUrlChanged = true;
                 }
                 else if (firstVideo == null && !string.IsNullOrEmpty(post.VideoUrl))
                 {
-                    Console.WriteLine($"🎥 Xóa VideoUrl vì không còn video");
+                    Console.WriteLine($"[BƯỚC 6] Xóa VideoUrl vì không còn video nào.");
                     post.VideoUrl = null;
                     _context.Entry(post).Property(x => x.VideoUrl).IsModified = true;
                     videoUrlChanged = true;
@@ -531,26 +638,34 @@ int id,
                 if (videoUrlChanged)
                 {
                     await _context.SaveChangesAsync();
-                    Console.WriteLine("✅ Đã cập nhật VideoUrl thành công");
+                    Console.WriteLine("[BƯỚC 6] Đã cập nhật VideoUrl thành công.");
                 }
 
-                // **BƯỚC 7: SIGNALR NOTIFICATION**
-                var updatedPost = new
+                // =================================================================
+                // BƯỚC 7: SIGNALR NOTIFICATION
+                // =================================================================
+                var updatedPostSignalR = new
                 {
                     MaTinDang = post.MaTinDang,
                     TieuDe = post.TieuDe,
                     Gia = post.Gia,
                     AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? "",
-                    VideoUrl = post.VideoUrl // ✅ Thêm VideoUrl vào notification
+                    VideoUrl = post.VideoUrl
                 };
+                Console.WriteLine($"[BƯỚC 7] Gửi SignalR 'CapNhatTinDang' cho MaTinDang={updatedPostSignalR.MaTinDang}");
+                await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPostSignalR);
 
-                Console.WriteLine($"[SignalR] Đang gửi CapNhatTinDang cho MaTinDang={updatedPost.MaTinDang}");
-                await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPost);
+                // =================================================================
+                // BƯỚC 8: TRẢ VỀ RESPONSE
+                // =================================================================
 
-                // **BƯỚC 8: LẤY DỮ LIỆU MỚI NHẤT ĐỂ TRẢ VỀ**
+                // Lấy lại dữ liệu cuối cùng để trả về (đảm bảo 100% chính xác)
                 var finalPost = await _context.TinDangs
                     .Include(td => td.AnhTinDangs)
+                    .AsNoTracking() // Dùng AsNoTracking để đọc cho nhanh
                     .FirstOrDefaultAsync(td => td.MaTinDang == id);
+
+                Console.WriteLine($"--- [SUCCESS] CẬP NHẬT TIN ĐĂNG ID: {id} THÀNH CÔNG ---");
 
                 return Ok(new
                 {
@@ -559,7 +674,7 @@ int id,
                     TotalMedia = finalPost.AnhTinDangs.Count,
                     HasOrderChanged = hasOrderChanged,
                     VideoUrlChanged = videoUrlChanged,
-                    VideoUrl = finalPost.VideoUrl, // ✅ Trả về VideoUrl
+                    VideoUrl = finalPost.VideoUrl,
                     AnhTinDangs = finalPost.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a => new {
@@ -574,17 +689,31 @@ int id,
             }
             catch (Exception ex)
             {
-                Console.WriteLine("❌ LỖI CẬP NHẬT TIN:");
-                Console.WriteLine("Message: " + ex.Message);
+                // =================================================================
+                // XỬ LÝ LỖI 500 (GHI LOG CHI TIẾT NHẤT CÓ THỂ)
+                // =================================================================
+                Console.WriteLine($"\n--- [ERROR 500] LỖI CẬP NHẬT TIN ĐĂNG ID: {id} ---");
+
+                // In lỗi chính
+                Console.WriteLine($"❌ Message: {ex.Message}");
+
+                // In lỗi bên trong (thường là lỗi gốc rễ)
                 if (ex.InnerException != null)
-                    Console.WriteLine("InnerException: " + ex.InnerException.Message);
-                Console.WriteLine("StackTrace: " + ex.StackTrace);
+                {
+                    Console.WriteLine($"❌ InnerException Message: {ex.InnerException.Message}");
+                    Console.WriteLine($"❌ InnerException StackTrace: {ex.InnerException.StackTrace}");
+                }
+
+                // In StackTrace (cho biết lỗi ở file nào, dòng nào)
+                Console.WriteLine($"❌ StackTrace: {ex.StackTrace}");
+                Console.WriteLine("--------------------------------------------------\n");
 
                 return StatusCode(500, new
                 {
                     message = "Lỗi server khi cập nhật tin đăng",
                     error = ex.Message,
-                    details = ex.InnerException?.Message
+                    details = ex.InnerException?.Message,
+                    stackTrace = ex.StackTrace // Gửi cả stack trace về client (chỉ khi dev)
                 });
             }
         }

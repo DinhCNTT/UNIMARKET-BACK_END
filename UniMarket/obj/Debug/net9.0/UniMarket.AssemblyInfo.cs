@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UniMarket")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ef9e91b00ced790fb7ffa0117b4baf3b2eac30b0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e039df9fce5ebacd50c94adb78297dadf021a8cc")]
 [assembly: System.Reflection.AssemblyProductAttribute("UniMarket")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UniMarket")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
