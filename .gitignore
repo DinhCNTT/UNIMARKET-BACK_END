@@ -1,0 +1,24 @@
+﻿# Bỏ qua các tệp do người dùng Visual Studio tự định nghĩa
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Bỏ qua các tệp .vs (Đây chính là thư mục bạn muốn!)
+.vs/
+
+# Bỏ qua các thư mục build
+[Bb]in/
+[Bb]j/
+[Rr]elease/
+[Dd]ebug/
+
+# Bỏ qua các tệp tạm thời khác
+*.cache
+*.exe
+*.dll
+*.pdb
+*.obj
+*.o
+*.a
+*.lib
