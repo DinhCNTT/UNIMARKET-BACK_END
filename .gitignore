@@ -23,5 +23,5 @@
 *.a
 *.lib
 
-# Bỏ qua file cấu hình appsettings
-appsettings.json
+# .gitignore
+appsettings*.json
