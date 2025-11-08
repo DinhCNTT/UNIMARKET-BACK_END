@@ -103,7 +103,8 @@ builder.Services.AddAuthentication(options =>
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
-                 path.StartsWithSegments("/SocialChatHub"))) // <-- ĐÃ THÊM
+                 path.StartsWithSegments("/SocialChatHub") ||
+                 path.StartsWithSegments("/videoHub"))) // <-- ✅ THÊM DÒNG NÀY
             {
                 context.Token = accessToken;
             }
@@ -258,6 +259,7 @@ app.MapControllers();
 app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
 app.MapHub<SocialChatHub>("/SocialChatHub"); // <-- ĐÃ SỬA
+app.MapHub<VideoHub>("/videoHub");
 
 // ==========================
 // 👑 Tạo Role + Admin mặc định

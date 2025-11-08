@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System;
 using YourNamespace.Helpers;
+using System.Text.RegularExpressions;
 
 [Authorize]
 public class SocialChatHub : Hub
@@ -179,23 +180,43 @@ public class SocialChatHub : Hub
 
     // Gửi tin nhắn
     // FILE: SocialChatHub.cs
+    // =========================================================
+    // 🔥 Phiên bản hoàn chỉnh tối ưu cho nhiều người dùng
+    // =========================================================
     public async Task SendMessage(string maCuocTroChuyen, string content, string? mediaUrl, string? parentMessageId)
     {
         var userId = GetUserId();
         if (string.IsNullOrEmpty(userId)) return;
 
-        var sender = await _context.Users.FindAsync(userId);
+        // ======================= LẤY NGƯỜI GỬI =======================
+        var sender = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId);
         if (sender == null) return;
 
+        // ======================= LẤY CUỘC TRÒ CHUYỆN =======================
         var convo = await _context.CuocTroChuyenSocials
-            .Include(c => c.NguoiThamGias)
-                .ThenInclude(n => n.User)
+            .Include(c => c.NguoiThamGias).ThenInclude(n => n.User)
             .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
         if (convo == null) return;
-        if (convo.IsBlocked && convo.MaNguoiChan != userId) return;
 
-        // --- Tạo tin nhắn mới ---
+        // ============================================================
+        // 🚫 KIỂM TRA TRẠNG THÁI CHẶN
+        // ============================================================
+        if (convo.IsBlocked)
+        {
+            string errorMessage = convo.MaNguoiChan == userId
+                ? "Bạn cần gỡ chặn người dùng này để gửi tin nhắn."
+                : "Bạn đã bị người dùng này chặn.";
+
+            await Clients.Caller.SendAsync("ReceiveError", errorMessage);
+            return;
+        }
+
+        // ============================================================
+        // ✨ TẠO TIN NHẮN MỚI
+        // ============================================================
         var msg = new TinNhanSocial
         {
             MaCuocTroChuyen = maCuocTroChuyen,
@@ -204,14 +225,16 @@ public class SocialChatHub : Hub
             MediaUrl = mediaUrl,
             ThoiGianGui = DateTime.UtcNow,
             DaXem = false,
-            ParentMessageId = parentMessageId // ✨ thêm parent message id
+            ParentMessageId = parentMessageId
         };
 
         _context.TinNhanSocials.Add(msg);
         convo.IsEmpty = false;
         convo.NgayCapNhat = DateTime.UtcNow;
 
-        // ======================= ẨN/HIỆN CHAT =======================
+        // ============================================================
+        // 🔄 CẬP NHẬT TRẠNG THÁI ẨN/HIỆN CHAT
+        // ============================================================
         var senderHidden = await _context.UserHiddenConversations
             .FirstOrDefaultAsync(h => h.UserId == userId && h.MaCuocTroChuyen == maCuocTroChuyen);
         if (senderHidden != null) senderHidden.HasReappeared = true;
@@ -224,9 +247,11 @@ public class SocialChatHub : Hub
             if (receiverHidden != null) receiverHidden.HasReappeared = true;
         }
 
-        await _context.SaveChangesAsync(); // Lưu để lấy MaTinNhan
+        await _context.SaveChangesAsync(); // lấy MaTinNhan
 
-        // ======================= LẤY TIN NHẮN CHA (NẾU CÓ) =======================
+        // ============================================================
+        // 🔁 LẤY TIN NHẮN CHA (NẾU REPLY)
+        // ============================================================
         TinNhanSocial? parentMessage = null;
         if (!string.IsNullOrEmpty(parentMessageId))
         {
@@ -236,12 +261,14 @@ public class SocialChatHub : Hub
                 .FirstOrDefaultAsync(p => p.MaTinNhan == parentMessageId);
         }
 
-        // ======================= SHARE CỦA TIN NHẮN CHA =======================
+        // ============================================================
+        // 🧩 SHARE TRONG TIN CHA (REPLY)
+        // ============================================================
         object parentShareInfo = null;
         if (parentMessage != null && !parentMessage.IsRecalled)
         {
-            var parentMatch = System.Text.RegularExpressions.Regex.Match(parentMessage.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
-            if (parentMatch.Success && int.TryParse(parentMatch.Groups[1].Value, out int parentShareId))
+            var match = Regex.Match(parentMessage.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int parentShareId))
             {
                 var share = await _context.Shares
                     .AsNoTracking()
@@ -255,35 +282,41 @@ public class SocialChatHub : Hub
                         share.PreviewImage,
                         share.PreviewVideo,
                         share.ShareLink,
-                        TargetType = (int)share.TargetType
+                        TargetType = (int)share.TargetType,
+                        TinDangId = share.TinDangId
                     };
                 }
             }
         }
 
-        // ======================= SHARE CỦA TIN NHẮN CHÍNH =======================
+        // ============================================================
+        // 🧩 SHARE TRONG TIN CHÍNH
+        // ============================================================
         object mainShareInfo = null;
-        var mainMatch = System.Text.RegularExpressions.Regex.Match(msg.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
+        var mainMatch = Regex.Match(msg.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
         if (mainMatch.Success && int.TryParse(mainMatch.Groups[1].Value, out int mainShareId))
         {
-            var mainShare = await _context.Shares
+            var share = await _context.Shares
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.ShareId == mainShareId);
-            if (mainShare != null)
+            if (share != null)
             {
                 mainShareInfo = new
                 {
-                    mainShare.ShareId,
-                    mainShare.PreviewTitle,
-                    mainShare.PreviewImage,
-                    mainShare.PreviewVideo,
-                    mainShare.ShareLink,
-                    TargetType = (int)mainShare.TargetType
+                    share.ShareId,
+                    share.PreviewTitle,
+                    share.PreviewImage,
+                    share.PreviewVideo,
+                    share.ShareLink,
+                    TargetType = (int)share.TargetType,
+                    TinDangId = share.TinDangId
                 };
             }
         }
 
-        // ======================= CHUẨN BỊ GỬI TIN NHẮN REAL-TIME =======================
+        // ============================================================
+        // 📤 CHUẨN BỊ DỮ LIỆU GỬI REALTIME
+        // ============================================================
         var messageType = DetermineMessageType(msg.NoiDung, msg.MediaUrl);
 
         var messageDto = new
@@ -316,55 +349,49 @@ public class SocialChatHub : Hub
             }
         };
 
+        // 🚀 Gửi realtime message cho nhóm hội thoại
         await Clients.Group(maCuocTroChuyen).SendAsync("ReceiveMessage", messageDto);
 
-        // ======================= GỬI CẬP NHẬT HỘI THOẠI =======================
+        // ============================================================
+        // 🔄 GỬI CẬP NHẬT CUỘC TRÒ CHUYỆN CHO CẢ HAI BÊN
+        // ============================================================
         var partnerParticipant = convo.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != userId);
-        object partnerDto = null;
-        if (partnerParticipant != null)
-        {
-            var pUser = partnerParticipant.User;
-            partnerDto = new
+        var partnerDto = partnerParticipant != null
+            ? new
             {
-                Id = pUser?.Id ?? partnerParticipant.MaNguoiDung,
-                FullName = pUser?.FullName,
-                AvatarUrl = pUser?.AvatarUrl
-            };
-        }
+                Id = partnerParticipant.User?.Id ?? partnerParticipant.MaNguoiDung,
+                FullName = partnerParticipant.User?.FullName,
+                AvatarUrl = partnerParticipant.User?.AvatarUrl
+            }
+            : null;
 
-        foreach (var participant in convo.NguoiThamGias)
+        // ✅ Chuẩn bị payload cập nhật conversation
+        var payload = new
         {
-            var currentPartner = (participant.MaNguoiDung == userId)
-                ? partnerDto
-                : new { Id = sender.Id, FullName = sender.FullName, AvatarUrl = sender.AvatarUrl };
+            MaCuocTroChuyen = convo.MaCuocTroChuyen,
+            TinNhanCuoi = MessageFormatter.Format(msg.NoiDung, sender.FullName),
+            MediaUrl = msg.MediaUrl,
+            ThoiGianCapNhat = msg.ThoiGianGui,
+            NguoiGuiId = userId,
+            TenNguoiGui = sender.FullName,
+            AvatarNguoiGui = sender.AvatarUrl,
+            MessageType = messageType,
+            LoaiTinNhan = messageType,
+            Partner = partnerDto
+        };
 
-            var hasUnread = participant.MaNguoiDung != userId;
-
-            var payloadForUser = new
-            {
-                MaCuocTroChuyen = convo.MaCuocTroChuyen,
-                TinNhanCuoi = MessageFormatter.Format(msg.NoiDung, sender.FullName),
-                MediaUrl = msg.MediaUrl,
-                ThoiGianCapNhat = msg.ThoiGianGui,
-                NguoiGuiId = userId,
-                TenNguoiGui = sender.FullName,
-                AvatarNguoiGui = sender.AvatarUrl,
-                MessageType = messageType,
-                LoaiTinNhan = messageType,
-                HasUnreadMessages = hasUnread,
-                Partner = currentPartner
-            };
-
+        // ✅ Gửi cập nhật conversation cho tất cả người tham gia (2 bên)
+        var sendTasks = convo.NguoiThamGias.Select(async participant =>
+        {
             try
             {
                 await Clients.User(participant.MaNguoiDung)
-                    .SendAsync("CapNhatCuocTroChuyen", payloadForUser);
+                    .SendAsync("CapNhatCuocTroChuyen", payload);
             }
-            catch
-            {
-                // Bỏ qua nếu user offline
-            }
-        }
+            catch { /* Bỏ qua nếu offline */ }
+        });
+
+        await Task.WhenAll(sendTasks);
     }
 
 
@@ -387,20 +414,95 @@ public class SocialChatHub : Hub
         var userId = GetUserId();
         if (string.IsNullOrEmpty(userId)) return;
 
+        // --- BƯỚC 1: LẤY RIÊNG LẼ ---
+
+        // 1. Lấy tin nhắn (msg)
         var msg = await _context.TinNhanSocials.FirstOrDefaultAsync(m =>
             m.MaTinNhan == maTinNhan && m.MaCuocTroChuyen == maCuocTroChuyen);
 
         if (msg == null || msg.MaNguoiGui != userId) return;
 
-        // ✨ Cập nhật trạng thái thay vì xóa nội dung
+        // 2. Lấy cuộc trò chuyện (convo)
+        var convo = await _context.CuocTroChuyenSocials
+            .Include(c => c.NguoiThamGias)
+                .ThenInclude(n => n.User)
+            .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+
+        if (convo == null) return; // Không tìm thấy cuộc trò chuyện
+
+        // --- HẾT BƯỚC 1 ---
+
+        // 3. Lấy thông tin người gửi (người thu hồi)
+        var sender = convo.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == userId)?.User;
+        if (sender == null) return;
+
+        // 4. Cập nhật cả hai đối tượng trong DB
         msg.IsRecalled = true;
+        msg.NoiDung = "[Tin nhắn đã thu hồi]";
+        msg.MediaUrl = null;
+
+        convo.NgayCapNhat = DateTime.UtcNow; // Cập nhật thời gian cho cuộc trò chuyện
+
         await _context.SaveChangesAsync();
 
+        // 5. Gửi sự kiện 'MessageRecalled' (cho cửa sổ chat đang mở)
         await Clients.Group(maCuocTroChuyen).SendAsync("MessageRecalled", new
         {
             MaTinNhan = msg.MaTinNhan,
             MaCuocTroChuyen = msg.MaCuocTroChuyen
         });
+
+        // =================================================================
+        // 6. Gửi sự kiện 'CapNhatCuocTroChuyen' (cho FriendChatList.jsx)
+        // =================================================================
+
+        // 6.1. Lấy thông tin partner (giống hàm SendMessage)
+        var partnerParticipant = convo.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != userId);
+        object partnerDto = null;
+        if (partnerParticipant != null)
+        {
+            var pUser = partnerParticipant.User; // Đã include User ở trên
+            partnerDto = new
+            {
+                Id = pUser?.Id ?? partnerParticipant.MaNguoiDung,
+                FullName = pUser?.FullName,
+                AvatarUrl = pUser?.AvatarUrl
+            };
+        }
+
+        // 6.2. Gửi cập nhật cho TẤT CẢ thành viên (giống hàm SendMessage)
+        foreach (var participant in convo.NguoiThamGias)
+        {
+            var currentPartner = (participant.MaNguoiDung == userId)
+                ? partnerDto
+                : new { Id = sender.Id, FullName = sender.FullName, AvatarUrl = sender.AvatarUrl };
+
+            var hasUnread = false;
+
+            // 6.3. Tạo payload với nội dung đã thu hồi
+            var payloadForUser = new
+            {
+                MaCuocTroChuyen = convo.MaCuocTroChuyen,
+                TinNhanCuoi = msg.NoiDung, // Gửi "[Tin nhắn đã thu hồi]"
+                MediaUrl = msg.MediaUrl,   // Gửi null
+                ThoiGianCapNhat = convo.NgayCapNhat, // Dùng thời gian vừa cập nhật
+                NguoiGuiId = userId,
+                TenNguoiGui = sender.FullName,
+                AvatarNguoiGui = sender.AvatarUrl,
+                MessageType = "text",
+                LoaiTinNhan = "text",
+                HasUnreadMessages = hasUnread,
+                Partner = currentPartner
+            };
+
+            try
+            {
+                // Gửi sự kiện cập nhật danh sách chat
+                await Clients.User(participant.MaNguoiDung)
+                    .SendAsync("CapNhatCuocTroChuyen", payloadForUser);
+            }
+            catch { /* Bỏ qua nếu user offline */ }
+        }
     }
 
     // File: SocialChatHub.cs

@@ -40,21 +40,16 @@ namespace UniMarket.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null)
-            {
                 return Unauthorized(new { message = "Bạn cần đăng nhập." });
-            }
 
             if (req.TargetUserIds == null || !req.TargetUserIds.Any())
-            {
                 return BadRequest(new { message = "Vui lòng chọn ít nhất một người nhận." });
-            }
 
             if (req.ChatType == ChatType.BanHang)
-            {
                 return BadRequest(new { message = "Chat bán hàng không hỗ trợ tính năng này." });
-            }
 
             var createdResults = new List<object>();
+            var skippedResults = new List<string>(); // ✨ [MỚI] Theo dõi người bị chặn hoặc lỗi
 
             var senderInfo = await _context.Users
                 .AsNoTracking()
@@ -63,17 +58,18 @@ namespace UniMarket.Controllers
                 .FirstOrDefaultAsync();
 
             if (senderInfo == null)
-            {
                 return Unauthorized(new { message = "Không tìm thấy thông tin người gửi." });
-            }
 
+            // ==========================================================
+            // Duyệt qua từng người nhận
+            // ==========================================================
             foreach (var targetId in req.TargetUserIds.Distinct())
             {
                 if (targetId == userId) continue;
 
                 try
                 {
-                    // --- 1. Tìm hoặc tạo cuộc trò chuyện (LOGIC CŨ CỦA BẠN - GIỮ NGUYÊN) ---
+                    // 1️⃣ Tìm hoặc tạo cuộc trò chuyện
                     var conversation = await _context.CuocTroChuyenSocials
                         .Include(c => c.NguoiThamGias)
                         .FirstOrDefaultAsync(c =>
@@ -81,12 +77,7 @@ namespace UniMarket.Controllers
                             c.NguoiThamGias.Any(n => n.MaNguoiDung == userId) &&
                             c.NguoiThamGias.Any(n => n.MaNguoiDung == targetId));
 
-                    if (conversation != null)
-                    {
-                        conversation.NgayCapNhat = DateTime.UtcNow;
-                        conversation.IsEmpty = false;
-                    }
-                    else
+                    if (conversation == null)
                     {
                         conversation = new CuocTroChuyenSocial
                         {
@@ -94,62 +85,76 @@ namespace UniMarket.Controllers
                             IsEmpty = false,
                             NgayCapNhat = DateTime.UtcNow,
                             NguoiThamGias = new List<NguoiThamGiaSocial>
-                            {
-                                new NguoiThamGiaSocial { MaNguoiDung = userId },
-                                new NguoiThamGiaSocial { MaNguoiDung = targetId }
-                            }
+                    {
+                        new NguoiThamGiaSocial { MaNguoiDung = userId },
+                        new NguoiThamGiaSocial { MaNguoiDung = targetId }
+                    }
                         };
                         _context.CuocTroChuyenSocials.Add(conversation);
                     }
+                    else
+                    {
+                        conversation.NgayCapNhat = DateTime.UtcNow;
+                        conversation.IsEmpty = false;
+                    }
 
-                    // ================================================================
-                    // ✨✨ BẮT ĐẦU SỬA LỖI ✨✨
-                    // --- 2. Xử lý logic ẩn/hiện (ĐÃ SỬA LỖI) ---
-                    // ================================================================
+                    // ==========================================================
+                    // 2️⃣ Kiểm tra trạng thái CHẶN
+                    // ==========================================================
+                    if (conversation.IsBlocked)
+                    {
+                        Console.WriteLine($"⚠️ Bỏ qua share tới {targetId}: cuộc trò chuyện {conversation.MaCuocTroChuyen} đang bị chặn.");
+                        skippedResults.Add(targetId);
+                        continue;
+                    }
+
+                    // ==========================================================
+                    // 3️⃣ Cập nhật hội thoại bị ẩn (HasReappeared)
+                    // ==========================================================
                     var allHiddenEntries = await _context.UserHiddenConversations
                         .Where(h => h.MaCuocTroChuyen == conversation.MaCuocTroChuyen)
                         .ToListAsync();
 
                     foreach (var entry in allHiddenEntries)
-                    {
-                        // Logic mới: Luôn set HasReappeared = true cho cả hai
-                        // thay vì xóa của người gửi.
-                        // Điều này đồng bộ logic với SocialChatHub.cs
                         entry.HasReappeared = true;
-                    }
-                    // ================================================================
-                    // ✨✨ KẾT THÚC SỬA LỖI ✨✨
-                    // ================================================================
 
-                    // --- 3. Tạo bản ghi Share (LOGIC CŨ CỦA BẠN - GIỮ NGUYÊN) ---
+                    // ==========================================================
+                    // 4️⃣ Tạo bản ghi Share
+                    // ==========================================================
                     var previewImage = req.PreviewImage;
-                    if (string.IsNullOrEmpty(previewImage) && !string.IsNullOrEmpty(req.PreviewVideo) && req.PreviewVideo.Contains("cloudinary"))
+                    if (string.IsNullOrEmpty(previewImage)
+                        && !string.IsNullOrEmpty(req.PreviewVideo)
+                        && req.PreviewVideo.Contains("cloudinary"))
                     {
                         int lastDotIndex = req.PreviewVideo.LastIndexOf('.');
                         if (lastDotIndex != -1)
-                        {
                             previewImage = req.PreviewVideo.Substring(0, lastDotIndex) + ".jpg";
-                        }
                     }
 
                     var share = new Share
                     {
                         UserId = userId,
                         ShareType = ShareType.Chat,
-                        TargetType = req.DisplayMode == ShareDisplayMode.Video ? ShareTargetType.Video : ShareTargetType.TinDang,
+                        TargetType = req.DisplayMode == ShareDisplayMode.Video
+                            ? ShareTargetType.Video
+                            : ShareTargetType.TinDang,
                         DisplayMode = req.DisplayMode,
                         TinDangId = req.TinDangId,
                         MaCuocTroChuyen = conversation.MaCuocTroChuyen,
-                        ShareLink = req.TinDangId.HasValue ? $"/tin/{req.TinDangId}" : req.PreviewVideo,
+                        ShareLink = req.TinDangId.HasValue
+                            ? $"/tin-dang/{req.TinDangId}"
+                            : req.PreviewVideo,
                         SharedAt = DateTime.UtcNow,
                         PreviewTitle = req.PreviewTitle,
                         PreviewImage = previewImage,
                         PreviewVideo = req.PreviewVideo
                     };
                     _context.Shares.Add(share);
-                    await _context.SaveChangesAsync(); // Lưu share để lấy ShareId
+                    await _context.SaveChangesAsync();
 
-                    // --- 4. Tạo tin nhắn (LOGIC CŨ CỦA BẠN - GIỮ NGUYÊN) ---
+                    // ==========================================================
+                    // 5️⃣ Tạo tin nhắn chứa Share
+                    // ==========================================================
                     var tin = new TinNhanSocial
                     {
                         MaCuocTroChuyen = conversation.MaCuocTroChuyen,
@@ -160,11 +165,11 @@ namespace UniMarket.Controllers
                         DaXem = false
                     };
                     _context.TinNhanSocials.Add(tin);
-                    await _context.SaveChangesAsync(); // Lưu tin nhắn để lấy MaTinNhan
+                    await _context.SaveChangesAsync();
 
-                    // --- 5. Gửi Real-time (LOGIC CŨ CỦA BẠN - GIỮ NGUYÊN) ---
-
-                    // 5.1. Tạo DTO đầy đủ cho `ReceiveMessage`
+                    // ==========================================================
+                    // 6️⃣ Gửi realtime tới cả hai phía
+                    // ==========================================================
                     var messageDto = new
                     {
                         MaTinNhan = tin.MaTinNhan,
@@ -181,12 +186,14 @@ namespace UniMarket.Controllers
                             share.PreviewImage,
                             share.PreviewVideo,
                             share.ShareLink,
-                            TargetType = (int)share.TargetType
+                            TargetType = (int)share.TargetType,
+                            TinDangId = share.TinDangId
                         }
                     };
-                    await _socialHubContext.Clients.Group(conversation.MaCuocTroChuyen).SendAsync("ReceiveMessage", messageDto);
 
-                    // 5.2. Tạo DTO đầy đủ cho `CapNhatCuocTroChuyen`
+                    await _socialHubContext.Clients.Group(conversation.MaCuocTroChuyen)
+                        .SendAsync("ReceiveMessage", messageDto);
+
                     var receiverInfo = await _context.Users
                         .AsNoTracking()
                         .Where(u => u.Id == targetId)
@@ -215,24 +222,58 @@ namespace UniMarket.Controllers
                         HasUnreadMessages = false
                     };
 
-                    await _socialHubContext.Clients.User(targetId).SendAsync("CapNhatCuocTroChuyen", updatePayloadForReceiver);
-                    await _socialHubContext.Clients.User(userId).SendAsync("CapNhatCuocTroChuyen", updatePayloadForSender);
+                    await _socialHubContext.Clients.User(targetId)
+                        .SendAsync("CapNhatCuocTroChuyen", updatePayloadForReceiver);
+                    await _socialHubContext.Clients.User(userId)
+                        .SendAsync("CapNhatCuocTroChuyen", updatePayloadForSender);
 
-                    createdResults.Add(new { targetId, conversationId = conversation.MaCuocTroChuyen, shareId = share.ShareId });
+                    createdResults.Add(new
+                    {
+                        targetId,
+                        conversationId = conversation.MaCuocTroChuyen,
+                        shareId = share.ShareId
+                    });
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"--> FATAL ERROR sharing to {targetId}: {ex.ToString()}");
+                    Console.WriteLine($"❌ Lỗi gửi share tới {targetId}: {ex}");
+                    skippedResults.Add(targetId); // ✨ thêm người bị lỗi
                 }
             }
 
-            if (createdResults.Count == 0 && req.TargetUserIds.Any())
+            // ==========================================================
+            // 7️⃣ Trả về kết quả (ĐÃ CẢI TIẾN)
+            // ==========================================================
+            var totalAttempted = req.TargetUserIds.Distinct().Count();
+
+            if (createdResults.Count == 0 && totalAttempted > 0)
             {
-                return StatusCode(500, new { message = "Không thể gửi tin nhắn cho bất kỳ ai." });
+                if (skippedResults.Count == totalAttempted)
+                {
+                    // Tất cả bị chặn hoặc lỗi người dùng
+                    return BadRequest(new
+                    {
+                        message = "Không thể gửi: Bạn đã chặn người dùng này hoặc bị người dùng này chặn."
+                    });
+                }
+                else
+                {
+                    // Lỗi hệ thống
+                    return StatusCode(500, new
+                    {
+                        message = "Không thể gửi tin nhắn cho bất kỳ ai do lỗi hệ thống."
+                    });
+                }
             }
 
-            return Ok(new { success = true, created = createdResults });
+            return Ok(new
+            {
+                success = true,
+                created = createdResults,
+                skipped = skippedResults // ✨ thêm danh sách bị bỏ qua (tuỳ chọn)
+            });
         }
+
 
 
         // ============================
@@ -263,31 +304,36 @@ namespace UniMarket.Controllers
 
             return Ok(friends);
         }
-
-        // ============================
-        // 2) Lấy danh sách Social Chats (sửa để trả MessageType)
-        // ============================
-        // File: SocialShareController.cs
+        // =========================================================
+        // ✅ 2) Lấy danh sách Social Chats (Tối ưu + có trạng thái Block)
+        // =========================================================
         [Authorize]
         [HttpGet("social/user/{userId}")]
         public async Task<IActionResult> GetSocialConversations(string userId)
         {
-            // 🔹 Kiểm tra người dùng hợp lệ
+            // 🔹 Xác thực quyền xem chính mình
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != currentUserId)
+                return Unauthorized(new { message = "Không được phép truy cập dữ liệu của người khác" });
+
+            // 🔹 Kiểm tra người dùng tồn tại
             if (!await _context.Users.AnyAsync(u => u.Id == userId))
                 return NotFound(new { message = "Người dùng không tồn tại" });
 
-            // 🔹 Lấy danh sách cuộc trò chuyện
+            // =========================================================
+            // 🧠 Lấy danh sách cuộc trò chuyện
+            // =========================================================
             var conversations = await _context.CuocTroChuyenSocials
                 .AsNoTracking()
-                .Where(c =>
-                    !c.IsBlocked &&
-                    c.NguoiThamGias.Any(n => n.MaNguoiDung == userId)
-                )
+                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
                 .Select(c => new
                 {
                     c.MaCuocTroChuyen,
                     c.ThoiGianTao,
+                    c.IsBlocked,
+                    c.MaNguoiChan,
 
+                    // ✅ Tin nhắn cuối cùng
                     LastMessage = c.TinNhans
                         .OrderByDescending(t => t.ThoiGianGui)
                         .Select(t => new
@@ -304,6 +350,7 @@ namespace UniMarket.Controllers
                         })
                         .FirstOrDefault(),
 
+                    // ✅ Người tham gia còn lại (Partner)
                     Partner = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
                         .Select(n => new
@@ -317,23 +364,20 @@ namespace UniMarket.Controllers
                     // ✅ Đếm số tin chưa đọc
                     UnreadCount = c.TinNhans.Count(m => m.MaNguoiGui != userId && !m.DaXem),
 
-                    // ✅ LOGIC ISHIDDEN MỚI (chỉ ẩn khi chưa “hiện lại”)
+                    // ✅ Kiểm tra ẩn tin nhắn (đã gộp logic “chưa hiện lại”)
                     IsHidden = _context.UserHiddenConversations
                         .Any(h => h.UserId == userId &&
                                   h.MaCuocTroChuyen == c.MaCuocTroChuyen &&
                                   !h.HasReappeared)
                 })
-                // ✅ Lọc bỏ các cuộc hội thoại rác
                 .Where(c => c.Partner != null && c.LastMessage != null)
-
-                // ✅ Zalo Mode: Nếu bị ẩn thì chỉ hiện lại khi có tin mới (UnreadCount > 0)
                 .Where(c => !c.IsHidden || c.UnreadCount > 0)
-
                 .OrderByDescending(c => c.LastMessage.ThoiGianGui)
                 .ToListAsync();
 
-
-            // 🔹 Lấy ShareId trong tin nhắn
+            // =========================================================
+            // 📎 Lấy danh sách ShareId để xác định loại nội dung
+            // =========================================================
             var shareIds = conversations
                 .Select(c =>
                 {
@@ -346,25 +390,29 @@ namespace UniMarket.Controllers
                 .Distinct()
                 .ToList();
 
-            // 🔹 Lấy thông tin Share nếu có
+            // ✅ Truy vấn share info 1 lần để giảm số query DB
             var sharesInfo = shareIds.Any()
                 ? await _context.Shares
                     .Where(s => shareIds.Contains(s.ShareId))
                     .ToDictionaryAsync(s => s.ShareId, s => s.TargetType)
                 : new Dictionary<int, ShareTargetType>();
 
-            // 🔹 Chuẩn hóa dữ liệu gửi về FE
+            // =========================================================
+            // ✨ Chuẩn hóa dữ liệu trả về
+            // =========================================================
             var result = conversations.Select(c =>
             {
                 var lastMessage = c.LastMessage;
                 string messageType = "text";
                 string displayText = lastMessage.NoiDung ?? "";
 
+                // 🎥 Nếu có MediaUrl → ảnh/video
                 if (!string.IsNullOrEmpty(lastMessage.MediaUrl))
                 {
                     messageType = UrlHelpers.IsVideoUrl(lastMessage.MediaUrl) ? "video" : "image";
                     displayText = messageType == "video" ? "đã gửi 1 video" : "đã gửi 1 ảnh";
                 }
+                // 🔗 Nếu là Share
                 else if (displayText.StartsWith("[ShareId:"))
                 {
                     var match = Regex.Match(displayText, @"\[ShareId:(\d+)\]");
@@ -373,14 +421,19 @@ namespace UniMarket.Controllers
                         sharesInfo.TryGetValue(shareId, out var targetType))
                     {
                         messageType = targetType == ShareTargetType.Video ? "video" : "share";
-                        displayText = messageType == "video" ? "đã chia sẻ 1 video" : "đã chia sẻ 1 bài viết";
+                        displayText = messageType == "video"
+                            ? "đã chia sẻ 1 video"
+                            : "đã chia sẻ 1 bài viết";
                     }
                 }
 
+                // 🚀 Trả về object cho FE
                 return new
                 {
                     c.MaCuocTroChuyen,
                     c.ThoiGianTao,
+                    c.IsBlocked,
+                    c.MaNguoiChan,
                     LastMessage = new
                     {
                         NoiDung = displayText,
@@ -391,11 +444,89 @@ namespace UniMarket.Controllers
                         lastMessage.Sender
                     },
                     c.Partner,
-                    UnreadCount = c.UnreadCount
+                    c.UnreadCount
                 };
             });
 
             return Ok(result);
+        }
+
+        // =========================================================
+        // ✨ [MỚI] API CHẶN VÀ GỠ CHẶN
+        // =========================================================
+
+        private async Task NotifyBlockStatusChanged(CuocTroChuyenSocial conversation)
+        {
+            var payload = new
+            {
+                maCuocTroChuyen = conversation.MaCuocTroChuyen,
+                isBlocked = conversation.IsBlocked,
+                maNguoiChan = conversation.MaNguoiChan
+            };
+
+            // Gửi sự kiện cho cả 2 người trong nhóm
+            foreach (var participant in conversation.NguoiThamGias)
+            {
+                await _socialHubContext.Clients.User(participant.MaNguoiDung)
+                    .SendAsync("BlockStatusChanged", payload);
+            }
+        }
+        [Authorize]
+        [HttpPost("conversation/{maCuocTroChuyen}/block")]
+        public async Task<IActionResult> BlockConversation(string maCuocTroChuyen)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var conversation = await _context.CuocTroChuyenSocials
+                .Include(c => c.NguoiThamGias) // ✨ Cần Include NguoiThamGias
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen &&
+                                          c.NguoiThamGias.Any(n => n.MaNguoiDung == userId));
+
+            if (conversation == null) return NotFound();
+            if (conversation.IsBlocked) return BadRequest(new { message = "Người dùng đã bị chặn." });
+
+            conversation.IsBlocked = true;
+            conversation.MaNguoiChan = userId;
+
+            await _context.SaveChangesAsync();
+
+            // ✨ Gửi sự kiện Real-time
+            await NotifyBlockStatusChanged(conversation);
+
+            return Ok(new { message = "Đã chặn người dùng." });
+        }
+
+        [Authorize]
+        [HttpPost("conversation/{maCuocTroChuyen}/unblock")]
+        public async Task<IActionResult> UnblockConversation(string maCuocTroChuyen)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var conversation = await _context.CuocTroChuyenSocials
+                .Include(c => c.NguoiThamGias) // ✨ Cần Include NguoiThamGias
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen &&
+                                          c.NguoiThamGias.Any(n => n.MaNguoiDung == userId));
+
+            if (conversation == null) return NotFound();
+            if (!conversation.IsBlocked) return BadRequest(new { message = "Người dùng không bị chặn." });
+
+            // Chỉ người chặn mới được gỡ
+            if (conversation.MaNguoiChan != userId)
+            {
+                return Forbid("Bạn không có quyền gỡ chặn người dùng này.");
+            }
+
+            conversation.IsBlocked = false;
+            conversation.MaNguoiChan = null;
+
+            await _context.SaveChangesAsync();
+
+            // ✨ Gửi sự kiện Real-time
+            await NotifyBlockStatusChanged(conversation);
+
+            return Ok(new { message = "Đã gỡ chặn người dùng." });
         }
 
         // xóa ẩn tin nhắn
@@ -539,7 +670,7 @@ namespace UniMarket.Controllers
                 }
 
                 // ===== Tin nhắn cha (nếu có) =====
-                Share parentShareInfo = null;
+                Share parentShareInfo = null; // Logic này giữ nguyên
                 if (t.ParentMessage != null)
                 {
                     var parentMatch = Regex.Match(t.ParentMessage.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
@@ -549,6 +680,7 @@ namespace UniMarket.Controllers
                     }
                 }
 
+                // ==================== 4️⃣ XÂY DỰNG RESPONSE ====================
                 return new
                 {
                     MaTinNhan = t.MaTinNhan,
@@ -580,7 +712,7 @@ namespace UniMarket.Controllers
                         SenderFullName = t.ParentMessage.Sender?.FullName,
                         IsRecalled = t.ParentMessage.IsRecalled,
 
-                        // ✅ Đính kèm Share của tin nhắn cha
+                        // ✅ Đính kèm Share của tin nhắn cha (Đã an toàn)
                         Share = parentShareInfo == null ? null : new
                         {
                             parentShareInfo.ShareId,
@@ -588,22 +720,27 @@ namespace UniMarket.Controllers
                             parentShareInfo.PreviewImage,
                             parentShareInfo.PreviewVideo,
                             parentShareInfo.ShareLink,
-                            TargetType = (int)parentShareInfo.TargetType
+                            TargetType = (int)parentShareInfo.TargetType,
+                            TinDangId = parentShareInfo.TinDangId // <-- Dòng bạn thêm
                         }
                     },
 
-                    // ✅ Đính kèm Share của tin nhắn chính
-                    Share = mainShareId != -1 && sharesInfo.ContainsKey(mainShareId)
+                    // ======================================================
+                    // ✅ [SỬA LỖI] ĐÍNH KÈM SHARE CỦA TIN NHẮN CHÍNH
+                    // ======================================================
+                    Share = mainShareId != -1 && sharesInfo.TryGetValue(mainShareId, out var mainShareInfo) && mainShareInfo != null
                         ? new
                         {
-                            sharesInfo[mainShareId].ShareId,
-                            sharesInfo[mainShareId].PreviewTitle,
-                            sharesInfo[mainShareId].PreviewImage,
-                            sharesInfo[mainShareId].PreviewVideo,
-                            sharesInfo[mainShareId].ShareLink,
-                            TargetType = (int)sharesInfo[mainShareId].TargetType
+                            mainShareInfo.ShareId,
+                            mainShareInfo.PreviewTitle,
+                            mainShareInfo.PreviewImage,
+                            mainShareInfo.PreviewVideo,
+                            mainShareInfo.ShareLink,
+                            TargetType = (int)mainShareInfo.TargetType,
+                            TinDangId = mainShareInfo.TinDangId // <-- Dòng bạn thêm
                         }
                         : null
+                    // ======================================================
                 };
             }).ToList();
 
