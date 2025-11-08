@@ -37,15 +37,6 @@ wwwroot\images\categories\bb15ebc6-f1ce-4970-ad7c-ae605f3c7d29_snapedit_17462007
 wwwroot\images\categories\bff391d9-d348-4ead-9566-b66600850f04_interior-design.png
 wwwroot\images\categories\c3b2281d-6529-433e-a88e-e19bbd98dfa4_responsive.png
 wwwroot\images\categories\e323df0d-653a-48a0-a3d5-1f56ba16b4b5_home-appliance.png
-wwwroot\images\Posts\iphone-12-pro-max-cu-01622619065.jpg
-wwwroot\images\Posts\laptop.jpg
-wwwroot\images\Posts\noicomdien.jpg
-wwwroot\images\Posts\Screenshot 2025-05-08 165044.png
-wwwroot\images\Posts\Screenshot 2025-05-10 224233.png
-wwwroot\images\Posts\Screenshot 2025-05-10 225605.png
-wwwroot\images\Posts\Screenshot 2025-05-13 075736.png
-wwwroot\images\Posts\Screenshot 2025-05-13 081037.png
-wwwroot\images\Posts\Screenshot 2025-05-13 082608.png
 wwwroot\js\site.js
 wwwroot\lib\bootstrap\dist\css\bootstrap.css
 wwwroot\lib\bootstrap\dist\css\bootstrap.css.map

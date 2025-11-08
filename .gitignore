@@ -9,7 +9,7 @@
 
 # Bỏ qua các thư mục build
 [Bb]in/
-[Bb]j/
+[Oo]bj/
 [Rr]elease/
 [Dd]ebug/
 
