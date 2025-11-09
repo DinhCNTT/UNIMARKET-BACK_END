@@ -25,6 +25,7 @@ var builder = WebApplication.CreateBuilder(args);
 // ==========================
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
+builder.Services.AddHostedService<UniMarket.Services.MediaDeletionService>();
 builder.Services.AddSingleton(provider =>
 {
     var config = provider.GetRequiredService<IConfiguration>();

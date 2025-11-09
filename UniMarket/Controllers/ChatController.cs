@@ -207,14 +207,22 @@ namespace UniMarket.Controllers
         }
 
         [HttpGet("history/{maCuocTroChuyen}")]
-        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen, [FromQuery] string userId)
+        public async Task<IActionResult> GetChatHistory(string maCuocTroChuyen,
+                                                 [FromQuery] string userId,
+                                                 [FromQuery] int page = 1,
+                                                 [FromQuery] int pageSize = 30) // 1. Nhận tham số
         {
             try
             {
-                var messages = await _context.TinNhans
+                var messagesQuery = _context.TinNhans
                     .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
-                    .OrderBy(t => t.ThoiGianGui)
+                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId));
+
+                // 2. Sắp xếp GIẢM DẦN (mới nhất -> cũ nhất)
+                var paginatedMessages = await messagesQuery
+                    .OrderByDescending(t => t.ThoiGianGui)
+                    .Skip((page - 1) * pageSize) // 3. Bỏ qua các trang trước
+                    .Take(pageSize) // 4. Chỉ lấy số lượng tin của trang này
                     .Select(t => new
                     {
                         t.MaTinNhan,
@@ -222,14 +230,15 @@ namespace UniMarket.Controllers
                         t.MaNguoiGui,
                         NoiDung = (t.Loai == LoaiTinNhan.Text) ? t.NoiDung : t.MediaUrl,
                         LoaiTinNhan = t.Loai.ToString().ToLower(),
-                        ThoiGianGui = t.ThoiGianGui.ToString("O"),
+                        ThoiGianGui = t.ThoiGianGui.ToString("O"), // Dùng "O" (ISO 8601) là chuẩn nhất
                         t.DaXem,
                         t.ThoiGianXem,
-                        t.IsRecalled  // ✅ THÊM FIELD MỚI
+                        t.IsRecalled
                     })
-                    .ToListAsync();
+                    .ToListAsync(); // 5. Lấy kết quả đã phân trang
 
-                return Ok(messages);
+                // 6. Trả về mảng (ví dụ: [Tin 30, Tin 29, ..., Tin 1])
+                return Ok(paginatedMessages);
             }
             catch (Exception ex)
             {

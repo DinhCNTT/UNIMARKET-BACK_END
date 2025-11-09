@@ -65,6 +65,8 @@ namespace UniMarket.Models
         [Required]
         [DisplayName("Trạng thái tin")]
         public TrangThaiTinDang TrangThai { get; set; } = TrangThaiTinDang.ChoDuyet; // Mặc định là Chờ duyệt
+        [DisplayName("Ngày hẹn xóa")]
+        public DateTime? NgayHenXoa { get; set; }
         [DisplayName("Đường dẫn video")]
         [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
         public string? VideoUrl { get; set; } // 👉 Thêm dòng này

@@ -9,7 +9,8 @@ using System.Threading.Tasks;
 using static AuthController;
 using UniMarket.DataAccess;
 using UniMarket.Services;
-using UniMarket.DTO; // <-- THÊM DÒNG NÀY
+using UniMarket.DTO;
+using CloudinaryDotNet.Actions;
 
 namespace UniMarket.Controllers
 {
@@ -583,7 +584,7 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> ApprovePost(int id)
         {
             var post = await _context.TinDangs
-                .Include(p => p.AnhTinDangs)
+                .Include(p => p.AnhTinDangs) // Include để kiểm tra VideoUrl
                 .FirstOrDefaultAsync(p => p.MaTinDang == id);
 
             if (post == null)
@@ -592,70 +593,38 @@ namespace UniMarket.Controllers
             if (post.TrangThai == TrangThaiTinDang.DaDuyet)
                 return BadRequest("Tin đăng này đã được duyệt rồi.");
 
-            foreach (var media in post.AnhTinDangs)
+            if (post.TrangThai == TrangThaiTinDang.TuChoi)
+                return BadRequest("Tin đăng này đã bị từ chối, không thể duyệt lại.");
+
+            // Vì file đã upload lên Cloudinary khi đăng,
+            // chúng ta không cần xử lý file nữa.
+
+            // Chỉ kiểm tra lại VideoUrl cho chắc chắn
+            if (string.IsNullOrEmpty(post.VideoUrl))
             {
-                if (!media.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                var firstVideo = post.AnhTinDangs
+                    .FirstOrDefault(m => m.LoaiMedia == MediaType.Video);
+
+                if (firstVideo != null)
                 {
-                    var fileName = Path.GetFileName(media.DuongDan);
-                    var localFilePath = Path.Combine("wwwroot", "images", "temp-uploads", fileName);
-
-                    if (!System.IO.File.Exists(localFilePath))
-                        continue;
-
-                    byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
-                    using var memoryStream = new MemoryStream(fileBytes);
-                    var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
-
-                    string ext = Path.GetExtension(fileName).ToLower();
-                    if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
-                    {
-                        var uploadResult = await _photoService.UploadVideoAsync(formFile);
-                        if (uploadResult.Error != null)
-                            return BadRequest(new { message = "Lỗi khi upload video lên Cloudinary", error = uploadResult.Error.Message });
-
-                        media.DuongDan = uploadResult.SecureUrl.ToString();
-
-                        // ✅ Gán vào VideoUrl nếu chưa có
-                        if (string.IsNullOrEmpty(post.VideoUrl))
-                        {
-                            post.VideoUrl = media.DuongDan;
-                        }
-                    }
-                    else
-                    {
-                        var uploadResult = await _photoService.UploadPhotoAsync(formFile);
-                        if (uploadResult.Error != null)
-                            return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
-
-                        media.DuongDan = uploadResult.SecureUrl.ToString();
-                    }
-
-                    System.IO.File.Delete(localFilePath);
-                }
-                else
-                {
-                    // ✅ Trường hợp file đã là URL từ Cloudinary rồi → nếu là video thì gán vào VideoUrl luôn
-                    string ext = Path.GetExtension(media.DuongDan).ToLower();
-                    if ((ext == ".mp4" || ext == ".mov" || ext == ".avi") && string.IsNullOrEmpty(post.VideoUrl))
-                    {
-                        post.VideoUrl = media.DuongDan;
-                    }
+                    // DuongDan này đã là link Cloudinary
+                    post.VideoUrl = firstVideo.DuongDan;
                 }
             }
 
+            // Cập nhật trạng thái
             post.TrangThai = TrangThaiTinDang.DaDuyet;
             _context.TinDangs.Update(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Tin đăng đã được duyệt và media đã được lưu trên Cloudinary!" });
+            return Ok(new { message = "Tin đăng đã được duyệt thành công!" });
         }
-
 
         [HttpPost("reject-post/{id}")]
         public async Task<IActionResult> RejectPost(int id)
         {
             var post = await _context.TinDangs
-                .Include(p => p.AnhTinDangs)
+                // Không cần Include AnhTinDangs nữa
                 .FirstOrDefaultAsync(p => p.MaTinDang == id);
 
             if (post == null)
@@ -664,52 +633,19 @@ namespace UniMarket.Controllers
             if (post.TrangThai == TrangThaiTinDang.TuChoi)
                 return BadRequest("Tin đăng này đã bị từ chối rồi.");
 
-            foreach (var media in post.AnhTinDangs)
-            {
-                if (string.IsNullOrEmpty(media.DuongDan))
-                    continue;
+            // ❌ KHÔNG XÓA KHỎI CLOUDINARY
+            // ❌ KHÔNG XÓA KHỎI BẢNG AnhTinDangs
 
-                if (!media.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                {
-                    var fileName = Path.GetFileName(media.DuongDan);
-                    var localFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "temp-uploads", fileName);
-
-                    if (System.IO.File.Exists(localFilePath))
-                    {
-                        byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(localFilePath);
-                        using var memoryStream = new MemoryStream(fileBytes);
-                        var formFile = new FormFile(memoryStream, 0, memoryStream.Length, null, fileName);
-
-                        string ext = Path.GetExtension(fileName).ToLower();
-                        if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
-                        {
-                            var uploadResult = await _photoService.UploadVideoAsync(formFile);
-                            if (uploadResult.Error != null)
-                                return BadRequest(new { message = "Lỗi khi upload video lên Cloudinary", error = uploadResult.Error.Message });
-
-                            media.DuongDan = uploadResult.SecureUrl.ToString();
-                        }
-                        else
-                        {
-                            var uploadResult = await _photoService.UploadPhotoAsync(formFile);
-                            if (uploadResult.Error != null)
-                                return BadRequest(new { message = "Lỗi khi upload ảnh lên Cloudinary", error = uploadResult.Error.Message });
-
-                            media.DuongDan = uploadResult.SecureUrl.ToString();
-                        }
-
-                        System.IO.File.Delete(localFilePath);
-                    }
-                }
-            }
-
+            // ✅ CHỈ CẬP NHẬT TRẠNG THÁI VÀ LÊN LỊCH
             post.TrangThai = TrangThaiTinDang.TuChoi;
+            post.NgayHenXoa = DateTime.UtcNow.AddDays(3); // Hẹn xóa sau 3 ngày
+            post.VideoUrl = null;
+
             _context.TinDangs.Update(post);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Tin đăng đã bị từ chối, media đã được lưu trên Cloudinary và ảnh temp đã xóa!" });
+            return Ok(new { message = "Tin đăng đã bị từ chối và sẽ được xóa media sau 3 ngày." });
         }
-
 
         public class UpdateCategoryModel
         {
