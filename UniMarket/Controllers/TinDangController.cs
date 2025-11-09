@@ -37,16 +37,12 @@ namespace UniMarket.Controllers
         }
 
         [HttpGet("get-posts")]
-        public IActionResult GetPosts()
+        public async Task<IActionResult> GetPosts() // <-- Sửa 1: Chuyển sang async Task
         {
-            var posts = _context.TinDangs
+            var posts = await _context.TinDangs
+                .AsNoTracking() // <-- Sửa 2: Thêm AsNoTracking để đọc nhanh
                 .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet)
-                .Include(p => p.NguoiBan)
-                .Include(p => p.TinhThanh)
-                .Include(p => p.QuanHuyen)
-                .Include(p => p.AnhTinDangs)
-                .Include(p => p.DanhMuc)
-                    .ThenInclude(dm => dm.DanhMucCha)
+                // ----- Sửa 3: Bỏ tất cả .Include() vì đã có .Select() -----
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -60,30 +56,33 @@ namespace UniMarket.Controllers
                     p.MaQuanHuyen,
                     p.MaNguoiBan,
                     p.NgayDang,
+
+                    // Sửa 4: Bỏ .ToList() bên trong. EF Core sẽ tự xử lý
                     Images = p.AnhTinDangs
-        .OrderBy(a => a.Order)
-        .Select(a =>
-            a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                ? a.DuongDan
-                : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
-        ).ToList(),
+                        .OrderBy(a => a.Order)
+                        .Select(a =>
+                            a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                                ? a.DuongDan
+                                : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
+                        ), // Bỏ .ToList() ở đây
+
                     NguoiBan = p.NguoiBan.FullName,
                     TinhThanh = p.TinhThanh.TenTinhThanh,
                     QuanHuyen = p.QuanHuyen.TenQuanHuyen,
                     DanhMuc = p.DanhMuc.TenDanhMuc,
                     DanhMucCha = p.DanhMuc.DanhMucCha.TenDanhMucCha,
 
-                    // ✅ Thêm dòng này để đếm số lượt lưu (like/favorite)
-                    SavedCount = _context.TinDangYeuThichs.Count(y => y.MaTinDang == p.MaTinDang)
+                    // Sửa 5: Dùng navigation property để đếm (Giả sử bạn có 'p.TinDangYeuThichs')
+                    SavedCount = p.TinDangYeuThichs.Count()
                 })
-
-                .ToList();
+                .ToListAsync(); // <-- Sửa 6: Dùng ToListAsync()
 
             if (posts == null || !posts.Any())
                 return NotFound("Không có tin đăng nào.");
 
             return Ok(posts);
         }
+
         [RequestSizeLimit(157286400)] // 150MB
         [HttpPost("add-post")]
         public async Task<IActionResult> AddPost(

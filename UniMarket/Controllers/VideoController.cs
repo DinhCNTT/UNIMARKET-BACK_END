@@ -30,32 +30,32 @@ namespace UniMarket.Controllers
             _hubContext = hubContext; // Thêm dòng này
         }
 
+        // ✅ Controller: VideoController.cs
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetVideos([FromQuery] int page = 1,
-                                                 [FromQuery] int pageSize = 15,
-                                                 [FromQuery] int? categoryId = null,
-                                                 [FromQuery] decimal? minPrice = null,
-                                                 [FromQuery] decimal? maxPrice = null)
+        public async Task<IActionResult> GetVideos(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 15,
+            [FromQuery] int? categoryId = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null)
         {
             var userId = User.Identity != null && User.Identity.IsAuthenticated
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                 : null;
 
-            // ✅ LỖI ĐƯỢC SỬA TẠI ĐÂY
-            // Khai báo rõ kiểu 'IQueryable<TinDang>' thay vì dùng 'var'
+            // ✅ Query base video (đã duyệt, có video)
             IQueryable<TinDang> tinDangsQuery = _context.TinDangs
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
                 .Include(td => td.QuanHuyen)
                 .Include(td => td.AnhTinDangs)
-                .Include(td => td.DanhMuc); // Phải Include DanhMuc ở đây
+                .Include(td => td.DanhMuc);
 
-            // Áp dụng các bộ lọc (filter)
+            // ✅ Áp dụng bộ lọc
             if (categoryId.HasValue)
             {
-                // Giờ đây .Where() trả về IQueryable<TinDang>, khớp với kiểu của biến
                 tinDangsQuery = tinDangsQuery.Where(td =>
                     td.MaDanhMuc == categoryId.Value ||
                     (td.DanhMuc != null && td.DanhMuc.MaDanhMucCha == categoryId.Value)
@@ -72,38 +72,52 @@ namespace UniMarket.Controllers
                 tinDangsQuery = tinDangsQuery.Where(td => td.Gia <= maxPrice.Value);
             }
 
-            // (Toàn bộ code còn lại giữ nguyên...)
-
+            // ✅ Lấy danh sách TinDang
             var tinDangs = await tinDangsQuery.ToListAsync();
             var maTinDangList = tinDangs.Select(td => td.MaTinDang).ToList();
 
-            // Lấy số lượt like
+            // ✅ Đếm số lượt tym (like)
             var tymCounts = await _context.VideoLikes
                 .Where(v => maTinDangList.Contains(v.MaTinDang))
                 .GroupBy(v => v.MaTinDang)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
-            // Lấy số lượt bình luận
+            // ✅ Đếm số lượt bình luận
             var binhLuanCounts = await _context.VideoComments
                 .Where(c => maTinDangList.Contains(c.MaTinDang))
                 .GroupBy(c => c.MaTinDang)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
-            // ✅ THÊM ĐOẠN NÀY: Lấy số lượt share
+            // ✅ Đếm số lượt share
             var shareCounts = await _context.Shares
                 .Where(s => s.TinDangId.HasValue && maTinDangList.Contains(s.TinDangId.Value))
                 .GroupBy(s => s.TinDangId.Value)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
-            // Lấy danh sách video đã like của user
-            var likedVideoIds = !string.IsNullOrEmpty(userId)
-                ? await _context.VideoLikes
+            // ✅ Đếm số lượt LƯU
+            var saveCounts = await _context.VideoTinDangSaves
+                .Where(s => maTinDangList.Contains(s.MaTinDang))
+                .GroupBy(s => s.MaTinDang)
+                .ToDictionaryAsync(g => g.Key, g => g.Count());
+
+            // ✅ Danh sách video user đã like / lưu
+            var likedVideoIds = new List<int>();
+            var savedVideoIds = new List<int>();
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                likedVideoIds = await _context.VideoLikes
                     .Where(v => v.UserId == userId && maTinDangList.Contains(v.MaTinDang))
                     .Select(v => v.MaTinDang)
-                    .ToListAsync()
-                : new List<int>();
+                    .ToListAsync();
 
-            // Chuẩn bị dữ liệu trả về
+                savedVideoIds = await _context.VideoTinDangSaves
+                    .Where(s => s.MaNguoiDung == userId && maTinDangList.Contains(s.MaTinDang))
+                    .Select(s => s.MaTinDang)
+                    .ToListAsync();
+            }
+
+            // ✅ Chuẩn bị dữ liệu trả về
             var result = tinDangs
                 .Select(td => new
                 {
@@ -111,6 +125,10 @@ namespace UniMarket.Controllers
                     td.TieuDe,
                     td.MoTa,
                     td.VideoUrl,
+                    // Thumbnail (ảnh đầu tiên)
+                    HinhAnh = td.AnhTinDangs != null && td.AnhTinDangs.Any()
+                        ? td.AnhTinDangs.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan
+                        : null,
                     td.Gia,
                     DiaChi = td.DiaChi,
                     TinhThanh = td.TinhThanh?.TenTinhThanh,
@@ -118,9 +136,7 @@ namespace UniMarket.Controllers
                     td.TinhTrang,
                     td.NgayDang,
 
-                    AnhCount = td.AnhTinDangs != null
-                        ? td.AnhTinDangs.Count(a => a.LoaiMedia == MediaType.Image)
-                        : 0,
+                    AnhCount = td.AnhTinDangs?.Count(a => a.LoaiMedia == MediaType.Image) ?? 0,
 
                     AnhUrls = td.AnhTinDangs != null
                         ? td.AnhTinDangs
@@ -134,17 +150,28 @@ namespace UniMarket.Controllers
                     SoTym = tymCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoBinhLuan = binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoLuotChiaSe = shareCounts.GetValueOrDefault(td.MaTinDang, 0),
+                    SoNguoiLuu = saveCounts.GetValueOrDefault(td.MaTinDang, 0),
                     SoLuotXem = td.SoLuotXem,
-                    TongScore = tymCounts.GetValueOrDefault(td.MaTinDang, 0) +
-                                binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
-                                td.SoLuotXem,
-                    NguoiDang = td.NguoiBan != null ? new
-                    {
-                        td.NguoiBan.Id,
-                        td.NguoiBan.FullName,
-                        td.NguoiBan.AvatarUrl
-                    } : null,
-                    IsLiked = likedVideoIds.Contains(td.MaTinDang)
+
+                    // ✅ Tổng điểm (xếp hạng video)
+                    TongScore =
+                        tymCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                        binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                        shareCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                        saveCounts.GetValueOrDefault(td.MaTinDang, 0) +
+                        td.SoLuotXem,
+
+                    NguoiDang = td.NguoiBan != null
+                        ? new
+                        {
+                            td.NguoiBan.Id,
+                            td.NguoiBan.FullName,
+                            td.NguoiBan.AvatarUrl
+                        }
+                        : null,
+
+                    IsLiked = likedVideoIds.Contains(td.MaTinDang),
+                    IsSaved = savedVideoIds.Contains(td.MaTinDang)
                 })
                 .OrderByDescending(x => x.TongScore)
                 .ThenByDescending(x => x.MaTinDang)
@@ -154,6 +181,7 @@ namespace UniMarket.Controllers
 
             return Ok(result);
         }
+
 
         [AllowAnonymous]
         [HttpGet("{maTinDang}")]
@@ -298,8 +326,8 @@ namespace UniMarket.Controllers
             var soTym = await _context.VideoLikes.CountAsync(x => x.MaTinDang == maTinDang);
 
             // ✅✅ GỬI REALTIME QUA HUB CHO MỌI NGƯỜI ĐANG XEM VIDEO NÀY
-            await _hubContext.Clients.Group(maTinDang.ToString())
-                                     .SendAsync("UpdateLikeCount", maTinDang, soTym, isLiked);
+            // Chỉ gửi số lượng mới cho cả nhóm
+            await _hubContext.Clients.Group(maTinDang.ToString()).SendAsync("UpdateLikeCount", maTinDang, soTym);
 
             // Trả kết quả về cho client hiện tại
             return Ok(new
@@ -320,16 +348,25 @@ namespace UniMarket.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var tinDang = await _context.TinDangs.FindAsync(maTinDang);
-            if (tinDang == null)
+            // --- SỬA LỖI TIMEOUT TẠI ĐÂY ---
+            // Thay vì FindAsync (tải cả object nặng), chỉ kiểm tra sự tồn tại (nhẹ hơn nhiều)
+            bool tinDangExists = await _context.TinDangs.AnyAsync(td => td.MaTinDang == maTinDang);
+            if (!tinDangExists)
                 return NotFound("Tin đăng không tồn tại.");
+            // -------------------------------
 
             if (model.ParentCommentId.HasValue)
             {
-                var parent = await _context.VideoComments.FindAsync(model.ParentCommentId.Value);
-                if (parent == null)
+                // Tối ưu hóa: Chỉ lấy MaTinDang của comment cha để kiểm tra, không tải cả object
+                var parentInfo = await _context.VideoComments
+                    .Where(c => c.Id == model.ParentCommentId.Value)
+                    .Select(c => new { c.MaTinDang })
+                    .FirstOrDefaultAsync();
+
+                if (parentInfo == null)
                     return NotFound("Bình luận cha không tồn tại.");
-                if (parent.MaTinDang != maTinDang)
+
+                if (parentInfo.MaTinDang != maTinDang)
                     return BadRequest("Bình luận cha không thuộc về tin đăng này.");
             }
 
@@ -345,34 +382,42 @@ namespace UniMarket.Controllers
             _context.VideoComments.Add(comment);
             await _context.SaveChangesAsync();
 
-            // --- BẮT ĐẦU PHẦN CẢI TIẾN REALTIME ---
+            // ✅ --- THÊM ĐOẠN CODE 2 Ở ĐÂY ---
+            // 1. Đếm lại tổng số bình luận mới nhất của video này
+            var totalComments = await _context.VideoComments
+                .CountAsync(c => c.MaTinDang == maTinDang);
 
-            // Tải thông tin User (UserName, AvatarUrl)
-            // (Vì 'comment.User' sẽ là null ngay sau khi Add)
-            await _context.Entry(comment).Reference(c => c.User).LoadAsync();
+            // 2. Gửi realtime sự kiện cập nhật số lượng bình luận
+            await _hubContext.Clients.Group(maTinDang.ToString())
+                .SendAsync("UpdateCommentCount", maTinDang, totalComments);
+            // ✅ --- HẾT ĐOẠN MỚI ---
 
-            // Tạo một DTO (Data Transfer Object) để gửi đi
+            // --- PHẦN REALTIME CŨ (giữ nguyên) ---
+            // Tải thông tin User để trả về DTO. Dùng AsNoTracking để nhẹ hơn vì chỉ đọc.
+            var userInfo = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.FullName, u.UserName, u.AvatarUrl })
+                .FirstOrDefaultAsync();
+
             var newCommentDto = new VideoCommentDto
             {
                 Id = comment.Id,
                 Content = comment.Content,
                 CreatedAt = comment.CreatedAt,
                 UserId = comment.UserId,
-                UserName = comment.User.FullName ?? comment.User.UserName, // Lấy tên user
-                AvatarUrl = comment.User.AvatarUrl, // Lấy avatar user
-                Replies = new List<VideoCommentDto>() // Comment mới chưa có reply
+                UserName = userInfo?.FullName ?? userInfo?.UserName ?? "Unknown User",
+                AvatarUrl = userInfo?.AvatarUrl,
+                Replies = new List<VideoCommentDto>()
             };
 
-            // Gửi DTO này đến tất cả client đang kết nối với "phòng" của video này
+            // Gửi realtime comment mới (Drawer, viewer, v.v.)
             await _hubContext.Clients.Group(maTinDang.ToString())
                              .SendAsync("ReceiveComment", newCommentDto, comment.ParentCommentId);
 
-            // --- KẾT THÚC PHẦN CẢI TIẾN REALTIME ---
-
-            // Trả về DTO cho chính người vừa gửi
-            // (Để frontend có thể thay thế comment tạm bằng comment thật)
             return Ok(newCommentDto);
         }
+
 
         [HttpGet("{maTinDang}/comments")]
         [AllowAnonymous]
@@ -426,16 +471,26 @@ namespace UniMarket.Controllers
             if (comment.UserId != userId)
                 return Forbid("Bạn không có quyền xóa bình luận này.");
 
-            // ✅ Lấy maTinDang TRƯỚC KHI XÓA
+            // ✅ Lấy MaTinDang TRƯỚC KHI XÓA (để dùng cho realtime)
             var maTinDang = comment.MaTinDang.ToString();
 
-            // Xóa đệ quy các bình luận con
+            // Xóa đệ quy tất cả bình luận con
             await DeleteCommentRecursive(comment);
 
             // Lưu thay đổi vào DB
             await _context.SaveChangesAsync();
 
-            // ✅ Gửi ID của comment bị xóa tới mọi người
+            // ✅ --- THÊM ĐOẠN CODE 2 Ở ĐÂY ---
+            // 1. Đếm lại tổng số bình luận sau khi xóa (bao gồm trường hợp xóa cả cha lẫn con)
+            var totalComments = await _context.VideoComments
+                .CountAsync(c => c.MaTinDang == int.Parse(maTinDang));
+
+            // 2. Gửi realtime cập nhật số lượng bình luận cho tất cả người xem video
+            await _hubContext.Clients.Group(maTinDang)
+                .SendAsync("UpdateCommentCount", int.Parse(maTinDang), totalComments);
+            // ✅ --- HẾT ĐOẠN MỚI ---
+
+            // ✅ Gửi ID comment bị xóa cho mọi người (phần cũ, vẫn giữ nguyên)
             await _hubContext.Clients.Group(maTinDang)
                              .SendAsync("CommentDeleted", commentId);
 
@@ -445,7 +500,7 @@ namespace UniMarket.Controllers
         // Hàm đệ quy xóa comment và toàn bộ reply của nó
         private async Task DeleteCommentRecursive(VideoComment comment)
         {
-            // Dùng ToList() để tránh lỗi sửa đổi collection khi duyệt
+            // Dùng ToList() để tránh lỗi "Collection was modified"
             foreach (var reply in comment.Replies.ToList())
             {
                 // Load replies của reply
@@ -461,6 +516,7 @@ namespace UniMarket.Controllers
 
             _context.VideoComments.Remove(comment);
         }
+
         // tìm kiếm video
         [HttpGet("search")]
         [AllowAnonymous]
@@ -723,8 +779,8 @@ namespace UniMarket.Controllers
             int totalSaves = saved ? saves.Count + 1 : saves.Count - 1;
 
             // ✅✅ THÊM REALTIME CẬP NHẬT TỚI CÁC CLIENT ĐANG XEM VIDEO NÀY
-            await _hubContext.Clients.Group(request.MaTinDang.ToString())
-                                     .SendAsync("UpdateSaveCount", request.MaTinDang, totalSaves, saved);
+            // Chỉ gửi số lượng mới cho cả nhóm
+            await _hubContext.Clients.Group(request.MaTinDang.ToString()).SendAsync("UpdateSaveCount", request.MaTinDang, totalSaves);
 
             // ✅ Trả kết quả về cho client hiện tại
             return Ok(new

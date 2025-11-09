@@ -5,7 +5,8 @@ using System.Security.Claims;
 using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
-
+using Microsoft.AspNetCore.SignalR;
+using UniMarket.Hubs;
 namespace UniMarket.Controllers
 {
     [ApiController]
@@ -14,10 +15,14 @@ namespace UniMarket.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
-        public ShareController(ApplicationDbContext context, IConfiguration config)
+        private readonly IHubContext<VideoHub> _videoHubContext;
+        public ShareController(ApplicationDbContext context,
+                               IConfiguration config,
+                               IHubContext<VideoHub> videoHubContext)
         {
             _context = context;
             _config = config;
+            _videoHubContext = videoHubContext;
         }
 
 
@@ -25,8 +30,10 @@ namespace UniMarket.Controllers
         // ===============================
         // SHARE RA MXH
         // ===============================
+        // File: UniMarket/Controllers/ShareController.cs
+
         [HttpPost("social")]
-        [AllowAnonymous]   // ✅ Cho phép gọi không cần token
+        [AllowAnonymous]
         public async Task<IActionResult> ShareSocial([FromBody] ShareSocialRequest req)
         {
             if (!ModelState.IsValid)
@@ -39,7 +46,6 @@ namespace UniMarket.Controllers
             if (tinDang == null)
                 return NotFound("Tin đăng không tồn tại.");
 
-            // ⚡ Nếu user login thì lưu DB, không thì chỉ trả link
             string? userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
             Share? share = null;
@@ -53,7 +59,7 @@ namespace UniMarket.Controllers
                         ? ShareTargetType.Video
                         : ShareTargetType.TinDang,
                     DisplayMode = req.DisplayMode,
-                    TinDangId = req.TinDangId,
+                    TinDangId = req.TinDangId, // Gán trực tiếp int vào int? (hoàn toàn hợp lệ)
                     Platform = req.Platform,
                     PreviewTitle = tinDang.TieuDe,
                     PreviewImage = tinDang.AnhTinDangs?.FirstOrDefault()?.DuongDan,
@@ -63,6 +69,24 @@ namespace UniMarket.Controllers
 
                 _context.Shares.Add(share);
                 await _context.SaveChangesAsync();
+            }
+
+            // ✅✅ BƯỚC 5: LOGIC GỬI REAL-TIME (ĐÃ SỬA LỖI)
+            // Vì req.TinDangId là 'int', nó luôn có giá trị.
+            // Chúng ta chỉ cần kiểm tra xem nó có phải là ID hợp lệ không (vd: > 0)
+            if (req.TinDangId > 0)
+            {
+                // Sử dụng trực tiếp req.TinDangId (không cần .Value)
+                var tinDangId = req.TinDangId;
+
+                // Đếm tổng số lượt share.
+                // (s.TinDangId là int?, tinDangId là int. Phép so sánh này là hợp lệ)
+                var totalShares = await _context.Shares
+                    .CountAsync(s => s.TinDangId == tinDangId);
+
+                // Gửi cập nhật real-time
+                await _videoHubContext.Clients.Group(tinDangId.ToString())
+                    .SendAsync("UpdateShareCount", tinDangId, totalShares);
             }
 
             var baseUrl = _config["AppSettings:FrontendUrl"] ?? "http://localhost:5173";
@@ -84,7 +108,6 @@ namespace UniMarket.Controllers
                 tinDang.VideoUrl
             });
         }
-
 
 
 
