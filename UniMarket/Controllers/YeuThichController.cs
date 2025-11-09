@@ -98,27 +98,26 @@ namespace UniMarket.Controllers
                 return Unauthorized(new { message = "Chưa đăng nhập" });
 
             var danhSach = await _context.TinDangYeuThichs
+                .AsNoTracking() // <-- Thêm vào để tăng hiệu năng truy vấn đọc
                 .Where(x => x.MaNguoiDung == userId)
-                .Include(x => x.TinDang)
-                    .ThenInclude(td => td.AnhTinDangs)
-                .Include(x => x.TinDang)
-                    .ThenInclude(td => td.QuanHuyen)
-                .Include(x => x.TinDang)
-                    .ThenInclude(td => td.TinhThanh)
+                // ----- BỎ HẾT CÁC LỆNH .Include() VÌ ĐÃ CÓ .Select() -----
                 .Select(x => new
                 {
                     MaTinDang = x.TinDang.MaTinDang,
-                    Images = x.TinDang.AnhTinDangs.Select(a =>
+                    Images = x.TinDang.AnhTinDangs.Select(a => // <-- Bỏ .ToList()
                         a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                             ? a.DuongDan
                             : $"http://localhost:5133{a.DuongDan}"
-    ).ToList(),
+                    ), // EF Core sẽ tự động chuyển cái này thành danh sách
+
                     x.TinDang.TieuDe,
                     x.TinDang.Gia,
                     x.TinDang.DiaChi,
                     QuanHuyen = x.TinDang.QuanHuyen != null ? x.TinDang.QuanHuyen.TenQuanHuyen : null,
                     TinhThanh = x.TinDang.TinhThanh != null ? x.TinDang.TinhThanh.TenTinhThanh : null,
-                    SavedCount = _context.TinDangYeuThichs.Count(y => y.MaTinDang == x.TinDang.MaTinDang) // Thêm dòng này
+
+                    // Sửa lại SavedCount để dùng navigation property
+                    SavedCount = x.TinDang.TinDangYeuThichs.Count()
                 })
                 .ToListAsync();
 

@@ -25,11 +25,15 @@ namespace UniMarket.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IHubContext<SocialChatHub> _socialHubContext;
+        private readonly IHubContext<VideoHub> _videoHubContext;
 
-        public SocialShareController(ApplicationDbContext context, IHubContext<SocialChatHub> socialHubContext)
+        public SocialShareController(ApplicationDbContext context,
+                                     IHubContext<SocialChatHub> socialHubContext,
+                                     IHubContext<VideoHub> videoHubContext)
         {
             _context = context;
             _socialHubContext = socialHubContext;
+            _videoHubContext = videoHubContext;
         }
 
         // File: UniMarket/Controllers/SocialShareController.cs
@@ -49,7 +53,7 @@ namespace UniMarket.Controllers
                 return BadRequest(new { message = "Chat bán hàng không hỗ trợ tính năng này." });
 
             var createdResults = new List<object>();
-            var skippedResults = new List<string>(); // ✨ [MỚI] Theo dõi người bị chặn hoặc lỗi
+            var skippedResults = new List<string>(); // ✨ Theo dõi người bị chặn hoặc lỗi
 
             var senderInfo = await _context.Users
                 .AsNoTracking()
@@ -237,12 +241,26 @@ namespace UniMarket.Controllers
                 catch (Exception ex)
                 {
                     Console.WriteLine($"❌ Lỗi gửi share tới {targetId}: {ex}");
-                    skippedResults.Add(targetId); // ✨ thêm người bị lỗi
+                    skippedResults.Add(targetId);
                 }
             }
 
+            // ✅✅ BƯỚC 4: THÊM LOGIC GỬI REAL-TIME (ĐẶT BÊN NGOÀI VÒNG LOOP)
+            if (req.TinDangId.HasValue && createdResults.Count > 0)
+            {
+                var tinDangId = req.TinDangId.Value;
+
+                // Đếm tổng số lượt share cho tin đăng này
+                var totalShares = await _context.Shares
+                    .CountAsync(s => s.TinDangId == tinDangId);
+
+                // Gửi cập nhật real-time
+                await _videoHubContext.Clients.Group(tinDangId.ToString())
+                    .SendAsync("UpdateShareCount", tinDangId, totalShares);
+            }
+
             // ==========================================================
-            // 7️⃣ Trả về kết quả (ĐÃ CẢI TIẾN)
+            // 7️⃣ Trả về kết quả
             // ==========================================================
             var totalAttempted = req.TargetUserIds.Distinct().Count();
 
@@ -250,7 +268,6 @@ namespace UniMarket.Controllers
             {
                 if (skippedResults.Count == totalAttempted)
                 {
-                    // Tất cả bị chặn hoặc lỗi người dùng
                     return BadRequest(new
                     {
                         message = "Không thể gửi: Bạn đã chặn người dùng này hoặc bị người dùng này chặn."
@@ -258,7 +275,6 @@ namespace UniMarket.Controllers
                 }
                 else
                 {
-                    // Lỗi hệ thống
                     return StatusCode(500, new
                     {
                         message = "Không thể gửi tin nhắn cho bất kỳ ai do lỗi hệ thống."
@@ -270,9 +286,10 @@ namespace UniMarket.Controllers
             {
                 success = true,
                 created = createdResults,
-                skipped = skippedResults // ✨ thêm danh sách bị bỏ qua (tuỳ chọn)
+                skipped = skippedResults // ✨ thêm danh sách bị bỏ qua
             });
         }
+
 
 
 
@@ -283,24 +300,41 @@ namespace UniMarket.Controllers
         [HttpGet("friends/list")]
         public async Task<IActionResult> GetFriendsList()
         {
-            // ... (Code của bạn ở đây giữ nguyên, không có lỗi) ...
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null) return Unauthorized();
 
+            // ----- BẮT ĐẦU TỐI ƯU -----
+
+            // 1. Tạo một IQueryable (chưa thực thi) để lấy ID của những người BẠN ĐANG FOLLOW
+            var followingIds = _context.Follows
+                .Where(f => f.FollowerId == userId)
+                .Select(f => f.FollowingId);
+
+            // 2. Tạo một IQueryable (chưa thực thi) để lấy ID của những người ĐANG FOLLOW BẠN
+            var followerIds = _context.Follows
+                .Where(f => f.FollowingId == userId)
+                .Select(f => f.FollowerId);
+
+            // 3. Tạo một IQueryable gộp 2 danh sách ID ở trên
+            var allFriendIds = followingIds.Union(followerIds);
+
+            // 4. Query chính:
+            // EF Core sẽ tự động biên dịch tất cả các IQueryable trên thành MỘT SQL
             var friends = await _context.Users
-                .Where(u =>
-                    _context.Follows.Any(f => f.FollowerId == userId && f.FollowingId == u.Id) ||
-                    _context.Follows.Any(f => f.FollowerId == u.Id && f.FollowingId == userId)
-                )
+                .AsNoTracking() // Rất quan trọng: Tăng tốc độ đọc
+                .Where(u => allFriendIds.Contains(u.Id)) // Chỉ lấy User có ID trong danh sách gộp
                 .Select(u => new
                 {
                     u.Id,
                     u.FullName,
                     u.AvatarUrl,
-                    IsFollowing = _context.Follows.Any(f => f.FollowerId == userId && f.FollowingId == u.Id),
-                    IsFollower = _context.Follows.Any(f => f.FollowerId == u.Id && f.FollowingId == userId)
+                    // EF Core sẽ tự dịch các .Contains() này thành SQL JOINs hoặc EXISTS
+                    IsFollowing = followingIds.Contains(u.Id),
+                    IsFollower = followerIds.Contains(u.Id)
                 })
                 .ToListAsync();
+
+            // ----- KẾT THÚC TỐI ƯU -----
 
             return Ok(friends);
         }
