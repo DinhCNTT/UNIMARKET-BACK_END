@@ -139,7 +139,7 @@ namespace UniMarket.Controllers
                     c.MaTinDang,
                     TinNhanCuoi = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
-                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                        .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId))
                         .OrderByDescending(t => t.ThoiGianGui)
                         .Select(t => new
                         {
@@ -153,7 +153,7 @@ namespace UniMarket.Controllers
                         .FirstOrDefault(),
                     ThoiGianCapNhat = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
-                        .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                        .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId))
                         .Max(t => (DateTime?)t.ThoiGianGui) ?? c.ThoiGianTao,
                     MaNguoiConLai = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
@@ -169,7 +169,7 @@ namespace UniMarket.Controllers
                     IsSeller = c.MaNguoiBan == userId,
                     HasUnreadMessages = _context.TinNhans
                         .Any(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen && t.MaNguoiGui != userId && !t.DaXem &&
-                             !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId)),
+                             !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId)),
                     UserChatState = _context.UserChatStates
                         .Where(ucs => ucs.UserId == userId && ucs.ChatId == c.MaCuocTroChuyen)
                         .Select(ucs => new { ucs.IsHidden, ucs.IsDeleted })
@@ -180,27 +180,54 @@ namespace UniMarket.Controllers
                 })
                 .Where(c => !c.IsSeller || (c.IsSeller && !c.IsEmpty))
                 .ToListAsync();
+            // Load any hidden conversation records for this user so we can apply the
+            // ThoiGianAn cutoff to previews (so old messages don't reappear in the list).
+            var hiddenList = await _context.UserHiddenConversations
+                .Where(h => h.UserId == userId)
+                .ToListAsync();
 
-            var result = userChats.Select(c => new
+            var result = userChats.Select(c =>
             {
-                c.MaCuocTroChuyen,
-                c.ThoiGianTao,
-                c.ThoiGianCapNhat,
-                c.IsEmpty,
-                c.MaTinDang,
-                c.TinNhanCuoi,
-                c.MaNguoiConLai,
-                c.TenNguoiConLai,
-                c.TieuDeTinDang,
-                c.AnhDaiDienTinDang,
-                c.GiaTinDang,
-                c.IsSeller,
-                c.HasUnreadMessages,
-                IsHidden = c.UserChatState?.IsHidden ?? false,
-                IsDeleted = c.UserChatState?.IsDeleted ?? false,
-                c.IsPostDeleted,
-                c.IsBlocked,
-                c.MaNguoiChan
+                var hidden = hiddenList.FirstOrDefault(h => h.MaCuocTroChuyen == c.MaCuocTroChuyen);
+                var hasHidden = hidden != null;
+
+                // If hidden exists, always apply the ThoiGianAn cutoff to previews so
+                // messages older than the hide time are not shown to the user. This
+                // prevents old messages from reappearing after a new message arrives.
+                var thoiGianCapNhat = c.ThoiGianCapNhat;
+                var tinNhanCuoi = c.TinNhanCuoi;
+
+                if (hasHidden)
+                {
+                    var cutoff = hidden.ThoiGianAn;
+                    if (c.ThoiGianCapNhat < cutoff)
+                    {
+                        tinNhanCuoi = null;
+                        thoiGianCapNhat = c.ThoiGianTao;
+                    }
+                }
+
+                return new
+                {
+                    c.MaCuocTroChuyen,
+                    c.ThoiGianTao,
+                    ThoiGianCapNhat = thoiGianCapNhat,
+                    c.IsEmpty,
+                    c.MaTinDang,
+                    TinNhanCuoi = tinNhanCuoi,
+                    c.MaNguoiConLai,
+                    c.TenNguoiConLai,
+                    c.TieuDeTinDang,
+                    c.AnhDaiDienTinDang,
+                    c.GiaTinDang,
+                    c.IsSeller,
+                    c.HasUnreadMessages,
+                    IsHidden = c.UserChatState?.IsHidden ?? false,
+                    IsDeleted = c.UserChatState?.IsDeleted ?? false,
+                    c.IsPostDeleted,
+                    c.IsBlocked,
+                    c.MaNguoiChan
+                };
             }).ToList();
 
             return Ok(result);
@@ -211,9 +238,27 @@ namespace UniMarket.Controllers
         {
             try
             {
-                var messages = await _context.TinNhans
-                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == userId))
+                // Respect UserHiddenConversation: if user has hidden/deleted this conversation
+                // and it has NOT reappeared, do not return messages sent before ThoiGianAn.
+                var hidden = await _context.UserHiddenConversations
+                    .FirstOrDefaultAsync(h => h.UserId == userId && h.MaCuocTroChuyen == maCuocTroChuyen);
+
+                var query = _context.TinNhans
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen);
+
+                // Exclude messages that the user previously deleted per-message
+                query = query.Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId));
+
+                if (hidden != null)
+                {
+                    // If hidden exists, always filter out messages older than the hide time.
+                    // This ensures messages that existed at deletion time stay hidden even
+                    // after the conversation receives new messages.
+                    var cutoff = hidden.ThoiGianAn;
+                    query = query.Where(t => t.ThoiGianGui >= cutoff);
+                }
+
+                var messages = await query
                     .OrderBy(t => t.ThoiGianGui)
                     .Select(t => new
                     {
@@ -715,17 +760,18 @@ namespace UniMarket.Controllers
             if (tinNhan == null)
                 return NotFound("Tin nhắn không tồn tại.");
 
-            var daXoa = await _context.TinNhanDaXoas
-                .AnyAsync(x => x.TinNhanId == maTinNhan && x.UserId == userId);
+            var daXoa = await _context.TinNhanXoas
+                .AnyAsync(x => x.MaTinNhan == maTinNhan && x.UserId == userId);
             if (daXoa)
                 return Ok(new { message = "Tin nhắn đã được xóa trước đó." });
 
-            var tinNhanDaXoa = new TinNhanDaXoa
+            var tinNhanXoa = new TinNhanXoa
             {
-                TinNhanId = maTinNhan,
-                UserId = userId
+                MaTinNhan = maTinNhan,
+                UserId = userId,
+                ThoiGianXoa = DateTime.UtcNow
             };
-            _context.TinNhanDaXoas.Add(tinNhanDaXoa);
+            _context.TinNhanXoas.Add(tinNhanXoa);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Đã xóa tin nhắn khỏi phía bạn." });
@@ -736,32 +782,58 @@ namespace UniMarket.Controllers
         {
             if (string.IsNullOrEmpty(userId))
                 return BadRequest("UserId không được để trống.");
-
-            var tinNhanIds = await _context.TinNhans
-                .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                .Select(t => t.MaTinNhan)
-                .ToListAsync();
-
-            var daXoaIds = await _context.TinNhanDaXoas
-                .Where(x => x.UserId == userId && tinNhanIds.Contains(x.TinNhanId))
-                .Select(x => x.TinNhanId)
-                .ToListAsync();
-
-            var chuaXoaIds = tinNhanIds.Except(daXoaIds).ToList();
-
-            var tinNhanDaXoaList = chuaXoaIds.Select(id => new TinNhanDaXoa
+            try
             {
-                TinNhanId = id,
-                UserId = userId
-            }).ToList();
+                // Ghi trạng thái xóa cuộc trò chuyện vào bảng UserHiddenConversations
+                // để phân biệt rõ: Tin nhắn xóa từng cái -> TinNhanXoas;
+                // xóa toàn bộ cuộc trò chuyện -> UserHiddenConversations (IsDeleted = true)
 
-            if (tinNhanDaXoaList.Count > 0)
-            {
-                _context.TinNhanDaXoas.AddRange(tinNhanDaXoaList);
+                var existing = await _context.UserHiddenConversations
+                    .FirstOrDefaultAsync(u => u.UserId == userId && u.MaCuocTroChuyen == maCuocTroChuyen);
+
+                if (existing != null)
+                {
+                    existing.IsDeleted = true;
+                    existing.ThoiGianAn = DateTime.UtcNow;
+                    existing.HasReappeared = false;
+                    _context.UserHiddenConversations.Update(existing);
+                }
+                else
+                {
+                    var hidden = new UserHiddenConversation
+                    {
+                        UserId = userId,
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        ThoiGianAn = DateTime.UtcNow,
+                        HasReappeared = false,
+                        IsDeleted = true
+                    };
+                    _context.UserHiddenConversations.Add(hidden);
+                }
+
+                // Nếu có bất kỳ state cũ trong UserChatStates, xóa/đặt lại để tránh mâu thuẫn
+                var oldStates = _context.UserChatStates.Where(ucs => ucs.UserId == userId && ucs.ChatId == maCuocTroChuyen);
+                _context.UserChatStates.RemoveRange(oldStates);
+
                 await _context.SaveChangesAsync();
-            }
 
-            return Ok(new { message = "Đã xóa toàn bộ tin nhắn khỏi phía bạn." });
+                // Return the saved/updated hidden record's timestamp so clients can use server time
+                var savedHidden = await _context.UserHiddenConversations
+                    .Where(u => u.UserId == userId && u.MaCuocTroChuyen == maCuocTroChuyen)
+                    .Select(u => new
+                    {
+                        u.UserId,
+                        u.MaCuocTroChuyen,
+                        ThoiGianAn = u.ThoiGianAn
+                    })
+                    .FirstOrDefaultAsync();
+
+                return Ok(new { message = "Đã xóa cuộc trò chuyện khỏi phía bạn.", hidden = savedHidden });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi xóa cuộc trò chuyện", error = ex.Message });
+            }
         }
         // Thêm các API endpoints này vào ChatController.cs
 
@@ -770,7 +842,8 @@ namespace UniMarket.Controllers
         {
             try
             {
-                var chatStates = await _context.UserChatStates
+                // Lấy tất cả trạng thái từ UserChatStates
+                var states = await _context.UserChatStates
                     .Where(ucs => ucs.UserId == userId)
                     .Select(ucs => new UserChatStateResponse
                     {
@@ -781,7 +854,44 @@ namespace UniMarket.Controllers
                     })
                     .ToListAsync();
 
-                return Ok(chatStates);
+                // Lấy các bản ghi trong UserHiddenConversations (archive/delete) và merge/override
+                var hidden = await _context.UserHiddenConversations
+                    .Where(h => h.UserId == userId)
+                    .ToListAsync();
+
+                // Convert existing list to dictionary for quick override
+                var dict = states.ToDictionary(s => s.ChatId, s => s);
+
+                foreach (var h in hidden)
+                {
+                    var chatId = h.MaCuocTroChuyen;
+                    // If HasReappeared == true, treat the conversation as visible (not hidden / not deleted)
+                    var hasReappeared = h.HasReappeared;
+                    var isDeleted = h.IsDeleted && !hasReappeared;
+                    var isHidden = !h.IsDeleted && !hasReappeared; // nếu không phải delete thì là hidden (archive), unless it has reappeared
+                    var updatedAt = (DateTime?)h.ThoiGianAn;
+
+                    if (dict.ContainsKey(chatId))
+                    {
+                        // override existing state
+                        dict[chatId].IsHidden = isHidden;
+                        dict[chatId].IsDeleted = isDeleted;
+                        dict[chatId].UpdatedAt = updatedAt;
+                    }
+                    else
+                    {
+                        dict[chatId] = new UserChatStateResponse
+                        {
+                            ChatId = chatId,
+                            IsHidden = isHidden,
+                            IsDeleted = isDeleted,
+                            UpdatedAt = updatedAt
+                        };
+                    }
+                }
+
+                var result = dict.Values.ToList();
+                return Ok(result);
             }
             catch (Exception ex)
             {

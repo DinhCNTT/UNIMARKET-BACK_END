@@ -17,5 +17,7 @@ namespace UniMarket.Models
 
 
         public bool HasReappeared { get; set; } = false;
+        // Flag để phân biệt giữa ẩn và xóa
+        public bool IsDeleted { get; set; } = false;
     }
 }
