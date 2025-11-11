@@ -11,51 +11,30 @@ namespace UniMarket.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "TinNhanDaXoas");
+            // Drop table only if it exists to make migration idempotent
+            migrationBuilder.Sql("IF OBJECT_ID(N'[dbo].[TinNhanDaXoas]','U') IS NOT NULL DROP TABLE [dbo].[TinNhanDaXoas];");
 
-            migrationBuilder.AddColumn<bool>(
-                name: "IsDeleted",
-                table: "UserHiddenConversations",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+            // Add IsDeleted column only if it does not already exist to avoid duplicate column errors
+            migrationBuilder.Sql(
+                "IF COL_LENGTH('dbo.UserHiddenConversations','IsDeleted') IS NULL ALTER TABLE [UserHiddenConversations] ADD [IsDeleted] bit NOT NULL DEFAULT CAST(0 AS bit);");
 
-            migrationBuilder.CreateTable(
-                name: "TinNhanXoas",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    MaTinNhan = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    ThoiGianXoa = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false, defaultValueSql: "GETUTCDATE()")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TinNhanXoas", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_TinNhanXoas_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_TinNhanXoas_TinNhans_MaTinNhan",
-                        column: x => x.MaTinNhan,
-                        principalTable: "TinNhans",
-                        principalColumn: "MaTinNhan");
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TinNhanXoa_UserId_MaTinNhan",
-                table: "TinNhanXoas",
-                columns: new[] { "UserId", "MaTinNhan" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TinNhanXoas_MaTinNhan",
-                table: "TinNhanXoas",
-                column: "MaTinNhan");
+            // Create TinNhanXoas only if it does not already exist (make migration idempotent)
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[TinNhanXoas]','U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TinNhanXoas](
+        [Id] int NOT NULL IDENTITY(1,1),
+        [MaTinNhan] int NOT NULL,
+        [UserId] nvarchar(450) NOT NULL,
+        [ThoiGianXoa] datetimeoffset NOT NULL DEFAULT (GETUTCDATE()),
+        CONSTRAINT [PK_TinNhanXoas] PRIMARY KEY ([Id])
+    );
+    ALTER TABLE [dbo].[TinNhanXoas] ADD CONSTRAINT [FK_TinNhanXoas_AspNetUsers_UserId] FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers]([Id]);
+    ALTER TABLE [dbo].[TinNhanXoas] ADD CONSTRAINT [FK_TinNhanXoas_TinNhans_MaTinNhan] FOREIGN KEY ([MaTinNhan]) REFERENCES [dbo].[TinNhans]([MaTinNhan]);
+    CREATE UNIQUE INDEX [IX_TinNhanXoa_UserId_MaTinNhan] ON [dbo].[TinNhanXoas]([UserId],[MaTinNhan]);
+    CREATE INDEX [IX_TinNhanXoas_MaTinNhan] ON [dbo].[TinNhanXoas]([MaTinNhan]);
+END
+");
         }
 
         /// <inheritdoc />

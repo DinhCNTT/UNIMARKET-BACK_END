@@ -779,6 +779,22 @@ namespace UniMarket.Controllers
             _context.TinNhanXoas.Add(tinNhanXoa);
             await _context.SaveChangesAsync();
 
+            // 📡 Emit realtime event to conversation group
+            try
+            {
+                var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
+                await _hubContext.Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaXoa", new
+                {
+                    maTinNhan = maTinNhan,
+                    userId = userId,
+                    thoiGianXoa = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error sending SignalR event: {ex.Message}");
+            }
+
             return Ok(new { message = "Đã xóa tin nhắn khỏi phía bạn." });
         }
 
