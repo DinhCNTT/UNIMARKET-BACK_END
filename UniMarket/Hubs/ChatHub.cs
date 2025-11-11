@@ -215,6 +215,19 @@ namespace UniMarket.Hubs
                         receiverChatState.IsDeleted = false;
                         // ❌ KHÔNG reset IsHidden cho người nhận
                     }
+                    // ✅ MIMIC Social: nếu có entry trong UserHiddenConversations -> đánh dấu HasReappeared = true
+                    var senderHidden = await _context.UserHiddenConversations
+                        .FirstOrDefaultAsync(h => h.UserId == maNguoiGui && h.MaCuocTroChuyen == maCuocTroChuyen);
+                    if (senderHidden != null)
+                        senderHidden.HasReappeared = true;
+
+                    if (otherUserInfo != null)
+                    {
+                        var receiverHidden = await _context.UserHiddenConversations
+                            .FirstOrDefaultAsync(h => h.UserId == otherUserInfo.MaNguoiDung && h.MaCuocTroChuyen == maCuocTroChuyen);
+                        if (receiverHidden != null)
+                            receiverHidden.HasReappeared = true;
+                    }
 
                     await _context.SaveChangesAsync();
 
@@ -549,7 +562,7 @@ namespace UniMarket.Hubs
             {
                 var tinNhanCuoi = await _context.TinNhans
                     .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                    .Where(t => !_context.TinNhanDaXoas.Any(x => x.TinNhanId == t.MaTinNhan && x.UserId == nguoiThamGia.MaNguoiDung))
+                    .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == nguoiThamGia.MaNguoiDung))
                     .OrderByDescending(t => t.ThoiGianGui)
                     .Select(t => new
                     {
