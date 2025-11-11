@@ -25,7 +25,7 @@ namespace UniMarket.DataAccess
 
         public DbSet<CuocTroChuyen> CuocTroChuyens { get; set; }
         public DbSet<TinNhan> TinNhans { get; set; }
-        public DbSet<TinNhanDaXoa> TinNhanDaXoas { get; set; }
+        public DbSet<TinNhanXoa> TinNhanXoas { get; set; }
         public DbSet<NguoiThamGia> NguoiThamGias { get; set; }
         public DbSet<BlockedUser> BlockedUsers { get; set; }
 
@@ -180,6 +180,33 @@ namespace UniMarket.DataAccess
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
                 entity.Property(e => e.ChatId).IsRequired();
+            });
+            // Cấu hình cho các trường decimal
+            modelBuilder.Entity<CuocTroChuyen>()
+                .Property(c => c.GiaTinDang)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<TinDang>()
+                .Property(t => t.Gia)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<TinNhanXoa>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.UserId, e.MaTinNhan })
+                      .IsUnique()
+                      .HasDatabaseName("IX_TinNhanXoa_UserId_MaTinNhan");
+                entity.HasOne(e => e.TinNhan)
+                      .WithMany(t => t.MessageDeletions)
+                      .HasForeignKey(e => e.MaTinNhan)
+                      .OnDelete(DeleteBehavior.NoAction);
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.NoAction);
+                entity.Property(e => e.ThoiGianXoa)
+                      .IsRequired()
+                      .HasDefaultValueSql("GETUTCDATE()");
             });
 
             modelBuilder.Entity<Follow>(entity =>
