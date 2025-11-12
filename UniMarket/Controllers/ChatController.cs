@@ -779,14 +779,16 @@ namespace UniMarket.Controllers
             _context.TinNhanXoas.Add(tinNhanXoa);
             await _context.SaveChangesAsync();
 
-            // 📡 Emit realtime event to conversation group
+            // 📡 Emit realtime event ONLY to the user who deleted (not to entire group)
             try
             {
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-                await _hubContext.Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaXoa", new
+                // Emit to user's personal group only - so only that user's frontend updates
+                await _hubContext.Clients.Group($"user-{userId}").SendAsync("TinNhanDaXoa", new
                 {
                     maTinNhan = maTinNhan,
                     userId = userId,
+                    maCuocTroChuyen = maCuocTroChuyen,
                     thoiGianXoa = DateTime.UtcNow
                 });
             }
@@ -795,7 +797,27 @@ namespace UniMarket.Controllers
                 Console.WriteLine($"Error sending SignalR event: {ex.Message}");
             }
 
-            return Ok(new { message = "Đã xóa tin nhắn khỏi phía bạn." });
+            // Lấy tin nhắn mới nhất còn lại trong cuộc trò chuyện (cho user này)
+            var lastMessage = await _context.TinNhans
+                .Where(t => t.MaCuocTroChuyen == tinNhan.MaCuocTroChuyen
+                    && !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId))
+                .OrderByDescending(t => t.MaTinNhan)
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                message = "Đã xóa tin nhắn khỏi phía bạn.",
+                lastMessage = lastMessage != null ? new
+                {
+                    maTinNhan = lastMessage.MaTinNhan,
+                    noiDung = lastMessage.NoiDung?.Length > 100
+                        ? lastMessage.NoiDung.Substring(0, 100) + "..."
+                        : lastMessage.NoiDung,
+                    loaiTinNhan = lastMessage.Loai.ToString(),
+                    maNguoiGui = lastMessage.MaNguoiGui,
+                    thoiGian = lastMessage.ThoiGianGui
+                } : null
+            });
         }
 
         [HttpDelete("delete-conversation-for-me/{maCuocTroChuyen}")]
