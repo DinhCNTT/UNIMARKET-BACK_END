@@ -345,12 +345,14 @@ namespace UniMarket.Controllers
         [HttpGet("social/user/{userId}")]
         public async Task<IActionResult> GetSocialConversations(string userId)
         {
-            // 🔹 Xác thực quyền xem chính mình
+            // =========================================================
+            // 🔐 Xác thực quyền truy cập
+            // =========================================================
             var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != currentUserId)
                 return Unauthorized(new { message = "Không được phép truy cập dữ liệu của người khác" });
 
-            // 🔹 Kiểm tra người dùng tồn tại
+            // 🔹 Kiểm tra user có tồn tại không
             if (!await _context.Users.AnyAsync(u => u.Id == userId))
                 return NotFound(new { message = "Người dùng không tồn tại" });
 
@@ -367,7 +369,13 @@ namespace UniMarket.Controllers
                     c.IsBlocked,
                     c.MaNguoiChan,
 
-                    // ✅ Tin nhắn cuối cùng
+                    // ✨ [NEW] Trạng thái Mute của user hiện tại
+                    IsMuted = c.NguoiThamGias
+                                .Where(n => n.MaNguoiDung == userId)
+                                .Select(n => n.IsMuted)
+                                .FirstOrDefault(),
+
+                    // Tin nhắn cuối
                     LastMessage = c.TinNhans
                         .OrderByDescending(t => t.ThoiGianGui)
                         .Select(t => new
@@ -384,7 +392,7 @@ namespace UniMarket.Controllers
                         })
                         .FirstOrDefault(),
 
-                    // ✅ Người tham gia còn lại (Partner)
+                    // Partner
                     Partner = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
                         .Select(n => new
@@ -395,10 +403,10 @@ namespace UniMarket.Controllers
                         })
                         .FirstOrDefault(),
 
-                    // ✅ Đếm số tin chưa đọc
+                    // Chưa đọc
                     UnreadCount = c.TinNhans.Count(m => m.MaNguoiGui != userId && !m.DaXem),
 
-                    // ✅ Kiểm tra ẩn tin nhắn (đã gộp logic “chưa hiện lại”)
+                    // Ẩn tin nhắn
                     IsHidden = _context.UserHiddenConversations
                         .Any(h => h.UserId == userId &&
                                   h.MaCuocTroChuyen == c.MaCuocTroChuyen &&
@@ -410,7 +418,7 @@ namespace UniMarket.Controllers
                 .ToListAsync();
 
             // =========================================================
-            // 📎 Lấy danh sách ShareId để xác định loại nội dung
+            // 📎 Lấy danh sách ShareId từ tin nhắn
             // =========================================================
             var shareIds = conversations
                 .Select(c =>
@@ -424,7 +432,7 @@ namespace UniMarket.Controllers
                 .Distinct()
                 .ToList();
 
-            // ✅ Truy vấn share info 1 lần để giảm số query DB
+            // Lấy thông tin share 1 lần
             var sharesInfo = shareIds.Any()
                 ? await _context.Shares
                     .Where(s => shareIds.Contains(s.ShareId))
@@ -432,7 +440,7 @@ namespace UniMarket.Controllers
                 : new Dictionary<int, ShareTargetType>();
 
             // =========================================================
-            // ✨ Chuẩn hóa dữ liệu trả về
+            // ✨ Chuẩn hóa dữ liệu trả về (format)
             // =========================================================
             var result = conversations.Select(c =>
             {
@@ -446,7 +454,7 @@ namespace UniMarket.Controllers
                     messageType = UrlHelpers.IsVideoUrl(lastMessage.MediaUrl) ? "video" : "image";
                     displayText = messageType == "video" ? "đã gửi 1 video" : "đã gửi 1 ảnh";
                 }
-                // 🔗 Nếu là Share
+                // 🔗 Nếu là share dạng [ShareId:xxx]
                 else if (displayText.StartsWith("[ShareId:"))
                 {
                     var match = Regex.Match(displayText, @"\[ShareId:(\d+)\]");
@@ -461,13 +469,14 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // 🚀 Trả về object cho FE
                 return new
                 {
                     c.MaCuocTroChuyen,
                     c.ThoiGianTao,
                     c.IsBlocked,
                     c.MaNguoiChan,
+                    c.IsMuted, // ✨ NEW
+
                     LastMessage = new
                     {
                         NoiDung = displayText,
@@ -477,6 +486,7 @@ namespace UniMarket.Controllers
                         LoaiTinNhan = messageType,
                         lastMessage.Sender
                     },
+
                     c.Partner,
                     c.UnreadCount
                 };
@@ -484,6 +494,67 @@ namespace UniMarket.Controllers
 
             return Ok(result);
         }
+
+        // =========================================================
+        // ✨ [MỚI] API TẮT/BẬT THÔNG BÁO
+        // =========================================================
+
+        // Helper gửi Realtime (chỉ gửi cho user thực hiện)
+        private async Task NotifyMuteStatusChanged(string userId, string maCuocTroChuyen, bool isMuted)
+        {
+            var payload = new
+            {
+                maCuocTroChuyen = maCuocTroChuyen,
+                isMuted = isMuted
+            };
+            await _socialHubContext.Clients.User(userId)
+                .SendAsync("MuteStatusChanged", payload);
+        }
+
+        [Authorize]
+        [HttpPost("conversation/{maCuocTroChuyen}/mute")]
+        public async Task<IActionResult> MuteConversation(string maCuocTroChuyen)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var participant = await _context.NguoiThamGiaSocials
+                .FirstOrDefaultAsync(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung == userId);
+
+            if (participant == null) return NotFound();
+            if (participant.IsMuted) return BadRequest(new { message = "Cuộc trò chuyện đã được tắt thông báo." });
+
+            participant.IsMuted = true;
+            await _context.SaveChangesAsync();
+
+            // Gửi sự kiện Real-time
+            await NotifyMuteStatusChanged(userId, maCuocTroChuyen, true);
+
+            return Ok(new { message = "Đã tắt thông báo." });
+        }
+
+        [Authorize]
+        [HttpPost("conversation/{maCuocTroChuyen}/unmute")]
+        public async Task<IActionResult> UnmuteConversation(string maCuocTroChuyen)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var participant = await _context.NguoiThamGiaSocials
+                .FirstOrDefaultAsync(n => n.MaCuocTroChuyen == maCuocTroChuyen && n.MaNguoiDung == userId);
+
+            if (participant == null) return NotFound();
+            if (!participant.IsMuted) return BadRequest(new { message = "Cuộc trò chuyện đang bật thông báo." });
+
+            participant.IsMuted = false;
+            await _context.SaveChangesAsync();
+
+            // Gửi sự kiện Real-time
+            await NotifyMuteStatusChanged(userId, maCuocTroChuyen, false);
+
+            return Ok(new { message = "Đã bật lại thông báo." });
+        }
+
 
         // =========================================================
         // ✨ [MỚI] API CHẶN VÀ GỠ CHẶN

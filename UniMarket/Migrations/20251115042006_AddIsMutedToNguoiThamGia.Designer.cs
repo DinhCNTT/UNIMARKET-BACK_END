@@ -12,8 +12,8 @@ using UniMarket.DataAccess;
 namespace UniMarket.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250904071948_UpdateVideoView4-9")]
-    partial class UpdateVideoView49
+    [Migration("20251115042006_AddIsMutedToNguoiThamGia")]
+    partial class AddIsMutedToNguoiThamGia
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -166,8 +166,8 @@ namespace UniMarket.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Keyword")
                         .IsRequired()
@@ -181,28 +181,6 @@ namespace UniMarket.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("SearchHistories");
-                });
-
-            modelBuilder.Entity("TinNhanDaXoa", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("TinNhanId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TinNhanId");
-
-                    b.ToTable("TinNhanDaXoas");
                 });
 
             modelBuilder.Entity("UniMarket.Models.AnhTinDang", b =>
@@ -251,8 +229,8 @@ namespace UniMarket.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("CodeGeneratedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset?>("CodeGeneratedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -271,6 +249,12 @@ namespace UniMarket.Migrations
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsOnline")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LastOnlineTime")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
@@ -330,8 +314,8 @@ namespace UniMarket.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("BlockedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("BlockedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("BlockedId")
                         .IsRequired()
@@ -363,6 +347,13 @@ namespace UniMarket.Migrations
                     b.Property<bool>("IsEmpty")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPostDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MaNguoiBan")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("MaNguoiChan")
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
@@ -370,8 +361,8 @@ namespace UniMarket.Migrations
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("ThoiGianTao")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("ThoiGianTao")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("TieuDeTinDang")
                         .HasColumnType("nvarchar(max)");
@@ -379,6 +370,32 @@ namespace UniMarket.Migrations
                     b.HasKey("MaCuocTroChuyen");
 
                     b.ToTable("CuocTroChuyens");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.CuocTroChuyenSocial", b =>
+                {
+                    b.Property<string>("MaCuocTroChuyen")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEmpty")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MaNguoiChan")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset?>("NgayCapNhat")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ThoiGianTao")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("MaCuocTroChuyen");
+
+                    b.ToTable("CuocTroChuyenSocials");
                 });
 
             modelBuilder.Entity("UniMarket.Models.DanhMuc", b =>
@@ -428,6 +445,51 @@ namespace UniMarket.Migrations
                     b.ToTable("DanhMucChas");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.DeletedMessageForUser", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("TinNhanSocialId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("UserId", "TinNhanSocialId");
+
+                    b.HasIndex("TinNhanSocialId");
+
+                    b.ToTable("DeletedMessagesForUsers");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.Follow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("FollowedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FollowerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("FollowingId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FollowerId");
+
+                    b.HasIndex("FollowingId");
+
+                    b.ToTable("Follows");
+                });
+
             modelBuilder.Entity("UniMarket.Models.NguoiThamGia", b =>
                 {
                     b.Property<int>("MaThamGia")
@@ -456,6 +518,38 @@ namespace UniMarket.Migrations
                     b.ToTable("NguoiThamGias");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.NguoiThamGiaSocial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsOnline")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("LastSeen")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("MaCuocTroChuyen")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("MaNguoiDung")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaCuocTroChuyen");
+
+                    b.HasIndex("MaNguoiDung");
+
+                    b.ToTable("NguoiThamGiaSocials");
+                });
+
             modelBuilder.Entity("UniMarket.Models.QuanHuyen", b =>
                 {
                     b.Property<int>("MaQuanHuyen")
@@ -477,6 +571,101 @@ namespace UniMarket.Migrations
                     b.HasIndex("MaTinhThanh");
 
                     b.ToTable("QuanHuyens");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.QuickMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("QuickMessages");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.Share", b =>
+                {
+                    b.Property<int>("ShareId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ShareId"));
+
+                    b.Property<int>("DisplayMode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MaCuocTroChuyen")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Platform")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PreviewImage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviewTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PreviewVideo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ShareLink")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ShareType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("SharedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TinDangId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("ShareId");
+
+                    b.HasIndex("MaCuocTroChuyen");
+
+                    b.HasIndex("TinDangId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Shares");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinDang", b =>
@@ -514,11 +703,14 @@ namespace UniMarket.Migrations
                     b.Property<string>("MoTa")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("NgayCapNhat")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset?>("NgayCapNhat")
+                        .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTime>("NgayDang")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("NgayDang")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("NgayHenXoa")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("SoLuotXem")
                         .HasColumnType("int");
@@ -567,8 +759,8 @@ namespace UniMarket.Migrations
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("NgayTao")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("NgayTao")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("MaYeuThich");
 
@@ -588,6 +780,9 @@ namespace UniMarket.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaTinNhan"));
 
                     b.Property<bool>("DaXem")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRecalled")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsVisible")
@@ -611,11 +806,14 @@ namespace UniMarket.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("ThoiGianGui")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("ThoiGianGui")
+                        .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTime?>("ThoiGianXem")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset?>("ThoiGianThuHoi")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ThoiGianXem")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("MaTinNhan");
 
@@ -624,6 +822,82 @@ namespace UniMarket.Migrations
                     b.HasIndex("MaNguoiGui");
 
                     b.ToTable("TinNhans");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhanSocial", b =>
+                {
+                    b.Property<string>("MaTinNhan")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("DaXem")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsMuted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRecalled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MaCuocTroChuyen")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("MaNguoiGui")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("MediaUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NoiDung")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ParentMessageId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("ThoiGianGui")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("MaTinNhan");
+
+                    b.HasIndex("MaCuocTroChuyen");
+
+                    b.HasIndex("MaNguoiGui");
+
+                    b.HasIndex("ParentMessageId");
+
+                    b.ToTable("TinNhanSocials");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhanXoa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("MaTinNhan")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("ThoiGianXoa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetimeoffset")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaTinNhan");
+
+                    b.HasIndex("UserId", "MaTinNhan")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TinNhanXoa_UserId_MaTinNhan");
+
+                    b.ToTable("TinNhanXoas");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinhThanh", b =>
@@ -644,6 +918,85 @@ namespace UniMarket.Migrations
                     b.ToTable("TinhThanhs");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.UserActivity", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsOnline")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("LastActive")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserActivities");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.UserChatState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ChatId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatId");
+
+                    b.HasIndex("UserId", "ChatId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserChatState_UserId_ChatId");
+
+                    b.ToTable("UserChatStates");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.UserHiddenConversation", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("MaCuocTroChuyen")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("HasReappeared")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("ThoiGianAn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("UserId", "MaCuocTroChuyen");
+
+                    b.ToTable("UserHiddenConversations");
+                });
+
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
                 {
                     b.Property<int>("MaVideoSave")
@@ -659,8 +1012,8 @@ namespace UniMarket.Migrations
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("NgayLuu")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("NgayLuu")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("MaVideoSave");
 
@@ -684,8 +1037,8 @@ namespace UniMarket.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
@@ -716,8 +1069,8 @@ namespace UniMarket.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("MaTinDang")
                         .HasColumnType("int");
@@ -760,8 +1113,8 @@ namespace UniMarket.Migrations
                     b.Property<int>("RewatchCount")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(450)");
@@ -838,17 +1191,6 @@ namespace UniMarket.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TinNhanDaXoa", b =>
-                {
-                    b.HasOne("UniMarket.Models.TinNhan", "TinNhan")
-                        .WithMany("TinNhanDaXoas")
-                        .HasForeignKey("TinNhanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TinNhan");
-                });
-
             modelBuilder.Entity("UniMarket.Models.AnhTinDang", b =>
                 {
                     b.HasOne("UniMarket.Models.TinDang", "TinDang")
@@ -871,6 +1213,44 @@ namespace UniMarket.Migrations
                     b.Navigation("DanhMucCha");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.DeletedMessageForUser", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinNhanSocial", "TinNhanSocial")
+                        .WithMany("DeletedForUsers")
+                        .HasForeignKey("TinNhanSocialId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TinNhanSocial");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.Follow", b =>
+                {
+                    b.HasOne("UniMarket.Models.ApplicationUser", "Follower")
+                        .WithMany()
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "Following")
+                        .WithMany()
+                        .HasForeignKey("FollowingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Follower");
+
+                    b.Navigation("Following");
+                });
+
             modelBuilder.Entity("UniMarket.Models.NguoiThamGia", b =>
                 {
                     b.HasOne("UniMarket.Models.CuocTroChuyen", "CuocTroChuyen")
@@ -890,6 +1270,25 @@ namespace UniMarket.Migrations
                     b.Navigation("NguoiDung");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.NguoiThamGiaSocial", b =>
+                {
+                    b.HasOne("UniMarket.Models.CuocTroChuyenSocial", "CuocTroChuyenSocial")
+                        .WithMany("NguoiThamGias")
+                        .HasForeignKey("MaCuocTroChuyen")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("MaNguoiDung")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CuocTroChuyenSocial");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("UniMarket.Models.QuanHuyen", b =>
                 {
                     b.HasOne("UniMarket.Models.TinhThanh", "TinhThanh")
@@ -899,6 +1298,40 @@ namespace UniMarket.Migrations
                         .IsRequired();
 
                     b.Navigation("TinhThanh");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.QuickMessage", b =>
+                {
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.Share", b =>
+                {
+                    b.HasOne("UniMarket.Models.CuocTroChuyenSocial", "CuocTroChuyenSocial")
+                        .WithMany()
+                        .HasForeignKey("MaCuocTroChuyen");
+
+                    b.HasOne("UniMarket.Models.TinDang", "TinDang")
+                        .WithMany()
+                        .HasForeignKey("TinDangId");
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CuocTroChuyenSocial");
+
+                    b.Navigation("TinDang");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinDang", b =>
@@ -968,6 +1401,69 @@ namespace UniMarket.Migrations
                     b.Navigation("CuocTroChuyen");
 
                     b.Navigation("NguoiGui");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhanSocial", b =>
+                {
+                    b.HasOne("UniMarket.Models.CuocTroChuyenSocial", "CuocTroChuyenSocial")
+                        .WithMany("TinNhans")
+                        .HasForeignKey("MaCuocTroChuyen")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "Sender")
+                        .WithMany()
+                        .HasForeignKey("MaNguoiGui")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.TinNhanSocial", "ParentMessage")
+                        .WithMany()
+                        .HasForeignKey("ParentMessageId");
+
+                    b.Navigation("CuocTroChuyenSocial");
+
+                    b.Navigation("ParentMessage");
+
+                    b.Navigation("Sender");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhanXoa", b =>
+                {
+                    b.HasOne("UniMarket.Models.TinNhan", "TinNhan")
+                        .WithMany("MessageDeletions")
+                        .HasForeignKey("MaTinNhan")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("TinNhan");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.UserChatState", b =>
+                {
+                    b.HasOne("UniMarket.Models.CuocTroChuyen", "Chat")
+                        .WithMany()
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chat");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
@@ -1058,6 +1554,13 @@ namespace UniMarket.Migrations
                     b.Navigation("TinNhans");
                 });
 
+            modelBuilder.Entity("UniMarket.Models.CuocTroChuyenSocial", b =>
+                {
+                    b.Navigation("NguoiThamGias");
+
+                    b.Navigation("TinNhans");
+                });
+
             modelBuilder.Entity("UniMarket.Models.DanhMucCha", b =>
                 {
                     b.Navigation("DanhMucs");
@@ -1072,7 +1575,12 @@ namespace UniMarket.Migrations
 
             modelBuilder.Entity("UniMarket.Models.TinNhan", b =>
                 {
-                    b.Navigation("TinNhanDaXoas");
+                    b.Navigation("MessageDeletions");
+                });
+
+            modelBuilder.Entity("UniMarket.Models.TinNhanSocial", b =>
+                {
+                    b.Navigation("DeletedForUsers");
                 });
 
             modelBuilder.Entity("UniMarket.Models.TinhThanh", b =>
