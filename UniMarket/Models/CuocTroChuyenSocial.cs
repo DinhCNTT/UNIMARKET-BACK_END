@@ -84,6 +84,7 @@ namespace UniMarket.Models
 
         [ForeignKey("MaCuocTroChuyen")]
         public CuocTroChuyenSocial? CuocTroChuyenSocial { get; set; }
+        public bool IsMuted { get; set; } = false;
     }
 
     // Bảng này lưu trạng thái "xóa tin nhắn chỉ ở phía người dùng"
