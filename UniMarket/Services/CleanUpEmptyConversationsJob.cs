@@ -28,7 +28,7 @@ namespace UniMarket.Services
                     using var scope = _serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                    var cutoff = DateTime.UtcNow.AddMinutes(-3); // Chỉ xóa cuộc trò chuyện rỗng hơn 3 phút
+                    var cutoff = DateTime.UtcNow.AddMinutes(-10); // Chỉ xóa cuộc trò chuyện rỗng hơn 10 phút
 
                     var emptyChats = await context.CuocTroChuyens
                         .Where(c => c.IsEmpty && c.ThoiGianTao < cutoff)
@@ -47,7 +47,7 @@ namespace UniMarket.Services
 
                         await context.SaveChangesAsync();
 
-                        _logger.LogInformation("🧹 Đã xoá {count} cuộc trò chuyện rỗng hơn 3 phút", emptyChats.Count);
+                        _logger.LogInformation("🧹 Đã xoá {count} cuộc trò chuyện rỗng hơn 10 phút", emptyChats.Count);
                     }
                     else
                     {
