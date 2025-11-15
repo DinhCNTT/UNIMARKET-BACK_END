@@ -53,6 +53,7 @@ namespace UniMarket.DataAccess
         public DbSet<Share> Shares { get; set; }
         public DbSet<Follow> Follows { get; set; }
         public DbSet<UserHiddenConversation> UserHiddenConversations { get; set; }
+        public DbSet<QuickMessage> QuickMessages { get; set; }
 
         // ==========================================================
         // 🔧 CONFIGURATION

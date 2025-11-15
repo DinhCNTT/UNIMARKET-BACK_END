@@ -989,6 +989,66 @@ namespace UniMarket.Controllers
                 return StatusCode(500, new { message = "Lỗi khi cập nhật trạng thái chat", error = ex.Message });
             }
         }
+        // DÁN CODE NÀY VÀO BÊN TRONG ChatController.cs
+        [HttpGet("media/{maCuocTroChuyen}")]
+        public async Task<IActionResult> GetChatMedia(
+            string maCuocTroChuyen,
+            [FromQuery] string userId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 12) // Sidebar chỉ cần 12 cái
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId không được để trống.");
+
+            try
+            {
+                // 1. LẤY MỐC THỜI GIAN XÓA (ThoiGianAn)
+                // Logic này y hệt GetChatHistory để đảm bảo yêu cầu của bạn
+                var hidden = await _context.UserHiddenConversations
+                    .FirstOrDefaultAsync(h => h.UserId == userId && h.MaCuocTroChuyen == maCuocTroChuyen);
+                var cutoff = hidden?.ThoiGianAn;
+
+                // 2. BẮT ĐẦU QUERY
+                var mediaQuery = _context.TinNhans
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                    // Lọc các tin đã bị thu hồi
+                    .Where(t => !t.IsRecalled) 
+                    // Lọc các tin đã bị xóa "Delete for me"
+                    .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId))
+                    // Lọc chỉ Ảnh và Video
+                    .Where(t => t.Loai == LoaiTinNhan.Image || t.Loai == LoaiTinNhan.Video);
+
+                // 3. ÁP DỤNG MỐC THỜI GIAN XÓA (QUAN TRỌNG)
+                // Chỉ lấy media được gửi SAU mốc thời gian này
+                if (cutoff != null)
+                {
+                    mediaQuery = mediaQuery.Where(t => t.ThoiGianGui >= cutoff);
+                }
+
+                // 4. PHÂN TRANG VÀ LẤY KẾT QUẢ
+                var mediaList = await mediaQuery
+                    .OrderByDescending(t => t.ThoiGianGui) // Lấy mới nhất
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(t => new 
+                    {
+                        t.MaTinNhan,
+                        // Dùng MediaUrl nếu có, nếu không thì dùng NoiDung
+                        NoiDung = t.MediaUrl ?? t.NoiDung, 
+                        LoaiTinNhan = t.Loai.ToString().ToLower(),
+                        t.ThoiGianGui
+                    })
+                    .ToListAsync();
+
+                return Ok(mediaList);
+            }
+            catch (Exception ex)
+            {
+                // ⚠️ ĐÂY LÀ DÒNG SỬA LỖI ⚠️
+                Console.WriteLine($"Lỗi khi lấy media cho chat {maCuocTroChuyen}: {ex.Message}");
+                return StatusCode(500, "Lỗi server nội bộ");
+            }
+        }
 
     }
 }

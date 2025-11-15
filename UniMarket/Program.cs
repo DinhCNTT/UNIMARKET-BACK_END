@@ -178,6 +178,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ==========================
+// 💨 Quick Message Service
+// ==========================
+builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
+
+// ==========================
 // 🌐 Controllers + JSON
 // ==========================
 builder.Services.AddControllers()
