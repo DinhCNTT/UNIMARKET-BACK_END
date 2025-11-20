@@ -423,31 +423,38 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetComments(int maTinDang)
         {
-            var allComments = await _context.VideoComments
+            // 1. Truy vấn tối ưu: Chỉ lấy dữ liệu cần thiết, không load cả User entity
+            var rawComments = await _context.VideoComments
+                .AsNoTracking() // ✅ Quan trọng: Giúp query nhanh hơn và tốn ít RAM hơn
                 .Where(c => c.MaTinDang == maTinDang)
-                .Include(c => c.User)
-                .ToListAsync();
-
-            var commentTree = BuildCommentTree(allComments);
-
-            return Ok(commentTree);
-        }
-
-        // ✅ Hàm dựng bình luận nhiều cấp lồng nhau (cha -> con -> cháu...)
-        private List<VideoCommentDto> BuildCommentTree(List<VideoComment> allComments, int? parentId = null)
-        {
-            return allComments
-                .Where(c => c.ParentCommentId == parentId)
-                .OrderBy(c => c.CreatedAt)
-                .Select(c => new VideoCommentDto
+                .OrderBy(c => c.CreatedAt) // Sắp xếp ngay từ DB
+                .Select(c => new VideoCommentDto // ✅ Projection: Chỉ lấy trường cần dùng
                 {
                     Id = c.Id,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
                     UserId = c.UserId,
-                    UserName = c.User.FullName ?? c.User.UserName,
+                    UserName = c.User.FullName ?? c.User.UserName, // Lấy thẳng từ quan hệ
                     AvatarUrl = c.User.AvatarUrl,
-                    Replies = BuildCommentTree(allComments, c.Id)
+                    ParentCommentId = c.ParentCommentId // Cần trường này để dựng cây
+                })
+                .ToListAsync();
+
+            // 2. Dựng cây trong bộ nhớ (In-memory)
+            // Lưu ý: Hàm BuildCommentTree cần sửa nhẹ để nhận List<VideoCommentDto>
+            var commentTree = BuildCommentTree(rawComments);
+
+            return Ok(commentTree);
+        }
+
+        // ✅ Hàm dựng cây sửa lại để làm việc với DTO (nhẹ hơn nhiều)
+        private List<VideoCommentDto> BuildCommentTree(List<VideoCommentDto> allComments, int? parentId = null)
+        {
+            return allComments
+                .Where(c => c.ParentCommentId == parentId)
+                .Select(c => {
+                    c.Replies = BuildCommentTree(allComments, c.Id); // Đệ quy
+                    return c;
                 })
                 .ToList();
         }

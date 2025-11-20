@@ -343,25 +343,22 @@ namespace UniMarket.Controllers
         // =========================================================
         [Authorize]
         [HttpGet("social/user/{userId}")]
-        public async Task<IActionResult> GetSocialConversations(string userId)
+        public async Task<IActionResult> GetSocialConversations(string userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            // =========================================================
-            // 🔐 Xác thực quyền truy cập
-            // =========================================================
             var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (userId != currentUserId)
-                return Unauthorized(new { message = "Không được phép truy cập dữ liệu của người khác" });
+            if (userId != currentUserId) return Unauthorized();
 
-            // 🔹 Kiểm tra user có tồn tại không
-            if (!await _context.Users.AnyAsync(u => u.Id == userId))
-                return NotFound(new { message = "Người dùng không tồn tại" });
-
-            // =========================================================
-            // 🧠 Lấy danh sách cuộc trò chuyện
-            // =========================================================
-            var conversations = await _context.CuocTroChuyenSocials
+            // 1. Lấy danh sách ID các cuộc trò chuyện bị ẩn (Query nhẹ)
+            var hiddenConversationIds = await _context.UserHiddenConversations
                 .AsNoTracking()
-                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
+                .Where(h => h.UserId == userId && !h.HasReappeared)
+                .Select(h => h.MaCuocTroChuyen)
+                .ToListAsync();
+
+            // 2. Query chính (Đã tối ưu)
+            var query = _context.CuocTroChuyenSocials
+                .AsNoTracking()
+                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId)) // User có tham gia
                 .Select(c => new
                 {
                     c.MaCuocTroChuyen,
@@ -369,130 +366,103 @@ namespace UniMarket.Controllers
                     c.IsBlocked,
                     c.MaNguoiChan,
 
-                    // ✨ [NEW] Trạng thái Mute của user hiện tại
-                    IsMuted = c.NguoiThamGias
-                                .Where(n => n.MaNguoiDung == userId)
-                                .Select(n => n.IsMuted)
-                                .FirstOrDefault(),
+                    // Chỉ lấy thông tin cần thiết
+                    IsMuted = c.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == userId).IsMuted,
 
-                    // Tin nhắn cuối
+                    // Lấy tin nhắn cuối cùng (Nhờ Index ở Bước 1 sẽ cực nhanh)
                     LastMessage = c.TinNhans
                         .OrderByDescending(t => t.ThoiGianGui)
-                        .Select(t => new
-                        {
+                        .Select(t => new {
                             t.NoiDung,
                             t.MediaUrl,
                             t.ThoiGianGui,
-                            Sender = new
-                            {
-                                t.Sender.Id,
-                                t.Sender.FullName,
-                                t.Sender.AvatarUrl
-                            }
+                            t.MaNguoiGui,
+                            t.DaXem,
+                            SenderId = t.Sender.Id,
+                            SenderName = t.Sender.FullName,
+                            SenderAvatar = t.Sender.AvatarUrl
                         })
                         .FirstOrDefault(),
 
-                    // Partner
+                    // Lấy Partner (Người kia)
                     Partner = c.NguoiThamGias
                         .Where(n => n.MaNguoiDung != userId)
-                        .Select(n => new
-                        {
-                            n.User.Id,
-                            n.User.FullName,
-                            n.User.AvatarUrl
-                        })
+                        .Select(n => new { n.User.Id, n.User.FullName, n.User.AvatarUrl })
                         .FirstOrDefault(),
 
-                    // Chưa đọc
-                    UnreadCount = c.TinNhans.Count(m => m.MaNguoiGui != userId && !m.DaXem),
+                    // Đếm tin chưa đọc (Chỉ đếm khi cần thiết)
+                    UnreadCount = c.TinNhans.Count(m => m.MaNguoiGui != userId && !m.DaXem)
+                });
 
-                    // Ẩn tin nhắn
-                    IsHidden = _context.UserHiddenConversations
-                        .Any(h => h.UserId == userId &&
-                                  h.MaCuocTroChuyen == c.MaCuocTroChuyen &&
-                                  !h.HasReappeared)
-                })
-                .Where(c => c.Partner != null && c.LastMessage != null)
-                .Where(c => !c.IsHidden || c.UnreadCount > 0)
-                .OrderByDescending(c => c.LastMessage.ThoiGianGui)
+            // 3. Thực thi lọc trên Memory (hoặc DB tùy logic) và Phân trang
+            // Lưu ý: Lọc IsHidden phức tạp nên đưa về client list hoặc lọc ID trước
+            // Ở đây lọc sơ bộ các cuộc hội thoại ẩn mà không có tin nhắn mới
+
+            var rawData = await query
+                .Where(c => c.LastMessage != null) // Chỉ lấy cuộc có tin nhắn
+                .OrderByDescending(c => c.LastMessage.ThoiGianGui) // Sắp xếp theo tin mới nhất
+                .Skip((page - 1) * pageSize) // 🔥 PHÂN TRANG (Chìa khóa chống sập)
+                .Take(pageSize)
                 .ToListAsync();
 
-            // =========================================================
-            // 📎 Lấy danh sách ShareId từ tin nhắn
-            // =========================================================
-            var shareIds = conversations
-                .Select(c =>
-                {
-                    var msg = c.LastMessage?.NoiDung;
-                    if (string.IsNullOrEmpty(msg)) return -1;
-                    var match = Regex.Match(msg, @"\[ShareId:(\d+)\]");
-                    return match.Success ? int.Parse(match.Groups[1].Value) : -1;
-                })
-                .Where(id => id != -1)
-                .Distinct()
-                .ToList();
+            // 4. Xử lý Logic (Ẩn hiện, Regex) ở Client Side (RAM Server)
+            // Phần này nhanh vì chỉ chạy trên 20 dòng (pageSize) thay vì hàng nghìn dòng
+            var finalResult = new List<object>();
 
-            // Lấy thông tin share 1 lần
-            var sharesInfo = shareIds.Any()
-                ? await _context.Shares
-                    .Where(s => shareIds.Contains(s.ShareId))
-                    .ToDictionaryAsync(s => s.ShareId, s => s.TargetType)
-                : new Dictionary<int, ShareTargetType>();
-
-            // =========================================================
-            // ✨ Chuẩn hóa dữ liệu trả về (format)
-            // =========================================================
-            var result = conversations.Select(c =>
+            // Cache share info để tránh query lặp
+            var shareIds = new List<int>();
+            foreach (var item in rawData)
             {
-                var lastMessage = c.LastMessage;
-                string messageType = "text";
-                string displayText = lastMessage.NoiDung ?? "";
-
-                // 🎥 Nếu có MediaUrl → ảnh/video
-                if (!string.IsNullOrEmpty(lastMessage.MediaUrl))
+                if (!string.IsNullOrEmpty(item.LastMessage.NoiDung))
                 {
-                    messageType = UrlHelpers.IsVideoUrl(lastMessage.MediaUrl) ? "video" : "image";
-                    displayText = messageType == "video" ? "đã gửi 1 video" : "đã gửi 1 ảnh";
+                    var match = Regex.Match(item.LastMessage.NoiDung, @"\[ShareId:(\d+)\]");
+                    if (match.Success) shareIds.Add(int.Parse(match.Groups[1].Value));
                 }
-                // 🔗 Nếu là share dạng [ShareId:xxx]
-                else if (displayText.StartsWith("[ShareId:"))
+            }
+
+            var sharesInfo = await _context.Shares
+                .AsNoTracking()
+                .Where(s => shareIds.Contains(s.ShareId))
+                .ToDictionaryAsync(s => s.ShareId, s => s.TargetType);
+
+            foreach (var c in rawData)
+            {
+                // Logic lọc ẩn: Nếu bị ẩn VÀ không có tin chưa đọc -> Bỏ qua
+                bool isHidden = hiddenConversationIds.Contains(c.MaCuocTroChuyen);
+                if (isHidden && c.UnreadCount == 0) continue;
+
+                // Xử lý hiển thị nội dung (Copy logic cũ của bạn)
+                var msgType = "text";
+                var txt = c.LastMessage.NoiDung ?? "";
+                if (!string.IsNullOrEmpty(c.LastMessage.MediaUrl))
                 {
-                    var match = Regex.Match(displayText, @"\[ShareId:(\d+)\]");
-                    if (match.Success &&
-                        int.TryParse(match.Groups[1].Value, out int shareId) &&
-                        sharesInfo.TryGetValue(shareId, out var targetType))
+                    msgType = UrlHelpers.IsVideoUrl(c.LastMessage.MediaUrl) ? "video" : "image";
+                    txt = msgType == "video" ? "đã gửi 1 video" : "đã gửi 1 ảnh";
+                }
+                else if (txt.StartsWith("[ShareId:"))
+                {
+                    var match = Regex.Match(txt, @"\[ShareId:(\d+)\]");
+                    if (match.Success && sharesInfo.TryGetValue(int.Parse(match.Groups[1].Value), out var type))
                     {
-                        messageType = targetType == ShareTargetType.Video ? "video" : "share";
-                        displayText = messageType == "video"
-                            ? "đã chia sẻ 1 video"
-                            : "đã chia sẻ 1 bài viết";
+                        msgType = type == ShareTargetType.Video ? "video" : "share";
+                        txt = msgType == "video" ? "đã chia sẻ 1 video" : "đã chia sẻ 1 bài viết";
                     }
                 }
 
-                return new
+                finalResult.Add(new
                 {
                     c.MaCuocTroChuyen,
                     c.ThoiGianTao,
                     c.IsBlocked,
                     c.MaNguoiChan,
-                    c.IsMuted, // ✨ NEW
-
-                    LastMessage = new
-                    {
-                        NoiDung = displayText,
-                        lastMessage.MediaUrl,
-                        ThoiGianGui = lastMessage.ThoiGianGui.ToString("O"),
-                        MessageType = messageType,
-                        LoaiTinNhan = messageType,
-                        lastMessage.Sender
-                    },
-
+                    c.IsMuted,
+                    LastMessage = new { NoiDung = txt, c.LastMessage.MediaUrl, c.LastMessage.ThoiGianGui, MessageType = msgType },
                     c.Partner,
                     c.UnreadCount
-                };
-            });
+                });
+            }
 
-            return Ok(result);
+            return Ok(finalResult);
         }
 
         // =========================================================
