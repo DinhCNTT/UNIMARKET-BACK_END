@@ -100,12 +100,13 @@ builder.Services.AddAuthentication(options =>
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
 
-            // SỬA LỖI 1: Thêm đường dẫn của SocialChatHub vào
+            // SỬA LỖI 1: Thêm đường dẫn của các Hub vào (bao gồm NotificationHub)
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
                  path.StartsWithSegments("/SocialChatHub") ||
-                 path.StartsWithSegments("/videoHub"))) // <-- ✅ THÊM DÒNG NÀY
+                 path.StartsWithSegments("/videoHub") ||
+                 path.StartsWithSegments("/hub/notifications")))
             {
                 context.Token = accessToken;
             }
@@ -266,6 +267,7 @@ app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
 app.MapHub<SocialChatHub>("/SocialChatHub"); // <-- ĐÃ SỬA
 app.MapHub<VideoHub>("/videoHub");
+app.MapHub<NotificationHub>("/hub/notifications");
 
 // ==========================
 // 👑 Tạo Role + Admin mặc định
