@@ -99,7 +99,8 @@ builder.Services.AddAuthentication(options =>
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
                  path.StartsWithSegments("/SocialChatHub") ||
-                 path.StartsWithSegments("/videoHub")))
+                 path.StartsWithSegments("/videoHub") ||
+                 path.StartsWithSegments("/hub/notifications")))
             {
                 context.Token = accessToken;
             }
@@ -254,6 +255,7 @@ app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
 app.MapHub<SocialChatHub>("/SocialChatHub");
 app.MapHub<VideoHub>("/videoHub");
+app.MapHub<NotificationHub>("/hub/notifications");
 
 // ====================================================
 // 3. KHỞI TẠO DỮ LIỆU (Seeding)

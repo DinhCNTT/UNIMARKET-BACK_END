@@ -257,6 +257,28 @@ public class EmailVerificationController : ControllerBase
 
                 await _userManager.AddToRoleAsync(user, "User");
             }
+            else
+            {
+                // If user exists, update avatar if Google provided a picture and it's different
+                try
+                {
+                    if (!string.IsNullOrEmpty(picture) && string.IsNullOrEmpty(user.AvatarUrl))
+                    {
+                        user.AvatarUrl = picture;
+                        await _userManager.UpdateAsync(user);
+                    }
+                    else if (!string.IsNullOrEmpty(picture) && !string.Equals(user.AvatarUrl, picture, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Update if different (keeps avatar in sync with Google)
+                        user.AvatarUrl = picture;
+                        await _userManager.UpdateAsync(user);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not update user avatar during Google login for {Email}", email);
+                }
+            }
 
             // 🔒 4. KIỂM TRA KHÓA: Nếu user bị khóa thì không cho login
             if (user.LockoutEnd != null && user.LockoutEnd > DateTime.UtcNow)
