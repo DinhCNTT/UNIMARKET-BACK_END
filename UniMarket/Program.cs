@@ -17,15 +17,12 @@ using UniMarket.Models;
 using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
-using UniMarket.Services.Recommendation; // Namespace chứa AI Services
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ====================================================
-// 1. CẤU HÌNH SERVICES (Dependency Injection)
-// ====================================================
-
-// --- Cloudinary (Upload ảnh/video) ---
+// ==========================
+// 🔧 Cloudinary
+// ==========================
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
 builder.Services.AddHostedService<UniMarket.Services.MediaDeletionService>();
@@ -40,43 +37,52 @@ builder.Services.AddSingleton(provider =>
     return cloudinary;
 });
 
-// --- Email Service (Gmail) ---
+// ==========================
+// 📧 Email Service (Gmail)
+// ==========================
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS (Cho phép Frontend React gọi API) ---
+// ==========================
+// 🔓 CORS
+// ==========================
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // Frontend URL
+        policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Quan trọng cho SignalR/Cookies
+              .AllowCredentials();
     });
 });
 
-// --- Database Context ---
+// ==========================
+// 🗄️ DbContext
+// ==========================
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.CommandTimeout(120) // Tăng lên 120 giây
-    ));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- Tăng giới hạn upload file (150MB) ---
+// ==========================
+// 📦 FIX: Tăng giới hạn upload
+// ==========================
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 157286400;
+    options.MultipartBodyLengthLimit = 157286400; // 150MB
 });
 
-// --- Identity (Quản lý User/Role) ---
+// ==========================
+// 👤 Identity
+// ==========================
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-// --- JWT Authentication ---
+// ==========================
+// 🔐 JWT Authentication
+// ==========================
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new ArgumentNullException("Jwt:Key không được để trống"));
 
@@ -89,18 +95,17 @@ builder.Services.AddAuthentication(options =>
 {
     options.Events = new JwtBearerEvents
     {
-        // Logic lấy Token từ Query String cho SignalR
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
 
+            // SỬA LỖI 1: Thêm đường dẫn của SocialChatHub vào
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
                  path.StartsWithSegments("/SocialChatHub") ||
-                 path.StartsWithSegments("/videoHub") ||
-                 path.StartsWithSegments("/hub/notifications")))
+                 path.StartsWithSegments("/videoHub"))) // <-- ✅ THÊM DÒNG NÀY
             {
                 context.Token = accessToken;
             }
@@ -127,18 +132,27 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// --- SignalR (Real-time) ---
+// ==========================
+// 💬 SignalR
+// ==========================
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<UserPresenceService>();
 builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddSingleton<ConnectionMapping<string>>();
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
-// --- Swagger API Docs ---
+// ==========================
+// 🔍 Swagger
+// ==========================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "UniMarket API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "UniMarket API",
+        Version = "v1"
+    });
+
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -148,6 +162,7 @@ builder.Services.AddSwaggerGen(c =>
         In = ParameterLocation.Header,
         Description = "Nhập JWT Token vào đây. Ví dụ: Bearer {your-token}"
     });
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -158,21 +173,18 @@ builder.Services.AddSwaggerGen(c =>
             new string[] { }
         }
     });
+
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
-// --- Các Service Nghiệp vụ ---
+// ==========================
+// 💨 Quick Message Service
+// ==========================
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 
-// ✅ [QUAN TRỌNG] Đăng ký AI Recommendation Services
-builder.Services.AddScoped<UserBehaviorService>();          // Service xử lý dữ liệu hành vi
-builder.Services.AddSingleton<RecommendationEngine>();      // AI Engine (Singleton để giữ Model)
-builder.Services.AddScoped<VideoRecommendationService>();   // Logic tính điểm video
-
-// ✅ [QUAN TRỌNG] Worker chạy ngầm để Train AI (Fix lỗi treo Server)
-builder.Services.AddHostedService<AITrainingWorker>();
-
-// --- Controllers & JSON ---
+// ==========================
+// 🌐 Controllers + JSON
+// ==========================
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
@@ -192,16 +204,14 @@ builder.Services.AddControllers()
 
 var app = builder.Build();
 
-// ====================================================
-// 2. CẤU HÌNH PIPELINE (Middleware)
-// ====================================================
-
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
 });
 
-// Xử lý Exception toàn cục
+// ==========================
+// 🧯 Exception Middleware
+// ==========================
 app.UseExceptionHandler(appBuilder =>
 {
     appBuilder.Run(async context =>
@@ -214,6 +224,9 @@ app.UseExceptionHandler(appBuilder =>
     });
 });
 
+// ==========================
+// 🧩 Middlewares
+// ==========================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -224,7 +237,6 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// File Tĩnh (Images)
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -237,12 +249,11 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/images/Posts"
 });
 
-// ✅ Kích hoạt WebSockets cho SignalR
+// SỬA LỖI 2: KÍCH HOẠT WEBSOCKET
 app.UseWebSockets();
 
 app.UseRouting();
-app.UseCors(MyAllowSpecificOrigins); // Đặt sau Routing, trước Auth
-
+app.UseCors(MyAllowSpecificOrigins);
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -250,51 +261,54 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
 
-// ✅ Map SignalR Hubs
+// SỬA LỖI 3: Đồng bộ đường dẫn Hub
 app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
-app.MapHub<SocialChatHub>("/SocialChatHub");
+app.MapHub<SocialChatHub>("/SocialChatHub"); // <-- ĐÃ SỬA
 app.MapHub<VideoHub>("/videoHub");
-app.MapHub<NotificationHub>("/hub/notifications");
 
-// ====================================================
-// 3. KHỞI TẠO DỮ LIỆU (Seeding)
-// ====================================================
+// ==========================
+// 👑 Tạo Role + Admin mặc định
+// ==========================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-
-    // Tạo Roles và Admin mặc định
     await InitializeRolesAndAdmin(services);
-
-    // ❌ LƯU Ý: Không gọi Train AI ở đây nữa.
-    // Việc Train AI đã được chuyển sang 'AITrainingWorker' chạy ngầm.
 }
 
-// Endpoint debug xem tất cả route
+// ==========================
+// 🕵️‍♂️ ✅ DÁN ENDPOINT XEM TẤT CẢ API (TỪ CODE CỦA ĐỊNH) VÀO ĐÂY
+// ==========================
 app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
 {
     var routes = provider.ActionDescriptors.Items.Select(item =>
     {
         var action = item as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor;
-        return new
+        var controller = action?.ControllerName;
+        var method = action?.ActionName;
+
+        var httpMethod = item.EndpointMetadata
+                   .OfType<HttpMethodMetadata>()
+                   .FirstOrDefault()?
+                   .HttpMethods
+                   .FirstOrDefault(); // Lấy phương thức HTTP (GET, POST...)
+
+        return new
         {
             Path = item.AttributeRouteInfo?.Template,
-            Method = item.EndpointMetadata.OfType<HttpMethodMetadata>().FirstOrDefault()?.HttpMethods.FirstOrDefault(),
-            Controller = action?.ControllerName,
-            Action = action?.ActionName
+            Method = httpMethod,
+            Controller = controller,
+            Action = method
         };
     })
-    .Where(r => r.Path != null).OrderBy(r => r.Path);
+    .Where(r => r.Path != null) // Chỉ lấy các route có định nghĩa Attribute
+      .OrderBy(r => r.Path);
+
     return Results.Ok(routes);
 });
 
-// Chạy ứng dụng
 await app.RunAsync();
 
-// ====================================================
-// 4. CÁC HÀM HELPER
-// ====================================================
 async Task InitializeRolesAndAdmin(IServiceProvider serviceProvider)
 {
     var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
