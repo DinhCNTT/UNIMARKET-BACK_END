@@ -48,6 +48,10 @@ namespace UniMarket.DataAccess
         public DbSet<TinDangYeuThich> TinDangYeuThichs { get; set; }
         public DbSet<VideoTinDangSave> VideoTinDangSaves { get; set; }
 
+        // Reports (user-submitted reports for posts/videos)
+        public DbSet<Report> Reports { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+
         // 🗨️ Chat state, Follow, Share, Hidden Chat
         public DbSet<UserChatState> UserChatStates { get; set; }
         public DbSet<Share> Shares { get; set; }
@@ -163,6 +167,37 @@ namespace UniMarket.DataAccess
                       .WithMany()
                       .HasForeignKey(e => e.MaTinDang)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Reports configuration
+            modelBuilder.Entity<Report>(entity =>
+            {
+                entity.HasKey(r => r.MaBaoCao);
+
+                entity.HasOne(r => r.Reporter)
+                    .WithMany()
+                    .HasForeignKey(r => r.ReporterId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => new { r.TargetType, r.TargetId });
+                entity.HasIndex(r => r.ReporterId);
+                entity.HasIndex(r => r.CreatedAt);
+
+                entity.Property(r => r.Reason).HasMaxLength(200);
+                entity.Property(r => r.Details).HasMaxLength(2000);
+            });
+
+            // Notifications
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.HasKey(n => n.Id);
+                entity.Property(n => n.UserId).IsRequired().HasMaxLength(450);
+                entity.Property(n => n.Title).IsRequired().HasMaxLength(200);
+                entity.Property(n => n.Message).HasMaxLength(2000);
+                entity.Property(n => n.Url).HasMaxLength(500);
+                entity.Property(n => n.IsRead).HasDefaultValue(false);
+                entity.HasIndex(n => n.UserId);
+                entity.HasIndex(n => n.CreatedAt);
             });
 
             modelBuilder.Entity<UserChatState>(entity =>
