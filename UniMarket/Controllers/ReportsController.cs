@@ -119,80 +119,9 @@ namespace UniMarket.Controllers
                 _logger.LogWarning(ex, "Failed to broadcast report {ReportId} to admins", report.MaBaoCao);
             }
 
-            // --- Create a Notification for the owner of the reported item ---
-            try
-            {
-                string? ownerId = null;
-
-                // For both Post and Video, the target is a TinDang (MaTinDang)
-                var target = await _context.TinDangs
-                    .Include(t => t.NguoiBan)
-                    .FirstOrDefaultAsync(t => t.MaTinDang == request.TargetId);
-
-                if (target != null)
-                {
-                    ownerId = target.MaNguoiBan;
-                }
-
-                // Don't notify if owner not found or owner is the reporter
-                if (!string.IsNullOrEmpty(ownerId) && ownerId != userId)
-                {
-                    var title = "Cảnh báo về tin đăng của bạn";
-                    var message = $"Tin đăng của bạn vừa bị báo cáo. Lý do: '{request.Reason}'. Vui lòng kiểm tra và chỉnh sửa nếu cần.";
-                    if (!string.IsNullOrWhiteSpace(request.Details))
-                    {
-                        // Append details provided by the reporter so the owner can see the full reason
-                        message += $" Chi tiết: '{request.Details.Trim()}'.";
-                    }
-                    var url = parsedTargetType == ReportTargetType.Post ? $"/posts/{request.TargetId}" : $"/videos/{request.TargetId}";
-
-                    var notif = new Notification
-                    {
-                        UserId = ownerId,
-                        Title = title,
-                        Message = message,
-                        Url = url,
-                        IsRead = false,
-                        CreatedAt = DateTimeOffset.UtcNow
-                    };
-
-                    _context.Notifications.Add(notif);
-                    await _context.SaveChangesAsync();
-
-                    _logger.LogInformation("Created notification {NotifId} for user {UserId} (report {ReportId})", notif.Id, ownerId, report.MaBaoCao);
-
-                    // Broadcast to the specific user group and to admins (optional)
-                    try
-                    {
-                        await _notificationHub.Clients.Group($"user-{ownerId}")
-                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt });
-
-                        // If the owner is NOT an admin, also notify admins so they can review reports quickly.
-                        // This prevents duplicate delivery to the same connection when the owner has Admin role.
-                        var ownerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == ownerId);
-                        var ownerIsAdmin = false;
-                        if (ownerUser != null)
-                        {
-                            try { ownerIsAdmin = await _userManager.IsInRoleAsync(ownerUser, "Admin"); } catch { ownerIsAdmin = false; }
-                        }
-
-                        if (!ownerIsAdmin)
-                        {
-                            await _notificationHub.Clients.Group("admins")
-                                .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt });
-                            _logger.LogInformation("Broadcasted notification {NotifId} to admins for report {ReportId}", notif.Id, report.MaBaoCao);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to broadcast notification for report {ReportId}", report.MaBaoCao);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error while creating notification for report {ReportId}", report.MaBaoCao);
-            }
+            // Note: Do not create a notification for the owner at report creation time.
+            // The desired flow is: Reporter -> Admin reviews/handles -> Admin may choose to notify the owner.
+            // Admin-facing endpoints such as WarnSellerFromReportedPost already create notifications when appropriate.
 
             return CreatedAtAction(nameof(GetReportById), new { id = report.MaBaoCao }, new { id = report.MaBaoCao, message = "Báo cáo đã được gửi." });
         }
@@ -334,6 +263,43 @@ namespace UniMarket.Controllers
             if (post == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng." });
 
+            // Capture a small snapshot (title + first image) so we can include it in live notifications
+            var snapshotTitle = post.TieuDe;
+            var snapshotImage = post.AnhTinDangs?.FirstOrDefault()?.DuongDan;
+            // Ensure image URL is absolute so frontend can load it even when served from a different dev port
+            string? snapshotImageAbsolute = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(snapshotImage))
+                {
+                    if (snapshotImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        snapshotImageAbsolute = snapshotImage;
+                    }
+                    else
+                    {
+                        // Build absolute URL using current request host/scheme
+                        var req = this.Request;
+                        if (req != null && req.Scheme != null && req.Host.HasValue)
+                        {
+                            snapshotImageAbsolute = $"{req.Scheme}://{req.Host}{(snapshotImage.StartsWith("/") ? snapshotImage : "/" + snapshotImage)}";
+                        }
+                        else
+                        {
+                            // Fallback: send original path
+                            snapshotImageAbsolute = snapshotImage;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                snapshotImageAbsolute = snapshotImage;
+            }
+
+            // Fetch owner (if exists) so we can notify them after deletion
+            var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.MaNguoiBan);
+
             using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -365,11 +331,58 @@ namespace UniMarket.Controllers
                 report.IsResolved = true;
                 report.ResolvedAt = DateTimeOffset.UtcNow;
 
+                // Create a notification for the owner to inform them the post was deleted by admin
+                Notification? notif = null;
+                try
+                {
+                    if (owner != null)
+                    {
+                        var title = "Tin đăng của bạn đã bị xóa";
+                        var url = $"/posts/{post.MaTinDang}";
+                        // Simple message without reason/details (those are shown in detail modal)
+                        var message = "Tin đăng của bạn đã bị xóa bởi Quản trị viên vì vi phạm chính sách cộng đồng.";
+
+                        notif = new Notification
+                        {
+                            UserId = owner.Id,
+                            Title = title,
+                            Message = message,
+                            Url = url,
+                            IsRead = false,
+                            CreatedAt = DateTimeOffset.UtcNow,
+                            IsFromAdmin = true
+                        };
+
+                        _context.Notifications.Add(notif);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not prepare owner notification for deleted post {PostId}", post.MaTinDang);
+                    notif = null;
+                }
+
                 await _context.SaveChangesAsync();
+
+                // commit DB transaction so removal + notification persist together
                 await tx.CommitAsync();
 
+                // Broadcast notification (best-effort) after commit - only to the owner to avoid duplicates
+                if (notif != null)
+                {
+                    try
+                    {
+                        await _notificationHub.Clients.Group($"user-{notif.UserId}")
+                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt, postTitle = snapshotTitle, postImageUrl = snapshotImageAbsolute, type = "deleted", isFromAdmin = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to broadcast deletion notification for post {PostId}", post.MaTinDang);
+                    }
+                }
+
                 _logger.LogInformation("Admin deleted post {PostId} due to report {ReportId}", post.MaTinDang, report.MaBaoCao);
-                return Ok(new { message = "Tin đăng đã bị xóa và báo cáo đã được xử lý." });
+                return Ok(new { message = "Tin đăng đã bị xóa và báo cáo đã được xử lý.", notificationCreated = notif != null });
             }
             catch (Exception ex)
             {
@@ -440,8 +453,33 @@ namespace UniMarket.Controllers
             try
             {
                 var title = "Cảnh báo: Tin đăng của bạn bị báo cáo";
-                var message = $"Tin đăng của bạn đã nhận được báo cáo. Vui lòng kiểm tra nội dung và chỉnh sửa để tuân thủ chính sách.";
                 var url = $"/posts/{post.MaTinDang}";
+
+                // Try to include the most recent unresolved report's reason/details so owner can see context
+                string message = "Tin đăng của bạn đã nhận được báo cáo. Vui lòng kiểm tra nội dung và chỉnh sửa để tuân thủ chính sách.";
+                try
+                {
+                    var recentReport = await _context.Reports
+                        .Where(r => r.TargetType == ReportTargetType.Post && r.TargetId == post.MaTinDang && !r.IsResolved)
+                        .OrderByDescending(r => r.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (recentReport != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(recentReport.Reason))
+                        {
+                            message += $" Lý do: '{recentReport.Reason}'.";
+                        }
+                        if (!string.IsNullOrWhiteSpace(recentReport.Details))
+                        {
+                            message += $" Chi tiết: '{recentReport.Details}'.";
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not fetch recent report for post {PostId} while warning seller", post.MaTinDang);
+                }
 
                 // If a recent similar notification already exists for this user & url, skip creating another one.
                 var recentExisting = await _context.Notifications
@@ -464,7 +502,8 @@ namespace UniMarket.Controllers
                         Message = message,
                         Url = url,
                         IsRead = false,
-                        CreatedAt = DateTimeOffset.UtcNow
+                            CreatedAt = DateTimeOffset.UtcNow,
+                            IsFromAdmin = true
                     };
 
                     _context.Notifications.Add(notif);
@@ -474,20 +513,8 @@ namespace UniMarket.Controllers
                     try
                     {
                         await _notificationHub.Clients.Group($"user-{user.Id}")
-                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt });
+                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt, isFromAdmin = true });
 
-                        var ownerIsAdmin = false;
-                        try
-                        {
-                            ownerIsAdmin = await _userManager.IsInRoleAsync(user, "Admin");
-                        }
-                        catch { ownerIsAdmin = false; }
-
-                        if (!ownerIsAdmin)
-                        {
-                            await _notificationHub.Clients.Group("admins")
-                                .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt });
-                        }
                     }
                     catch (Exception ex)
                     {

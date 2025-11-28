@@ -25,5 +25,8 @@ namespace UniMarket.Models
         public bool IsRead { get; set; } = false;
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+        // If true, notification was created/sent by an administrator action
+        public bool IsFromAdmin { get; set; } = false;
     }
 }
