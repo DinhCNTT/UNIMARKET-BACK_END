@@ -69,7 +69,9 @@ namespace UniMarket.Models
         public DateTime? NgayHenXoa { get; set; }
         [DisplayName("Đường dẫn video")]
         [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
-        public string? VideoUrl { get; set; } // 👉 Thêm dòng này
+        public string? VideoUrl { get; set; }
+        [DisplayName("Thông tin chi tiết (JSON)")]
+        public string? ThongTinChiTiet { get; set; }
         [DisplayName("Số lượt xem")]
         public int SoLuotXem { get; set; } = 0;
         [ForeignKey("MaDanhMuc")]
