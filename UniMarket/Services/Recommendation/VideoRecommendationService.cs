@@ -5,25 +5,28 @@ using UniMarket.Models.ML;
 
 namespace UniMarket.Services.Recommendation
 {
-    // DTO nội bộ: Chỉ lấy những dữ liệu cần thiết để tính toán (Nhẹ RAM)
+    // =================================================================================
+    // DTO: CHỨA DỮ LIỆU ĐỂ CHẤM ĐIỂM (Lightweight Object)
+    // Tối ưu hóa việc lấy dữ liệu 1 lần, không query database trong vòng lặp scoring
+    // =================================================================================
     public class VideoCandidateDTO
     {
         public int MaTinDang { get; set; }
         public int MaDanhMuc { get; set; }
         public string MaNguoiBan { get; set; } = string.Empty;
         public DateTime NgayDang { get; set; }
-        public string TieuDe { get; set; } = string.Empty; // 🔥 Cần cho so khớp từ khóa tìm kiếm
-        public decimal Gia { get; set; }                   // 🔥 Cần cho so khớp giá
-        public int? MaTinhThanh { get; set; }              // 🔥 Cần cho so khớp khu vực
+        public string TieuDe { get; set; } = string.Empty; // Để so khớp từ khóa tìm kiếm
+        public decimal Gia { get; set; }                   // Để so khớp khoảng giá
+        public int? MaTinhThanh { get; set; }              // Để so khớp khu vực
 
         // Metrics tương tác (Số liệu thô)
         public int ViewCount { get; set; }
         public int ShareCount { get; set; }
         public int CommentCount { get; set; }
         public int LikeCount { get; set; }
-        public int SaveCount { get; set; } // Đã bao gồm cả Save Video + Yêu thích Tin
+        public int SaveCount { get; set; } 
 
-        // Metrics chất lượng (Tính toán từ lịch sử View)
+        // Metrics chất lượng View (Tính từ lịch sử xem)
         public int TotalViewsProcessed { get; set; }
         public int CompletedViews { get; set; }
     }
@@ -32,25 +35,36 @@ namespace UniMarket.Services.Recommendation
     {
         private readonly ApplicationDbContext _context;
         private readonly RecommendationEngine _aiEngine;
-        private readonly UserBehaviorService _behaviorService; // 🔥 Inject thêm cái này
+        private readonly UserBehaviorService _behaviorService;
 
-        // Cấu hình trọng số (Tùy chỉnh theo chiến lược kinh doanh)
+        // ============================================================
+        // CẤU HÌNH TRỌNG SỐ (WEIGHTS & BOOSTS)
+        // ============================================================
+        
+        // 1. Trọng số Tương tác
         private const double WEIGHT_LIKE = 2.0;
         private const double WEIGHT_COMMENT = 4.0;
         private const double WEIGHT_SHARE = 8.0;
-        private const double WEIGHT_SAVE = 10.0; // 🔥 Tăng lên 10 cho đồng bộ với Service kia
+        private const double WEIGHT_SAVE = 10.0; 
 
-        // Điểm thưởng (Boost)
-        private const double BOOST_FOLLOWING = 50.0;     // Follow shop
-        private const double BOOST_CATEGORY = 15.0;      // Đúng danh mục hay xem
-        private const double BOOST_SEARCH_MATCH = 40.0;  // 🔥 Khớp từ khóa tìm kiếm
-        private const double BOOST_PRICE_MATCH = 15.0;   // 🔥 Khớp khoảng giá
-        private const double BOOST_LOCATION_MATCH = 10.0;// 🔥 Khớp khu vực
+        // 2. Trọng số AI
+        private const double WEIGHT_AI_PREDICTION = 10.0; 
+
+        // 3. Điểm thưởng Ngữ cảnh (Positive Boosts)
+        private const double BOOST_FOLLOWING = 50.0;      
+        private const double BOOST_CATEGORY = 15.0;       
+        private const double BOOST_SEARCH_MATCH = 40.0;   
+        private const double BOOST_PRICE_MATCH = 20.0;    
+        private const double BOOST_LOCATION_MATCH = 15.0; 
+
+        // 4. Điểm phạt (Negative Penalties) - 🔥 MỚI
+        // Phạt người bán mà user từng báo cáo xấu (Soft Filter)
+        private const double PENALTY_REPORTED_SELLER = 20.0; 
 
         public VideoRecommendationService(
             ApplicationDbContext context,
             RecommendationEngine aiEngine,
-            UserBehaviorService behaviorService) // Inject vào constructor
+            UserBehaviorService behaviorService)
         {
             _context = context;
             _aiEngine = aiEngine;
@@ -60,65 +74,86 @@ namespace UniMarket.Services.Recommendation
         // =================================================================================
         // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID VIDEO ĐỀ XUẤT
         // =================================================================================
-        public async Task<List<int>> GetForYouVideoIds(string? userId, List<int> excludedIds, int count = 10)
+        public async Task<List<int>> GetForYouVideoIds(string? userId, List<int> clientExcludedIds, int count = 10)
         {
-            // -----------------------------------------------------
-            // BƯỚC 1: LẤY DỮ LIỆU PROFILING CỦA USER (Deep Profile)
-            // -----------------------------------------------------
+            var finalExcludedIds = new List<int>(clientExcludedIds);
             var userProfile = new UserProfileDto();
             var followingIds = new List<string>();
+            var reportedSellerIds = new List<string>(); // Danh sách người bán bị user này ghét
 
+            // -----------------------------------------------------
+            // BƯỚC 1: PHÂN TÍCH USER & XÂY DỰNG BLACKLIST/PENALTY LIST
+            // -----------------------------------------------------
             if (!string.IsNullOrEmpty(userId))
             {
-                // Dùng Service đã viết để lấy profile "xịn" (Search, Price, Location...)
+                // 1.1. Lấy chân dung (Profile)
                 userProfile = await _behaviorService.AnalyzeUserProfileAsync(userId);
 
-                // Lấy thêm danh sách Follow (cái này BehaviorService chưa lấy nên lấy thêm ở đây)
+                // 1.2. Lấy danh sách đang Follow
                 followingIds = await _context.Follows.AsNoTracking()
                     .Where(f => f.FollowerId == userId)
                     .Select(f => f.FollowingId)
                     .ToListAsync();
+
+                // 1.3. Lọc Báo xấu (Hard Filter) - Ẩn hoàn toàn tin đã report
+                var reportedPostIds = await _context.Reports.AsNoTracking()
+                    .Where(r => r.ReporterId == userId && r.TargetType == ReportTargetType.Post)
+                    .Select(r => r.TargetId)
+                    .ToListAsync();
+                
+                finalExcludedIds.AddRange(reportedPostIds);
+
+                // 1.4. Lấy danh sách Người bán từng bị Report (Soft Filter) - 🔥 LOGIC MỚI
+                // Join bảng Report với TinDang để tìm ra ai là chủ nhân của cái tin bị report đó
+                reportedSellerIds = await _context.Reports.AsNoTracking()
+                    .Where(r => r.ReporterId == userId && r.TargetType == ReportTargetType.Post)
+                    .Join(_context.TinDangs,
+                          report => report.TargetId,
+                          post => post.MaTinDang,
+                          (report, post) => post.MaNguoiBan) // Chỉ lấy ID người bán
+                    .Distinct()
+                    .ToListAsync();
             }
 
             // -----------------------------------------------------
-            // BƯỚC 2: CANDIDATE GENERATION (LỌC ỨNG VIÊN)
+            // BƯỚC 2: TẠO TẬP ỨNG VIÊN (CANDIDATE GENERATION)
             // -----------------------------------------------------
             var query = _context.TinDangs.AsNoTracking()
                 .Where(t => t.VideoUrl != null && t.TrangThai == TrangThaiTinDang.DaDuyet)
-                .Where(t => !excludedIds.Contains(t.MaTinDang));
+                .Where(t => !finalExcludedIds.Contains(t.MaTinDang));
 
-            // Tối ưu Query: Nếu có danh mục yêu thích, ưu tiên lấy trong danh mục đó
+            // Chiến lược Cold/Warm Start
             if (userProfile.PreferredCategoryIds.Any())
             {
-                // Lấy video thuộc category user thích HOẶC video đang hot (View > 50)
-                query = query.Where(t => userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) || t.SoLuotXem > 50);
+                query = query.Where(t => userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) || t.SoLuotXem > 100);
+            }
+            else
+            {
+                query = query.Where(t => t.NgayDang >= DateTime.UtcNow.AddDays(-30));
             }
 
-            // Projection dữ liệu ra RAM
+            // Projection ra DTO
             var candidates = await query
                 .OrderByDescending(t => t.NgayDang)
-                .Take(400) // Lấy pool 400
+                .Take(500) 
                 .Select(t => new VideoCandidateDTO
                 {
                     MaTinDang = t.MaTinDang,
                     MaDanhMuc = t.MaDanhMuc,
                     MaNguoiBan = t.MaNguoiBan,
                     NgayDang = t.NgayDang,
-                    TieuDe = t.TieuDe,      // Lấy thêm
-                    Gia = t.Gia,            // Lấy thêm
-                    MaTinhThanh = t.MaTinhThanh, // Lấy thêm
+                    TieuDe = t.TieuDe,
+                    Gia = t.Gia,
+                    MaTinhThanh = t.MaTinhThanh,
                     ViewCount = t.SoLuotXem,
 
-                    // Đếm tương tác
                     LikeCount = _context.VideoLikes.Count(l => l.MaTinDang == t.MaTinDang),
                     CommentCount = _context.VideoComments.Count(c => c.MaTinDang == t.MaTinDang),
                     ShareCount = _context.Shares.Count(s => s.TinDangId == t.MaTinDang),
-
-                    // 🔥 Gộp đếm Save: VideoSave + TinYeuThich
-                    SaveCount = _context.VideoTinDangSaves.Count(sv => sv.MaTinDang == t.MaTinDang)
+                    
+                    SaveCount = _context.VideoTinDangSaves.Count(sv => sv.MaTinDang == t.MaTinDang) 
                               + _context.TinDangYeuThichs.Count(ty => ty.MaTinDang == t.MaTinDang),
 
-                    // Chất lượng view
                     TotalViewsProcessed = _context.VideoViews.Count(v => v.MaTinDang == t.MaTinDang),
                     CompletedViews = _context.VideoViews.Count(v => v.MaTinDang == t.MaTinDang && v.IsCompleted)
                 })
@@ -134,13 +169,13 @@ namespace UniMarket.Services.Recommendation
             {
                 double finalScore = 0;
 
-                // --- A. ĐIỂM TƯƠNG TÁC (Global Popularity) ---
+                // --- A. ĐIỂM TƯƠNG TÁC ---
                 finalScore += (video.LikeCount * WEIGHT_LIKE);
                 finalScore += (video.CommentCount * WEIGHT_COMMENT);
                 finalScore += (video.SaveCount * WEIGHT_SAVE);
                 finalScore += (video.ShareCount * WEIGHT_SHARE);
 
-                // --- B. ĐIỂM CHẤT LƯỢNG (Quality) ---
+                // --- B. ĐIỂM CHẤT LƯỢNG VIEW ---
                 if (video.TotalViewsProcessed > 5)
                 {
                     double completionRate = (double)video.CompletedViews / video.TotalViewsProcessed;
@@ -148,15 +183,14 @@ namespace UniMarket.Services.Recommendation
                     else if (completionRate < 0.2) finalScore -= 10.0;
                 }
 
-                // --- C. ĐIỂM CÁ NHÂN HÓA (Personalization - QUAN TRỌNG NHẤT) ---
+                // --- C. ĐIỂM CÁ NHÂN HÓA ---
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    // 1. AI Prediction (Machine Learning - Matrix Factorization)
+                    // 1. AI Prediction
                     float aiScore = _aiEngine.PredictScore(userId, video.MaTinDang);
-                    finalScore += (aiScore * 5.0);
+                    finalScore += (aiScore * WEIGHT_AI_PREDICTION);
 
-                    // 2. Khớp Từ Khóa Tìm Kiếm (Search History)
-                    // Nếu user xóa lịch sử -> List này rỗng -> Không cộng điểm -> Đã học xóa
+                    // 2. Search Match
                     foreach (var kw in userProfile.RecentSearchKeywords)
                     {
                         if (video.TieuDe.ToLower().Contains(kw))
@@ -166,40 +200,35 @@ namespace UniMarket.Services.Recommendation
                         }
                     }
 
-                    // 3. Khớp Giá Cả (Price Affinity)
+                    // 3. Price Match
                     if (userProfile.PreferredMaxPrice > 0)
                     {
                         if (video.Gia >= userProfile.PreferredMinPrice && video.Gia <= userProfile.PreferredMaxPrice)
-                        {
                             finalScore += BOOST_PRICE_MATCH;
-                        }
-                        else
-                        {
-                            // Phạt nhẹ nếu lệch giá quá xa (> 2 lần max price)
-                            if (video.Gia > userProfile.PreferredMaxPrice * 2) finalScore -= 5.0;
-                        }
+                        else if (video.Gia > userProfile.PreferredMaxPrice * 2) 
+                            finalScore -= 5.0; 
                     }
 
-                    // 4. Khớp Khu Vực (Location Affinity)
+                    // 4. Location Match
                     if (userProfile.PreferredLocationId.HasValue && video.MaTinhThanh == userProfile.PreferredLocationId.Value)
-                    {
                         finalScore += BOOST_LOCATION_MATCH;
-                    }
 
-                    // 5. Khớp Danh Mục
-                    if (userProfile.PreferredCategoryIds.Contains(video.MaDanhMuc))
-                    {
-                        finalScore += BOOST_CATEGORY;
-                    }
-
-                    // 6. Follow Shop
+                    // 5. Follow Shop
                     if (followingIds.Contains(video.MaNguoiBan))
-                    {
                         finalScore += BOOST_FOLLOWING;
+
+                    // 6. 🔥 PHẠT UY TÍN NGƯỜI BÁN (REPUTATION PENALTY)
+                    // Nếu tin này thuộc về người bán mà user từng báo cáo xấu
+                    if (reportedSellerIds.Contains(video.MaNguoiBan))
+                    {
+                        finalScore -= PENALTY_REPORTED_SELLER;
+                        // Ý nghĩa: Trừ thẳng 20 điểm.
+                        // Nếu tin rác -> Điểm âm -> Biến mất.
+                        // Nếu tin cực xịn (AI cho 40đ) -> Còn 20đ -> Vẫn hiện nhưng xếp sau.
                     }
                 }
 
-                // --- D. ĐIỂM THỜI GIAN (Freshness Decay) ---
+                // --- D. TIME DECAY ---
                 double hoursOld = (now - video.NgayDang).TotalHours;
                 if (hoursOld < 24) finalScore += 10.0;
 
@@ -209,20 +238,20 @@ namespace UniMarket.Services.Recommendation
                     finalScore = finalScore / Math.Log(daysOld + 2);
                 }
 
-                // --- E. Randomization ---
-                finalScore += (new Random().NextDouble() * 3.0);
+                // --- E. RANDOMIZATION ---
+                finalScore += (new Random().NextDouble() * 5.0);
 
                 scoredVideos.Add((video.MaTinDang, finalScore));
             }
 
             // -----------------------------------------------------
-            // BƯỚC 4: TRẢ VỀ KẾT QUẢ
+            // BƯỚC 4: SẮP XẾP & TRẢ VỀ
             // -----------------------------------------------------
             var resultIds = scoredVideos
-                .OrderByDescending(x => x.Score)
-                .Take(count * 2) // Lấy top 2x
-                .OrderBy(x => Guid.NewGuid()) // Shuffle nhẹ
-                .Take(count)
+                .OrderByDescending(x => x.Score) 
+                .Take(count * 2)                 
+                .OrderBy(x => Guid.NewGuid())    
+                .Take(count)                     
                 .Select(x => x.Id)
                 .ToList();
 
