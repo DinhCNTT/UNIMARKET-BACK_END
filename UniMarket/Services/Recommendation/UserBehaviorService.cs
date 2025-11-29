@@ -1,11 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using UniMarket.DataAccess;
 using UniMarket.Models;
-using UniMarket.Models.ML; // Đảm bảo namespace này chứa class VideoRating
+using UniMarket.Models.ML;
 
 namespace UniMarket.Services.Recommendation
 {
-    // DTO: Chân dung khách hàng (Sở thích hiện tại được phân tích từ hành vi)
+    // ============================================================
+    // DTO: CHÂN DUNG KHÁCH HÀNG (User Profiling)
+    // Dùng để lọc nhanh (Content-Based) trước khi chạy AI chuyên sâu
+    // ============================================================
     public class UserProfileDto
     {
         public List<string> RecentSearchKeywords { get; set; } = new(); // Từ khóa hay tìm
@@ -31,7 +34,7 @@ namespace UniMarket.Services.Recommendation
         private const float SCORE_VIEW_COMPLETED = 4.0f;    // Xem hết video (Rất thích)
         private const float SCORE_REWATCH_BONUS = 3.0f;     // Điểm thưởng mỗi lần xem lại
 
-        // --- Hành vi Tương tác (Explicit Feedback) ---
+        // --- Hành vi Tương tác Tích cực (Explicit Feedback) ---
         private const float SCORE_LIKE = 5.0f;              // Thả tim
         private const float SCORE_COMMENT = 8.0f;           // Bình luận (Nỗ lực cao hơn like)
         private const float SCORE_SAVE = 10.0f;             // Lưu (Ý định mua/xem lại cao)
@@ -39,6 +42,10 @@ namespace UniMarket.Services.Recommendation
         // --- Hành vi Lan tỏa (Viral/Social) ---
         private const float SCORE_SHARE_INTERNAL = 10.0f;   // Share qua chat nội bộ
         private const float SCORE_SHARE_SOCIAL = 15.0f;     // Share ra Facebook/Zalo (Viral cao nhất)
+
+        // --- Hành vi Tiêu cực (Negative Feedback) ---
+        // Rất quan trọng để đẩy các nội dung rác/spam ra xa người dùng
+        private const float SCORE_REPORT = -50.0f;          // Báo cáo (Ghét cay ghét đắng)
 
         public UserBehaviorService(ApplicationDbContext context)
         {
@@ -53,8 +60,7 @@ namespace UniMarket.Services.Recommendation
         {
             var profile = new UserProfileDto();
 
-            // A. Học từ Lịch Sử Tìm Kiếm (Lấy 10 từ khóa gần nhất chưa bị xóa)
-            // Nếu user xóa lịch sử, query này sẽ không ra kết quả -> AI tự quên.
+            // A. Học từ Lịch Sử Tìm Kiếm (Lấy 10 từ khóa gần nhất)
             profile.RecentSearchKeywords = await _context.SearchHistories
                 .AsNoTracking()
                 .Where(h => h.UserId == userId)
@@ -63,42 +69,50 @@ namespace UniMarket.Services.Recommendation
                 .Select(h => h.Keyword.ToLower())
                 .ToListAsync();
 
-            // B. Học từ Tương tác (Like, Save, Comment) - Lấy 50 hành động gần nhất
-            // Tại sao chỉ lấy 50? Để AI bắt trend sở thích MỚI NHẤT, bỏ qua sở thích cũ kỹ.
-            var interactiveVideos = await _context.TinDangs
-                .AsNoTracking()
-                .Where(t =>
-                    _context.VideoLikes.Any(l => l.UserId == userId && l.MaTinDang == t.MaTinDang) ||
-                    _context.VideoTinDangSaves.Any(s => s.MaNguoiDung == userId && s.MaTinDang == t.MaTinDang)
-                )
-                .OrderByDescending(t => t.NgayDang)
-                .Take(50)
-                .Select(t => new { t.Gia, t.MaTinhThanh, t.MaDanhMuc })
-                .ToListAsync();
+            // B. Học từ Tương tác (Like, Save) - TỐI ƯU HÓA TỐC ĐỘ QUERY
+            // Thay vì join lồng nhau, ta lấy ID ra trước rồi lọc
+            var likedPostIds = await _context.VideoLikes
+                .AsNoTracking().Where(l => l.UserId == userId).Select(l => l.MaTinDang).ToListAsync();
 
-            if (interactiveVideos.Any())
+            var savedPostIds = await _context.VideoTinDangSaves
+                .AsNoTracking().Where(s => s.MaNguoiDung == userId).Select(s => s.MaTinDang).ToListAsync();
+
+            // Gộp danh sách ID và loại bỏ trùng lặp
+            var interactedIds = likedPostIds.Concat(savedPostIds).Distinct().ToList();
+
+            if (interactedIds.Any())
             {
-                // 1. Học Giá Cả (Price Affinity)
-                // Tính trung bình giá user quan tâm, rồi mở rộng biên độ 30%
-                var avgPrice = interactiveVideos.Average(x => x.Gia);
-                profile.PreferredMinPrice = avgPrice * 0.7m; // -30%
-                profile.PreferredMaxPrice = avgPrice * 1.3m; // +30%
+                // Truy vấn tin đăng dựa trên list ID (Nhanh hơn nhiều so với subquery)
+                var interactiveVideos = await _context.TinDangs
+                    .AsNoTracking()
+                    .Where(t => interactedIds.Contains(t.MaTinDang))
+                    .OrderByDescending(t => t.NgayDang)
+                    .Take(50) // Chỉ phân tích 50 tin gần nhất để bắt trend sở thích mới
+                    .Select(t => new { t.Gia, t.MaTinhThanh, t.MaDanhMuc })
+                    .ToListAsync();
 
-                // 2. Học Khu Vực (Location Affinity)
-                // Tìm tỉnh thành xuất hiện nhiều nhất (Mode)
-                profile.PreferredLocationId = interactiveVideos
-                    .GroupBy(x => x.MaTinhThanh)
-                    .OrderByDescending(g => g.Count())
-                    .Select(g => g.Key)
-                    .FirstOrDefault();
+                if (interactiveVideos.Any())
+                {
+                    // 1. Học Giá Cả (Price Affinity): Trung bình +/- 30%
+                    var avgPrice = interactiveVideos.Average(x => x.Gia);
+                    profile.PreferredMinPrice = avgPrice * 0.7m;
+                    profile.PreferredMaxPrice = avgPrice * 1.3m;
 
-                // 3. Học Danh Mục (Category Affinity)
-                profile.PreferredCategoryIds = interactiveVideos
-                    .GroupBy(x => x.MaDanhMuc)
-                    .OrderByDescending(g => g.Count())
-                    .Take(3) // Lấy top 3 danh mục quan tâm nhất
-                    .Select(g => g.Key)
-                    .ToList();
+                    // 2. Học Khu Vực (Location Affinity): Mode (xuất hiện nhiều nhất)
+                    profile.PreferredLocationId = interactiveVideos
+                        .GroupBy(x => x.MaTinhThanh)
+                        .OrderByDescending(g => g.Count())
+                        .Select(g => g.Key)
+                        .FirstOrDefault();
+
+                    // 3. Học Danh Mục (Category Affinity): Top 3
+                    profile.PreferredCategoryIds = interactiveVideos
+                        .GroupBy(x => x.MaDanhMuc)
+                        .OrderByDescending(g => g.Count())
+                        .Take(3)
+                        .Select(g => g.Key)
+                        .ToList();
+                }
             }
 
             return profile;
@@ -110,11 +124,10 @@ namespace UniMarket.Services.Recommendation
         // ============================================================
         public async Task<List<VideoRating>> GetTrainingDataAsync()
         {
-            // Dictionary để cộng dồn điểm số cho từng cặp (User, Video)
-            // Key: (UserId, VideoId) -> Value: Tổng điểm
+            // Dictionary cộng dồn điểm: (UserId, VideoId) -> TotalScore
             var tempScores = new Dictionary<(string userId, int videoId), float>();
 
-            // Chỉ lấy dữ liệu tương tác trong 90 ngày gần nhất (Tránh User drift)
+            // Chỉ lấy dữ liệu trong 90 ngày gần nhất (Tránh User drift - sở thích thay đổi)
             var cutOffDate = DateTime.UtcNow.AddDays(-90);
 
             // ---------------------------------------------------------
@@ -145,7 +158,7 @@ namespace UniMarket.Services.Recommendation
                 }
                 else if (!v.IsCompleted)
                 {
-                    // Chưa xem hết: Nếu xem > 10s thì điểm trung bình, ngược lại điểm thấp
+                    // Chưa xem hết: > 10s thì trung bình, ngược lại thấp
                     score = (v.WatchedSeconds >= 10) ? SCORE_VIEW_MEDIUM : SCORE_VIEW_SHORT;
                 }
                 else
@@ -153,7 +166,7 @@ namespace UniMarket.Services.Recommendation
                     score = SCORE_VIEW_COMPLETED; // Xem hết
                 }
 
-                // Cộng điểm xem lại (Cap ở 5 lần để tránh spam)
+                // Cộng điểm xem lại (Cap ở 5 lần)
                 if (v.RewatchCount > 0)
                 {
                     int validRewatch = Math.Min(v.RewatchCount, 5);
@@ -164,7 +177,7 @@ namespace UniMarket.Services.Recommendation
             }
 
             // ---------------------------------------------------------
-            // B. XỬ LÝ LIKE, COMMENT, SAVE, SHARE (Tương tác tích cực)
+            // B. XỬ LÝ TƯƠNG TÁC TÍCH CỰC (LIKE, COMMENT, SAVE, SHARE)
             // ---------------------------------------------------------
 
             // Likes
@@ -199,20 +212,36 @@ namespace UniMarket.Services.Recommendation
             }
 
             // ---------------------------------------------------------
-            // C. CHUYỂN ĐỔI SANG MODEL ĐẦU VÀO CHO AI
+            // C. XỬ LÝ TÍN HIỆU TIÊU CỰC (REPORTS) - CỰC KỲ QUAN TRỌNG
+            // ---------------------------------------------------------
+            var reports = await _context.Reports
+                .AsNoTracking()
+                .Where(r => r.CreatedAt >= cutOffDate && r.TargetType == ReportTargetType.Post)
+                .Select(r => new { r.ReporterId, r.TargetId, r.CreatedAt })
+                .ToListAsync();
+
+            foreach (var r in reports)
+            {
+                // Trừ điểm thật nặng (-50) để AI đẩy vector sở thích ra xa item này
+                AddScoreWithDecay(tempScores, r.ReporterId, r.TargetId, SCORE_REPORT, r.CreatedAt.DateTime);
+            }
+
+            // ---------------------------------------------------------
+            // D. CHUYỂN ĐỔI SANG MODEL ĐẦU VÀO CHO AI
             // ---------------------------------------------------------
             var trainingData = new List<VideoRating>();
 
             foreach (var item in tempScores)
             {
-                // Giữ lại cả điểm âm (ghét) và điểm dương (thích), lọc nhiễu (gần 0)
-                if (Math.Abs(item.Value) > 0.1f)
+                // Lọc nhiễu: Chỉ lấy các tương tác có độ lớn đáng kể (> 0.5 hoặc < -0.5)
+                if (Math.Abs(item.Value) > 0.5f)
                 {
                     trainingData.Add(new VideoRating
                     {
                         UserId = item.Key.userId,
                         VideoId = (float)item.Key.videoId,
-                        Label = item.Value // Label này sẽ được Matrix Factorization học
+                        // Label này chứa cả điểm ÂM (ghét) và DƯƠNG (thích)
+                        Label = item.Value
                     });
                 }
             }
@@ -233,7 +262,7 @@ namespace UniMarket.Services.Recommendation
             double daysOld = (DateTime.UtcNow - actionDate).TotalDays;
             if (daysOld < 0) daysOld = 0;
 
-            // Công thức Decay: Điểm giảm một nửa sau mỗi 30 ngày
+            // Công thức Decay: Giá trị giảm dần theo thời gian
             // Hệ số = 1 / (1 + (Ngày_cũ / 30))
             double decayFactor = 1.0 / (1.0 + (daysOld / 30.0));
             float finalScore = baseScore * (float)decayFactor;

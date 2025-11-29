@@ -15,6 +15,7 @@ using Newtonsoft.Json;
 using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using UniMarket.Services.Recommendation;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -37,12 +38,11 @@ namespace UniMarket.Controllers
         }
 
         [HttpGet("get-posts")]
-        public async Task<IActionResult> GetPosts() // <-- Sửa 1: Chuyển sang async Task
+        public async Task<IActionResult> GetPosts()
         {
             var posts = await _context.TinDangs
-                .AsNoTracking() // <-- Sửa 2: Thêm AsNoTracking để đọc nhanh
+                .AsNoTracking()
                 .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet)
-                // ----- Sửa 3: Bỏ tất cả .Include() vì đã có .Select() -----
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -57,31 +57,128 @@ namespace UniMarket.Controllers
                     p.MaNguoiBan,
                     p.NgayDang,
 
-                    // Sửa 4: Bỏ .ToList() bên trong. EF Core sẽ tự xử lý
+                    // ⭐ THÊM VIDEO URL (Code 2)
+                    p.VideoUrl,
+
+                    // ⭐ Ảnh Tin Đăng (giữ nguyên logic Code 1)
                     Images = p.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a =>
                             a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                                 ? a.DuongDan
-                                : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
-                        ), // Bỏ .ToList() ở đây
+                                : (a.DuongDan.StartsWith("/")
+                                    ? a.DuongDan
+                                    : $"/images/Posts/{a.DuongDan}")
+                        ),
 
+                    // ⭐ Thông tin liên quan
                     NguoiBan = p.NguoiBan.FullName,
                     TinhThanh = p.TinhThanh.TenTinhThanh,
                     QuanHuyen = p.QuanHuyen.TenQuanHuyen,
                     DanhMuc = p.DanhMuc.TenDanhMuc,
                     DanhMucCha = p.DanhMuc.DanhMucCha.TenDanhMucCha,
 
-                    // Sửa 5: Dùng navigation property để đếm (Giả sử bạn có 'p.TinDangYeuThichs')
+                    // ⭐ Đếm số lượt lưu (Saved)
                     SavedCount = p.TinDangYeuThichs.Count()
                 })
-                .ToListAsync(); // <-- Sửa 6: Dùng ToListAsync()
+                .ToListAsync();
 
             if (posts == null || !posts.Any())
                 return NotFound("Không có tin đăng nào.");
 
             return Ok(posts);
         }
+
+
+        // AI đề xuất tin đăng 
+        [HttpGet("get-recommended-posts")]
+        public async Task<IActionResult> GetRecommendedPosts(
+        [FromServices] VideoRecommendationService recommendationService,
+        [FromQuery] int limit = 20)
+        {
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                // ---- Lấy danh sách ID tin đề xuất từ AI ----
+                var recommendedIds = await recommendationService.GetForYouVideoIds(userId, new List<int>(), limit);
+
+                if (recommendedIds == null || !recommendedIds.Any())
+                {
+                    return Ok(new List<object>());
+                }
+
+                // ---- Lấy chi tiết Tin Đăng ----
+                var posts = await _context.TinDangs
+                    .AsNoTracking()
+                    .Where(p => recommendedIds.Contains(p.MaTinDang))
+                    .Select(p => new
+                    {
+                        p.MaTinDang,
+                        p.TieuDe,
+                        p.MoTa,                // ⭐ Quan trọng: cần cho mô tả ngắn
+                        p.Gia,
+                        p.CoTheThoaThuan,
+                        p.TinhTrang,
+                        p.DiaChi,
+                        p.MaTinhThanh,
+                        p.MaQuanHuyen,
+                        p.MaNguoiBan,
+                        p.NgayDang,
+                        p.TrangThai,
+
+                        p.VideoUrl,            // ⭐ Quan trọng: thumbnail + video player
+
+                        // ⭐ Ảnh – đồng bộ 100% logic từ GetPosts
+                        Images = p.AnhTinDangs
+                            .OrderBy(a => a.Order)
+                            .Select(a =>
+                                a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                                    ? a.DuongDan
+                                    : (a.DuongDan.StartsWith("/")
+                                        ? a.DuongDan
+                                        : $"/images/Posts/{a.DuongDan}")
+                            ),
+
+                        // ⭐ Thông tin người bán
+                        NguoiBan = new
+                        {
+                            Id = p.NguoiBan.Id,
+                            FullName = p.NguoiBan.FullName,
+                            Avatar = p.NguoiBan.AvatarUrl,
+                            PhoneNumber = p.NguoiBan.PhoneNumber
+                        },
+
+                        TinhThanh = p.TinhThanh.TenTinhThanh,
+                        QuanHuyen = p.QuanHuyen.TenQuanHuyen,
+                        DanhMuc = p.DanhMuc.TenDanhMuc,
+                        DanhMucCha = p.DanhMuc.DanhMucCha.TenDanhMucCha,
+
+                        SavedCount = p.TinDangYeuThichs.Count()
+                    })
+                    .ToListAsync();
+
+                // ---- Sắp xếp đúng thứ tự AI gợi ý ----
+                var sortedPosts = recommendedIds
+                    .Join(posts,
+                          id => id,
+                          p => p.MaTinDang,
+                          (id, p) => p)
+                    .ToList();
+
+                return Ok(sortedPosts);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Error] GetRecommendedPosts: {ex.Message}");
+                return StatusCode(500, new
+                {
+                    message = "Lỗi server khi lấy tin đề xuất.",
+                    error = ex.Message
+                });
+            }
+        }
+
 
         [RequestSizeLimit(157286400)] // 150MB
         [HttpPost("add-post")]
