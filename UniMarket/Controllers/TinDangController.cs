@@ -56,6 +56,7 @@ namespace UniMarket.Controllers
                     p.MaQuanHuyen,
                     p.MaNguoiBan,
                     p.NgayDang,
+                    ThongTinChiTiet = p.ThongTinChiTiet,
 
                     // Sửa 4: Bỏ .ToList() bên trong. EF Core sẽ tự xử lý
                     Images = p.AnhTinDangs
@@ -97,7 +98,8 @@ namespace UniMarket.Controllers
             [FromForm] string userId,
             [FromForm] int categoryId,
             [FromForm] string categoryName, // Tham số này không thấy dùng, nhưng giữ nguyên
-            [FromForm] bool canNegotiate)
+            [FromForm] bool canNegotiate,
+            [FromForm] string? thongTinChiTiet)
         {
             try
             {
@@ -162,6 +164,7 @@ namespace UniMarket.Controllers
                     NgayDang = DateTime.UtcNow, // ✅ SỬA LỖI 3: Dùng UtcNow
                     TrangThai = TrangThaiTinDang.ChoDuyet,
                     MaDanhMuc = categoryId,
+                    ThongTinChiTiet = thongTinChiTiet,
                     AnhTinDangs = new List<AnhTinDang>(),
                     VideoUrl = null // Sẽ được set bên dưới
                 };
@@ -296,7 +299,8 @@ namespace UniMarket.Controllers
     [FromForm] string? oldImagesToDelete,
     [FromForm] string? oldVideosToDelete,
     [FromForm] string? imageOrderMap,
-    [FromForm] string? videoOrderMap)
+    [FromForm] string? videoOrderMap,
+    [FromForm] string? thongTinChiTiet)
         {
             // =================================================================
             // 1. GHI LOG DỮ LIỆU ĐẦU VÀO (ĐỂ DEBUG)
@@ -334,6 +338,10 @@ namespace UniMarket.Controllers
                 post.MaQuanHuyen = district;
                 post.MaDanhMuc = categoryId;
                 post.NgayCapNhat = DateTime.UtcNow;
+                if (thongTinChiTiet != null)
+                {
+                    post.ThongTinChiTiet = thongTinChiTiet;
+                }
 
                 // Reset trạng thái về chờ duyệt mỗi khi cập nhật
                 post.TrangThai = TrangThaiTinDang.ChoDuyet;

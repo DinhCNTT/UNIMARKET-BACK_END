@@ -70,6 +70,8 @@ namespace UniMarket.Models
         [DisplayName("Đường dẫn video")]
         [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
         public string? VideoUrl { get; set; } // 👉 Thêm dòng này
+        [DisplayName("Thông tin chi tiết (JSON)")]
+        public string? ThongTinChiTiet { get; set; }
         [DisplayName("Số lượt xem")]
         public int SoLuotXem { get; set; } = 0;
         [ForeignKey("MaDanhMuc")]
