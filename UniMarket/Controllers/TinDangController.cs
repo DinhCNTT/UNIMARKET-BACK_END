@@ -967,8 +967,10 @@ namespace UniMarket.Controllers
                     p.Gia,
                     p.TinhTrang,
                     p.DiaChi,
+                    p.NgayDang,
+                    p.VideoUrl,
                     Images = p.AnhTinDangs
-                        .OrderBy(a => a.Order) // Sắp xếp theo Order
+                        .OrderBy(a => a.Order)
                         .Select(a =>
                             (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
                             ? a.DuongDan
@@ -995,8 +997,10 @@ namespace UniMarket.Controllers
                     p.Gia,
                     p.TinhTrang,
                     p.DiaChi,
+                    p.NgayDang,
+                    p.VideoUrl,
                     Images = p.AnhTinDangs
-                        .OrderBy(a => a.Order) // Sắp xếp theo Order
+                        .OrderBy(a => a.Order)
                         .Select(a =>
                             (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
                             ? a.DuongDan
@@ -1010,7 +1014,7 @@ namespace UniMarket.Controllers
                 .ToListAsync();
 
             var postImages = post.AnhTinDangs
-                .OrderBy(a => a.Order) // Sắp xếp theo Order
+                .OrderBy(a => a.Order)
                 .Select(a =>
                     (a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase) || a.DuongDan.StartsWith("https", StringComparison.OrdinalIgnoreCase))
                     ? a.DuongDan
@@ -1027,11 +1031,17 @@ namespace UniMarket.Controllers
                     post.Gia,
                     post.TinhTrang,
                     post.DiaChi,
+
+                    // 👇👇👇 QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ TRẢ VỀ DỮ LIỆU JSON 👇👇👇
+                    ThongTinChiTiet = post.ThongTinChiTiet,
+                    // 👆👆👆 NẾU THIẾU DÒNG NÀY, FRONTEND SẼ KHÔNG CÓ GÌ ĐỂ HIỂN THỊ
+
                     Images = postImages,
                     NguoiBan = post.NguoiBan.FullName,
                     MaNguoiBan = post.NguoiBan.Id,
                     PhoneNumber = post.NguoiBan.PhoneNumber,
                     TinhThanh = post.TinhThanh.TenTinhThanh,
+                    Avatar = post.NguoiBan.AvatarUrl,
                     QuanHuyen = post.QuanHuyen.TenQuanHuyen,
                     NgayDang = post.NgayDang,
                     NgayCapNhat = post.NgayCapNhat
