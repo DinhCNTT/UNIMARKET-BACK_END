@@ -968,6 +968,7 @@ namespace UniMarket.Controllers
                     p.TinhTrang,
                     p.DiaChi,
                     p.NgayDang,
+                    p.VideoUrl,
                     Images = p.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a =>
@@ -997,6 +998,7 @@ namespace UniMarket.Controllers
                     p.TinhTrang,
                     p.DiaChi,
                     p.NgayDang,
+                    p.VideoUrl,
                     Images = p.AnhTinDangs
                         .OrderBy(a => a.Order)
                         .Select(a =>
