@@ -16,6 +16,7 @@ using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using UniMarket.Services.Recommendation; // ✅ Namespace chứa RecommendationService
+using UniMarket.Services.PriceAnalysis;
 using System.Security.Claims;
 
 namespace UniMarket.Controllers
@@ -33,7 +34,7 @@ namespace UniMarket.Controllers
 
         // ✅ 1. Khai báo Service AI
         private readonly VideoRecommendationService _recommendationService;
-
+        private readonly PriceAnalysisService _priceService;
         // ✅ 2. Inject Service vào Constructor
         public TinDangController(
             ApplicationDbContext context,
@@ -41,14 +42,16 @@ namespace UniMarket.Controllers
             PhotoService photoService,
             IWebHostEnvironment env,
             IHubContext<ChatHub> hubContext,
-            VideoRecommendationService recommendationService) // <--- Thêm tham số này
+            VideoRecommendationService recommendationService,
+            PriceAnalysisService priceService) // <--- Thêm tham số này
         {
             _context = context;
             _userManager = userManager;
             _photoService = photoService;
             _env = env;
             _hubContext = hubContext;
-            _recommendationService = recommendationService; // <--- Gán giá trị
+            _recommendationService = recommendationService;
+            _priceService = priceService;
         }
 
         [HttpGet("get-posts")]
@@ -1335,6 +1338,23 @@ namespace UniMarket.Controllers
         public class SaveSearchHistoryRequest
         {
             public string Keyword { get; set; } = null!;
+        }
+        [HttpGet("market-price-analysis/{id}")]
+        public async Task<IActionResult> GetMarketPriceAnalysis(int id)
+        {
+            try
+            {
+                var result = await _priceService.AnalyzePriceAsync(id);
+
+                // Nếu AI trả về false (do không đủ dữ liệu), trả về null cho FE ẩn đi
+                if (!result.IsSuccess) return Ok(null);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server", error = ex.Message });
+            }
         }
     }
 
