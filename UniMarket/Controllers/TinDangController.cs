@@ -16,6 +16,7 @@ using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using UniMarket.Services.Recommendation;
+using UniMarket.Services.PriceAnalysis;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -28,13 +29,15 @@ namespace UniMarket.Controllers
         private readonly PhotoService _photoService; // ✅ thêm
         private readonly IWebHostEnvironment _env;
         private readonly IHubContext<ChatHub> _hubContext;
-        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService, IWebHostEnvironment env, IHubContext<ChatHub> hubContext)
+        private readonly PriceAnalysisService _priceService;
+        public TinDangController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, PhotoService photoService, IWebHostEnvironment env, IHubContext<ChatHub> hubContext, PriceAnalysisService priceService)
         {
             _context = context;
             _userManager = userManager;
             _photoService = photoService;
             _env = env;
             _hubContext = hubContext;
+            _priceService = priceService;
         }
 
         [HttpGet("get-posts")]
@@ -1254,6 +1257,23 @@ namespace UniMarket.Controllers
         public class SaveSearchHistoryRequest
         {
             public string Keyword { get; set; } = null!;
+        }
+        [HttpGet("market-price-analysis/{id}")]
+        public async Task<IActionResult> GetMarketPriceAnalysis(int id)
+        {
+            try
+            {
+                var result = await _priceService.AnalyzePriceAsync(id);
+
+                // Nếu AI trả về false (do không đủ dữ liệu), trả về null cho FE ẩn đi
+                if (!result.IsSuccess) return Ok(null);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server", error = ex.Message });
+            }
         }
     }
 

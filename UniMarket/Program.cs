@@ -161,6 +161,9 @@ builder.Services.AddSwaggerGen(c =>
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
+// Service phân tích giá (Tách biệt với Recommendation của bạn khác)
+builder.Services.AddScoped<UniMarket.Services.PriceAnalysis.PriceAnalysisService>();
+
 // --- Các Service Nghiệp vụ ---
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 
