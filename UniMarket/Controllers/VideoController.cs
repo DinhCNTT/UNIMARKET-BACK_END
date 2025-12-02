@@ -47,11 +47,11 @@ namespace UniMarket.Controllers
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> GetVideos(
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 15,
-            [FromQuery] int? categoryId = null,
-            [FromQuery] decimal? minPrice = null,
-            [FromQuery] decimal? maxPrice = null)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null)
         {
             var userId = User.Identity != null && User.Identity.IsAuthenticated
                 ? User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -60,7 +60,6 @@ namespace UniMarket.Controllers
             // -----------------------------------------------------------------
             // BƯỚC 1: LẤY PROFILE NGƯỜI DÙNG (REAL-TIME)
             // -----------------------------------------------------------------
-            // Nếu user xóa lịch sử, profile này sẽ cập nhật ngay lập tức -> AI "quên" ngay.
             UserProfileDto userProfile = new UserProfileDto();
             if (userId != null)
             {
@@ -74,7 +73,7 @@ namespace UniMarket.Controllers
                 .AsNoTracking() // Tối ưu hiệu năng đọc
                 .Where(td => td.VideoUrl != null && td.TrangThai == TrangThaiTinDang.DaDuyet);
 
-            // Áp dụng bộ lọc cứng từ UI (nếu có)
+            // Áp dụng bộ lọc cứng từ UI
             if (categoryId.HasValue)
             {
                 query = query.Where(td => td.MaDanhMuc == categoryId.Value ||
@@ -83,11 +82,10 @@ namespace UniMarket.Controllers
             if (minPrice.HasValue) query = query.Where(td => td.Gia >= minPrice.Value);
             if (maxPrice.HasValue) query = query.Where(td => td.Gia <= maxPrice.Value);
 
-            // Tối ưu: Nếu user có "Gu" rõ ràng (Profile có data), ưu tiên lấy các tin phù hợp vào Pool
-            // Tuy nhiên để đơn giản và nhanh, ta lấy 300-400 tin mới nhất làm "Pool Ứng Viên"
+            // Lấy 400 tin mới nhất/phù hợp nhất để làm Pool cho AI sắp xếp
             var candidates = await query
                 .OrderByDescending(t => t.NgayDang)
-                .Take(400) // Lấy 400 tin để AI có không gian sắp xếp
+                .Take(400)
                 .Include(t => t.NguoiBan)
                 .Include(t => t.AnhTinDangs)
                 .Include(t => t.TinhThanh)
@@ -95,44 +93,50 @@ namespace UniMarket.Controllers
                 .ToListAsync();
 
             // -----------------------------------------------------------------
-            // BƯỚC 3: CHUẨN BỊ DỮ LIỆU TƯƠNG TÁC (BULK QUERY)
+            // BƯỚC 3: CHUẨN BỊ DỮ LIỆU TƯƠNG TÁC (TÁCH BIỆT - KHÔNG GỘP)
             // -----------------------------------------------------------------
             var foundIds = candidates.Select(c => c.MaTinDang).ToList();
             var now = DateTime.UtcNow;
 
-            // Load Dictionary (O(1) lookup) để thuật toán chạy cực nhanh
+            // Load Dictionary (O(1) lookup)
             var likeCounts = await _context.VideoLikes.Where(x => foundIds.Contains(x.MaTinDang))
                 .GroupBy(x => x.MaTinDang).ToDictionaryAsync(k => k.Key, v => v.Count());
-            
+
             var shareCounts = await _context.Shares.Where(x => foundIds.Contains(x.TinDangId.Value))
                 .GroupBy(x => x.TinDangId.Value).ToDictionaryAsync(k => k.Key, v => v.Count());
-            
+
             var commentCounts = await _context.VideoComments.Where(x => foundIds.Contains(x.MaTinDang))
                 .GroupBy(x => x.MaTinDang).ToDictionaryAsync(k => k.Key, v => v.Count());
 
-            // 🔥 GỘP ĐIỂM LƯU: VideoSave + TinYeuThich
+            // 🔥 TÁCH RIÊNG: VideoSave (Lưu để xem lại) vs Favorite (Quan tâm mua)
             var videoSaveCounts = await _context.VideoTinDangSaves.Where(x => foundIds.Contains(x.MaTinDang))
                 .GroupBy(x => x.MaTinDang).ToDictionaryAsync(k => k.Key, v => v.Count());
-            
+
             var favPostCounts = await _context.TinDangYeuThichs.Where(x => foundIds.Contains(x.MaTinDang))
                 .GroupBy(x => x.MaTinDang).ToDictionaryAsync(k => k.Key, v => v.Count());
 
-            // Lấy trạng thái của User hiện tại (để hiện nút đỏ/xám trên UI)
+            // Lấy trạng thái của User hiện tại
             var userLikedIds = new HashSet<int>();
-            var userSavedIds = new HashSet<int>(); // Saved bao gồm cả Save Video & Fav Post
+            var userVideoSavedIds = new HashSet<int>();   // User đã lưu video này chưa?
+            var userPostFavoriteIds = new HashSet<int>(); // User đã thả tim sản phẩm này chưa?
+
             if (userId != null)
             {
-                var likes = await _context.VideoLikes.Where(l => l.UserId == userId && foundIds.Contains(l.MaTinDang)).Select(l => l.MaTinDang).ToListAsync();
+                var likes = await _context.VideoLikes.Where(l => l.UserId == userId && foundIds.Contains(l.MaTinDang))
+                    .Select(l => l.MaTinDang).ToListAsync();
                 userLikedIds = new HashSet<int>(likes);
 
-                var saves1 = await _context.VideoTinDangSaves.Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang)).Select(s => s.MaTinDang).ToListAsync();
-                var saves2 = await _context.TinDangYeuThichs.Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang)).Select(s => s.MaTinDang).ToListAsync();
-                
-                userSavedIds = new HashSet<int>(saves1.Concat(saves2));
+                var videoSaves = await _context.VideoTinDangSaves.Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
+                    .Select(s => s.MaTinDang).ToListAsync();
+                userVideoSavedIds = new HashSet<int>(videoSaves);
+
+                var postFavs = await _context.TinDangYeuThichs.Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
+                    .Select(s => s.MaTinDang).ToListAsync();
+                userPostFavoriteIds = new HashSet<int>(postFavs);
             }
 
             // -----------------------------------------------------------------
-            // BƯỚC 4: 🔥 THUẬT TOÁN SCORING (CHẤM ĐIỂM CHI TIẾT)
+            // BƯỚC 4: 🔥 THUẬT TOÁN SCORING (CẬP NHẬT TRỌNG SỐ MỚI)
             // -----------------------------------------------------------------
             var sortedResults = candidates.Select(td =>
             {
@@ -141,44 +145,40 @@ namespace UniMarket.Controllers
                 // --- A. ĐIỂM CÁ NHÂN HÓA (PERSONALIZATION) ---
                 if (userId != null && userProfile.HasData)
                 {
-                    // 1. AI Prediction (Machine Learning)
-                    // AI học từ ma trận User-Item trong quá khứ
+                    // 1. AI Prediction
                     float aiPrediction = _aiEngine.PredictScore(userId, td.MaTinDang);
-                    score += (aiPrediction * 5.0); 
+                    score += (aiPrediction * 5.0);
 
-                    // 2. Khớp Từ Khóa Tìm Kiếm (Search History Match) - Quan trọng nhất
-                    // Nếu user xóa lịch sử -> userProfile.RecentSearchKeywords rỗng -> Không cộng điểm.
+                    // 2. Search Keyword Match (Quan trọng nhất)
                     foreach (var kw in userProfile.RecentSearchKeywords)
                     {
                         if (td.TieuDe.ToLower().Contains(kw))
                         {
-                            score += 40.0; // Boost cực mạnh nếu đúng thứ đang tìm
+                            score += 40.0;
                             break;
                         }
                     }
 
-                    // 3. Khớp Giá Cả (Price Affinity)
-                    // Nếu user hay like đồ giá rẻ, video giá rẻ sẽ được cộng điểm
+                    // 3. Price Affinity
                     if (userProfile.PreferredMaxPrice > 0)
                     {
                         if (td.Gia >= userProfile.PreferredMinPrice && td.Gia <= userProfile.PreferredMaxPrice)
                         {
-                            score += 15.0; // Cộng điểm vì đúng túi tiền
+                            score += 15.0;
                         }
-                        else if (td.Gia > userProfile.PreferredMaxPrice * 2) 
+                        else if (td.Gia > userProfile.PreferredMaxPrice * 2)
                         {
-                            score -= 5.0; // Phạt nhẹ nếu giá quá cao so với gu
+                            score -= 5.0;
                         }
                     }
 
-                    // 4. Khớp Khu Vực (Location Context)
-                    // Ưu tiên hiển thị video ở cùng tỉnh thành user hay quan tâm
+                    // 4. Location Context
                     if (userProfile.PreferredLocationId.HasValue && td.MaTinhThanh == userProfile.PreferredLocationId.Value)
                     {
                         score += 10.0;
                     }
 
-                    // 5. Khớp Danh Mục
+                    // 5. Category Context
                     if (userProfile.PreferredCategoryIds.Contains(td.MaDanhMuc))
                     {
                         score += 10.0;
@@ -189,25 +189,28 @@ namespace UniMarket.Controllers
                 int likes = likeCounts.GetValueOrDefault(td.MaTinDang, 0);
                 int shares = shareCounts.GetValueOrDefault(td.MaTinDang, 0);
                 int comments = commentCounts.GetValueOrDefault(td.MaTinDang, 0);
-                // Tổng hợp lượt lưu từ cả 2 nguồn
-                int totalSaves = videoSaveCounts.GetValueOrDefault(td.MaTinDang, 0) + favPostCounts.GetValueOrDefault(td.MaTinDang, 0);
+
+                // 🔥 Lấy số liệu riêng biệt
+                int saveVideos = videoSaveCounts.GetValueOrDefault(td.MaTinDang, 0);
+                int favPosts = favPostCounts.GetValueOrDefault(td.MaTinDang, 0);
 
                 score += (likes * 1.0);
-                score += (comments * 2.0); // Comment giá trị hơn Like
-                score += (shares * 4.0);   // Share giá trị nhất (Lan tỏa)
-                score += (totalSaves * 3.0); // Lưu giá trị nhì (Ý định mua)
-                
+                score += (comments * 2.0);
+                score += (shares * 4.0);
+
+                // 🔥 Trọng số riêng: Yêu thích sản phẩm (FavPosts) quan trọng hơn Lưu video (SaveVideos)
+                score += (saveVideos * 3.0);  // Điểm Interest (Quan tâm nội dung)
+                score += (favPosts * 5.0);    // Điểm Purchase Intent (Ý định mua) -> Cao nhất
+
                 // --- C. ĐIỂM THỜI GIAN (FRESHNESS) ---
                 double hoursOld = (now - td.NgayDang).TotalHours;
-                if (hoursOld < 12) score += 20.0;      // Siêu mới
-                else if (hoursOld < 24) score += 10.0; // Mới trong ngày
-                else if (hoursOld < 72) score += 5.0;  // 3 ngày gần đây
-                
-                // Phạt video quá cũ (nếu không viral)
-                if (hoursOld > 720) score -= 5.0; 
+                if (hoursOld < 12) score += 20.0;
+                else if (hoursOld < 24) score += 10.0;
+                else if (hoursOld < 72) score += 5.0;
+
+                if (hoursOld > 720) score -= 5.0;
 
                 // --- D. NGẪU NHIÊN HÓA (EXPLORATION) ---
-                // Thêm chút ngẫu nhiên để user không bị chán (Filter Bubble)
                 score += (new Random().NextDouble() * 3.0);
 
                 return new
@@ -219,17 +222,18 @@ namespace UniMarket.Controllers
                         Likes = likes,
                         Shares = shares,
                         Comments = comments,
-                        Saves = totalSaves
+                        SaveVideos = saveVideos, // Số lượng lưu video
+                        FavPosts = favPosts      // Số lượng yêu thích tin
                     }
                 };
             })
-            .OrderByDescending(x => x.Score) // 🔥 Sắp xếp điểm cao nhất lên đầu
+            .OrderByDescending(x => x.Score) // Sắp xếp điểm cao nhất lên đầu
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
 
             // -----------------------------------------------------------------
-            // BƯỚC 5: MAPPING DTO TRẢ VỀ
+            // BƯỚC 5: MAPPING DTO TRẢ VỀ (CÓ PHÂN BIỆT SAVE/FAVORITE)
             // -----------------------------------------------------------------
             var resultDTO = sortedResults.Select(item => new
             {
@@ -251,14 +255,16 @@ namespace UniMarket.Controllers
                 AnhUrls = item.Data.AnhTinDangs?.Where(a => a.LoaiMedia == MediaType.Image)
                                                 .Select(a => a.DuongDan).ToList() ?? new List<string>(),
 
-                // Số liệu tương tác
+                // Số liệu tương tác hiển thị UI
                 SoTym = item.Interactions.Likes,
                 SoLuotChiaSe = item.Interactions.Shares,
                 SoBinhLuan = item.Interactions.Comments,
-                SoNguoiLuu = item.Interactions.Saves, // Đã gộp tổng
-                item.Data.SoLuotXem,
 
-                // Điểm số (Dùng để debug xem AI chạy thế nào)
+                // 🔥 Hiển thị riêng biệt
+                SoNguoiLuu = item.Interactions.SaveVideos, // Hiển thị ở icon Bookmark
+                SoLuotYeuThich = item.Interactions.FavPosts,    // Hiển thị ở icon Trái tim/Giỏ hàng
+
+                item.Data.SoLuotXem,
                 TongScore = Math.Round(item.Score, 2),
 
                 NguoiDang = item.Data.NguoiBan != null ? new
@@ -269,7 +275,10 @@ namespace UniMarket.Controllers
                 } : null,
 
                 IsLiked = userLikedIds.Contains(item.Data.MaTinDang),
-                IsSaved = userSavedIds.Contains(item.Data.MaTinDang)
+
+                // 🔥 Trạng thái riêng biệt cho UI tô màu nút
+                IsSaved = userVideoSavedIds.Contains(item.Data.MaTinDang),       // User đã lưu video?
+                IsFavorited = userPostFavoriteIds.Contains(item.Data.MaTinDang)  // User đã thích tin?
             });
 
             return Ok(resultDTO);
@@ -282,20 +291,24 @@ namespace UniMarket.Controllers
         [HttpGet("{maTinDang}")]
         public async Task<IActionResult> GetVideoDetail(int maTinDang)
         {
+            // 1. Lấy thông tin tin đăng kèm các quan hệ
             var tin = await _context.TinDangs
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
                 .Include(td => td.QuanHuyen)
-                .Include(td => td.AnhTinDangs) // Quan trọng để lấy thumbnail
+                .Include(td => td.AnhTinDangs) // Quan trọng để lấy thumbnail/list ảnh
                 .FirstOrDefaultAsync(td => td.MaTinDang == maTinDang && td.VideoUrl != null);
 
             if (tin == null)
                 return NotFound();
 
+            // 2. Khởi tạo trạng thái mặc định
             bool isLiked = false;
-            bool isSaved = false; // Thêm check đã lưu
+            bool isSaved = false;     // Trạng thái Lưu Video (Bookmark)
+            bool isFavorited = false; // Trạng thái Yêu thích Sản phẩm (Heart/Cart)
 
-            if (User.Identity.IsAuthenticated)
+            // 3. Kiểm tra trạng thái nếu User đã đăng nhập
+            if (User.Identity != null && User.Identity.IsAuthenticated)
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (!string.IsNullOrEmpty(userId))
@@ -303,16 +316,27 @@ namespace UniMarket.Controllers
                     isLiked = await _context.VideoLikes
                         .AnyAsync(v => v.MaTinDang == maTinDang && v.UserId == userId);
 
-                    // Check xem user đã lưu chưa
+                    // 🔥 Check Lưu Video (VideoTinDangSave)
                     isSaved = await _context.VideoTinDangSaves
                         .AnyAsync(s => s.MaTinDang == maTinDang && s.MaNguoiDung == userId);
+
+                    // 🔥 Check Yêu Thích Tin (TinDangYeuThich)
+                    isFavorited = await _context.TinDangYeuThichs
+                        .AnyAsync(f => f.MaTinDang == maTinDang && f.MaNguoiDung == userId);
                 }
             }
 
-            // Đếm số lượng tương tác
+            // 4. Đếm số lượng tương tác (Thống kê)
             var soLuotChiaSe = await _context.Shares.CountAsync(s => s.TinDangId == maTinDang);
-            var soNguoiLuu = await _context.VideoTinDangSaves.CountAsync(s => s.MaTinDang == maTinDang);
 
+            // 🔥 Đếm riêng biệt 2 loại lưu
+            var soNguoiLuuVideo = await _context.VideoTinDangSaves.CountAsync(s => s.MaTinDang == maTinDang);
+            var soLuotYeuThich = await _context.TinDangYeuThichs.CountAsync(s => s.MaTinDang == maTinDang);
+
+            var soTym = await _context.VideoLikes.CountAsync(v => v.MaTinDang == tin.MaTinDang);
+            var soBinhLuan = await _context.VideoComments.CountAsync(c => c.MaTinDang == tin.MaTinDang);
+
+            // 5. Tổng hợp kết quả trả về
             var result = new
             {
                 tin.MaTinDang,
@@ -320,7 +344,7 @@ namespace UniMarket.Controllers
                 tin.MoTa,
                 tin.VideoUrl,
 
-                // 🔥 BỔ SUNG: Thumbnail (HinhAnh) để giao diện hiển thị đúng khi chưa play
+                // Thumbnail để hiển thị khi video chưa play
                 HinhAnh = tin.AnhTinDangs != null && tin.AnhTinDangs.Any()
                         ? tin.AnhTinDangs.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan
                         : null,
@@ -332,19 +356,24 @@ namespace UniMarket.Controllers
                 tin.TinhTrang,
                 tin.NgayDang,
 
-                // 🔥 BỔ SUNG: Các trường thống kê cho VideoSideActions
-                SoTym = await _context.VideoLikes.CountAsync(v => v.MaTinDang == tin.MaTinDang),
-                SoBinhLuan = await _context.VideoComments.CountAsync(c => c.MaTinDang == tin.MaTinDang),
+                // --- Thống kê ---
+                SoTym = soTym,
+                SoBinhLuan = soBinhLuan,
                 SoLuotChiaSe = soLuotChiaSe,
-                SoNguoiLuu = soNguoiLuu,
-                tin.SoLuotXem,
 
-                // 🔥 BỔ SUNG: Số lượng ảnh (nếu cần hiển thị icon album)
+                // 🔥 TRẢ VỀ 2 SỐ LIỆU RIÊNG (Thay vì gộp chung)
+                SoNguoiLuu = soNguoiLuuVideo,
+                SoLuotYeuThich = soLuotYeuThich,
+
+                tin.SoLuotXem,
                 AnhCount = tin.AnhTinDangs?.Count(a => a.LoaiMedia == MediaType.Image) ?? 0,
 
+                // --- Trạng thái User ---
                 IsLiked = isLiked,
-                IsSaved = isSaved, // Trả về trạng thái lưu
+                IsSaved = isSaved,         // Trạng thái Lưu Video
+                IsFavorited = isFavorited, // Trạng thái Yêu thích Tin
 
+                // --- Thông tin người đăng ---
                 NguoiDang = tin.NguoiBan != null ? new
                 {
                     tin.NguoiBan.Id,
@@ -352,7 +381,7 @@ namespace UniMarket.Controllers
                     tin.NguoiBan.AvatarUrl
                 } : null,
 
-                // Nếu cần list comment chi tiết thì giữ nguyên, nhưng list video feed thường không cần cái này ngay
+                // --- Danh sách bình luận (Lazy load list comment) ---
                 BinhLuans = await _context.VideoComments
                     .Where(c => c.MaTinDang == tin.MaTinDang)
                     .OrderByDescending(c => c.CreatedAt)

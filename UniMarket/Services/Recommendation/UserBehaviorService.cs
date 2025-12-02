@@ -37,14 +37,16 @@ namespace UniMarket.Services.Recommendation
         // --- Hành vi Tương tác Tích cực (Explicit Feedback) ---
         private const float SCORE_LIKE = 5.0f;              // Thả tim
         private const float SCORE_COMMENT = 8.0f;           // Bình luận (Nỗ lực cao hơn like)
-        private const float SCORE_SAVE = 10.0f;             // Lưu (Ý định mua/xem lại cao)
+
+        // 🔥 CẬP NHẬT TỪ CODE 2 (Tách biệt hành vi Lưu và Yêu thích)
+        private const float SCORE_SAVE_VIDEO = 8.0f;        // Lưu Video (VideoTinDangSave): Thích nội dung giải trí
+        private const float SCORE_FAVORITE_ITEM = 15.0f;    // Yêu thích Sản phẩm (TinDangYeuThich): Ý định mua cực cao
 
         // --- Hành vi Lan tỏa (Viral/Social) ---
         private const float SCORE_SHARE_INTERNAL = 10.0f;   // Share qua chat nội bộ
         private const float SCORE_SHARE_SOCIAL = 15.0f;     // Share ra Facebook/Zalo (Viral cao nhất)
 
         // --- Hành vi Tiêu cực (Negative Feedback) ---
-        // Rất quan trọng để đẩy các nội dung rác/spam ra xa người dùng
         private const float SCORE_REPORT = -50.0f;          // Báo cáo (Ghét cay ghét đắng)
 
         public UserBehaviorService(ApplicationDbContext context)
@@ -69,16 +71,27 @@ namespace UniMarket.Services.Recommendation
                 .Select(h => h.Keyword.ToLower())
                 .ToListAsync();
 
-            // B. Học từ Tương tác (Like, Save) - TỐI ƯU HÓA TỐC ĐỘ QUERY
-            // Thay vì join lồng nhau, ta lấy ID ra trước rồi lọc
+            // B. Học từ Tương tác (Like, Save Video, Favorite Product)
+            // Tách biệt nguồn dữ liệu để lấy danh sách ID tin đăng user quan tâm
+
+            // 1. Likes
             var likedPostIds = await _context.VideoLikes
                 .AsNoTracking().Where(l => l.UserId == userId).Select(l => l.MaTinDang).ToListAsync();
 
-            var savedPostIds = await _context.VideoTinDangSaves
+            // 2. Saved Videos (Hành vi giải trí/tham khảo) - Code 2
+            var savedVideoIds = await _context.VideoTinDangSaves
                 .AsNoTracking().Where(s => s.MaNguoiDung == userId).Select(s => s.MaTinDang).ToListAsync();
 
-            // Gộp danh sách ID và loại bỏ trùng lặp
-            var interactedIds = likedPostIds.Concat(savedPostIds).Distinct().ToList();
+            // 3. Favorites (Hành vi mua sắm) - Code 2 (QUAN TRỌNG NHẤT)
+            var favoriteIds = await _context.TinDangYeuThichs
+                .AsNoTracking().Where(f => f.MaNguoiDung == userId).Select(f => f.MaTinDang).ToListAsync();
+
+            // Gộp tất cả danh sách ID và loại bỏ trùng lặp để phân tích "Gu" chung
+            var interactedIds = likedPostIds
+                                .Concat(savedVideoIds)
+                                .Concat(favoriteIds)
+                                .Distinct()
+                                .ToList();
 
             if (interactedIds.Any())
             {
@@ -177,7 +190,7 @@ namespace UniMarket.Services.Recommendation
             }
 
             // ---------------------------------------------------------
-            // B. XỬ LÝ TƯƠNG TÁC TÍCH CỰC (LIKE, COMMENT, SAVE, SHARE)
+            // B. XỬ LÝ TƯƠNG TÁC CƠ BẢN (LIKE, COMMENT)
             // ---------------------------------------------------------
 
             // Likes
@@ -194,14 +207,29 @@ namespace UniMarket.Services.Recommendation
             foreach (var c in comments)
                 AddScoreWithDecay(tempScores, c.UserId, c.MaTinDang, SCORE_COMMENT, c.CreatedAt);
 
-            // Saves
+            // ---------------------------------------------------------
+            // C. XỬ LÝ HÀNH VI LƯU & YÊU THÍCH (Code 2 Integration)
+            // ---------------------------------------------------------
+
+            // 1. Saved Videos (VideoTinDangSave) -> Dùng SCORE_SAVE_VIDEO
+            // Hành vi này cho thấy user thích nội dung video
             var saves = await _context.VideoTinDangSaves
                 .AsNoTracking().Where(x => x.NgayLuu >= cutOffDate)
                 .Select(x => new { UserId = x.MaNguoiDung, x.MaTinDang, CreatedAt = x.NgayLuu }).ToListAsync();
             foreach (var s in saves)
-                AddScoreWithDecay(tempScores, s.UserId, s.MaTinDang, SCORE_SAVE, s.CreatedAt);
+                AddScoreWithDecay(tempScores, s.UserId, s.MaTinDang, SCORE_SAVE_VIDEO, s.CreatedAt);
 
-            // Shares
+            // 2. Favorites (TinDangYeuThich) -> Dùng SCORE_FAVORITE_ITEM
+            // Hành vi này mạnh hơn, cho thấy user muốn sở hữu món hàng -> AI ưu tiên cao nhất
+            var favorites = await _context.TinDangYeuThichs
+                .AsNoTracking().Where(x => x.NgayTao >= cutOffDate)
+                .Select(x => new { UserId = x.MaNguoiDung, x.MaTinDang, CreatedAt = x.NgayTao }).ToListAsync();
+            foreach (var f in favorites)
+                AddScoreWithDecay(tempScores, f.UserId, f.MaTinDang, SCORE_FAVORITE_ITEM, f.CreatedAt);
+
+            // ---------------------------------------------------------
+            // D. XỬ LÝ LAN TỎA (SHARES)
+            // ---------------------------------------------------------
             var shares = await _context.Shares
                 .AsNoTracking().Where(s => s.TinDangId.HasValue && s.SharedAt >= cutOffDate)
                 .Select(s => new { s.UserId, TinDangId = s.TinDangId.Value, s.ShareType, s.SharedAt }).ToListAsync();
@@ -212,7 +240,7 @@ namespace UniMarket.Services.Recommendation
             }
 
             // ---------------------------------------------------------
-            // C. XỬ LÝ TÍN HIỆU TIÊU CỰC (REPORTS) - CỰC KỲ QUAN TRỌNG
+            // E. XỬ LÝ TÍN HIỆU TIÊU CỰC (REPORTS)
             // ---------------------------------------------------------
             var reports = await _context.Reports
                 .AsNoTracking()
@@ -227,7 +255,7 @@ namespace UniMarket.Services.Recommendation
             }
 
             // ---------------------------------------------------------
-            // D. CHUYỂN ĐỔI SANG MODEL ĐẦU VÀO CHO AI
+            // F. CHUYỂN ĐỔI SANG MODEL ĐẦU VÀO CHO AI
             // ---------------------------------------------------------
             var trainingData = new List<VideoRating>();
 
@@ -264,6 +292,7 @@ namespace UniMarket.Services.Recommendation
 
             // Công thức Decay: Giá trị giảm dần theo thời gian
             // Hệ số = 1 / (1 + (Ngày_cũ / 30))
+            // Tức là tin cách đây 30 ngày chỉ còn 50% giá trị điểm
             double decayFactor = 1.0 / (1.0 + (daysOld / 30.0));
             float finalScore = baseScore * (float)decayFactor;
 
