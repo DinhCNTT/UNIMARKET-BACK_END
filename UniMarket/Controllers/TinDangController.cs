@@ -118,10 +118,11 @@ namespace UniMarket.Controllers
                 // A. LẤY DANH SÁCH ID ĐỀ XUẤT TỪ AI
                 // -------------------------------------------------------------
                 // Sử dụng _recommendationService đã được inject ở Constructor
-                var recommendedIds = await _recommendationService.GetForYouVideoIds(
+                var recommendedIds = await _recommendationService.GetRecommendedPostIds(
                     userId,
-                    new List<int>(),
-                    limit
+                    new List<int>(), 
+                    limit,
+                    isVideoOnly: false 
                 );
 
                 if (recommendedIds == null || !recommendedIds.Any())
