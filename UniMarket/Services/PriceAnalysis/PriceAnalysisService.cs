@@ -18,6 +18,7 @@ namespace UniMarket.Services.PriceAnalysis
 
         public async Task<MarketAnalysisResult> AnalyzePriceAsync(int postId)
         {
+            // 1. LẤY TIN GỐC KÈM DANH MỤC
             var currentPost = await _context.TinDangs
                 .Include(p => p.DanhMuc)
                 .AsNoTracking()
@@ -25,155 +26,219 @@ namespace UniMarket.Services.PriceAnalysis
 
             if (currentPost == null) return new MarketAnalysisResult { IsSuccess = false };
 
-            // --- DEBUG LOG ---
-            Console.WriteLine($"\n🔍 [AI SUPER CLEANER] Đang xử lý: {currentPost.TieuDe}");
+            // 🛑 LỚP BẢO VỆ 1: CHECK DANH MỤC (CATEGORY GUARD)
+            string categoryName = currentPost.DanhMuc?.TenDanhMuc?.ToLower() ?? "";
+            if (!categoryName.Contains("điện thoại") && !categoryName.Contains("phone") && !categoryName.Contains("smartphone"))
+            {
+                return new MarketAnalysisResult { IsSuccess = false };
+            }
 
-            // 1. Query Database (Lấy rộng)
+            // 2. PARSE JSON THÔNG TIN CHI TIẾT
+            ProductSpecDTO currentSpecs = new ProductSpecDTO();
+            if (!string.IsNullOrEmpty(currentPost.ThongTinChiTiet))
+            {
+                try
+                {
+                    currentSpecs = JsonConvert.DeserializeObject<ProductSpecDTO>(currentPost.ThongTinChiTiet) ?? new ProductSpecDTO();
+                }
+                catch { }
+            }
+
+            Console.WriteLine($"\n🔍 [AI STABLE & STRICT] Phân tích: {currentPost.TieuDe} (ID: {postId})");
+
+            // 3. LẤY DANH SÁCH ỨNG VIÊN (QUERY DATABASE)
+            // 🔥 FIX: Lấy TOÀN BỘ tin cùng loại (BAO GỒM CẢ TIN HIỆN TẠI)
+            // Để tin hiện tại cũng tham gia vào việc tính toán giá trung bình -> Giúp giá ổn định
             var candidates = await _context.TinDangs
                 .AsNoTracking()
-                .Where(p => p.MaTinDang != postId
+                .Where(p => p.MaDanhMuc == currentPost.MaDanhMuc
+                            // ❌ ĐÃ XÓA DÒNG: && p.MaTinDang != postId
                             && p.TrangThai == TrangThaiTinDang.DaDuyet
-                            && p.Gia > 0)
-                .Select(p => new { p.MaTinDang, p.Gia, p.ThongTinChiTiet, p.TieuDe })
+                            && p.Gia > 0
+                            // Chỉ so sánh cùng tình trạng (Cũ so với Cũ, Mới so với Mới)
+                            && p.TinhTrang == currentPost.TinhTrang)
+                .Select(p => new { p.MaTinDang, p.Gia, p.ThongTinChiTiet, p.TieuDe, p.TinhTrang })
                 .ToListAsync();
 
-            // 2. TẠO CHỮ KÝ MODEL (Dựa trên Tiêu đề đã làm sạch cực kỹ)
-            var currentSig = ExtractModelSignature(currentPost.TieuDe);
-            Console.WriteLine($"   => Signature Gốc: [{string.Join(",", currentSig.Numbers)}] + [{string.Join(",", currentSig.Keywords)}]");
+            Console.WriteLine($"   => Tìm thấy {candidates.Count} tin sơ bộ (đã gộp tin hiện tại).");
 
             var validPrices = new List<decimal>();
 
+            // --- CHIẾN THUẬT SO SÁNH (MATCHING STRATEGY - GIỮ NGUYÊN LOGIC CŨ) ---
+
+            // Kiểm tra xem tin gốc có dữ liệu chuẩn không?
+            bool hasStrictData = !string.IsNullOrEmpty(currentSpecs.Hang)
+                              && !string.IsNullOrEmpty(currentSpecs.DongMay)
+                              && currentSpecs.DongMay != "Khác"
+                              && !string.IsNullOrEmpty(currentSpecs.DungLuong);
+
             foreach (var post in candidates)
             {
-                // BỎ QUA CHECK JSON -> CHỈ DÙNG TIÊU ĐỀ ĐỂ TEST
-                var targetSig = ExtractModelSignature(post.TieuDe);
-
-                if (IsSimilarModel(currentSig, targetSig))
+                try
                 {
-                    Console.WriteLine($"   ✅ CHẤP NHẬN: {post.TieuDe} ({post.Gia:N0})");
-                    validPrices.Add(post.Gia);
+                    var targetSpecs = JsonConvert.DeserializeObject<ProductSpecDTO>(post.ThongTinChiTiet ?? "{}");
+                    if (targetSpecs == null) continue;
+
+                    bool isMatch = false;
+
+                    // 🛡️ LỚP 2: SO SÁNH CHÍNH XÁC (STRICT MATCHING - Ưu tiên)
+                    if (hasStrictData)
+                    {
+                        // 1. Cùng Hãng
+                        if (!IsStringMatch(currentSpecs.Hang, targetSpecs.Hang)) continue;
+
+                        // 2. Cùng Dòng Máy (Model)
+                        if (!IsStringMatch(currentSpecs.DongMay, targetSpecs.DongMay)) continue;
+
+                        // 3. Cùng Dung Lượng (Storage)
+                        if (!IsStringMatch(currentSpecs.DungLuong, targetSpecs.DungLuong)) continue;
+
+                        // Khớp hết -> Lấy
+                        isMatch = true;
+                    }
+                    // 🛡️ LỚP 3: SO SÁNH TIÊU ĐỀ (FALLBACK - Dự phòng)
+                    else
+                    {
+                        var currentSig = ExtractModelSignature(currentPost.TieuDe);
+                        var targetSig = ExtractModelSignature(post.TieuDe);
+
+                        // Vẫn bắt buộc cùng Hãng (nếu có thông tin)
+                        if (!string.IsNullOrEmpty(currentSpecs.Hang) && !string.IsNullOrEmpty(targetSpecs.Hang))
+                        {
+                            if (!IsStringMatch(currentSpecs.Hang, targetSpecs.Hang)) continue;
+                        }
+
+                        if (IsSimilarModel(currentSig, targetSig))
+                        {
+                            isMatch = true;
+                        }
+                    }
+
+                    if (isMatch)
+                    {
+                        validPrices.Add(post.Gia);
+                    }
                 }
+                catch { }
             }
 
-            // CHỈ CẦN 1 TIN LÀ TÍNH
-            if (validPrices.Count < 1) return new MarketAnalysisResult { IsSuccess = false };
+            // Test Mode: Chỉ cần 1 tin là tính (Chính là tin hiện tại nếu nó khớp chính mình)
+            if (validPrices.Count < 1)
+            {
+                Console.WriteLine("❌ KẾT QUẢ: Không tìm thấy dữ liệu thị trường.");
+                return new MarketAnalysisResult { IsSuccess = false };
+            }
 
-            // 3. TÍNH TOÁN
+            // 4. THUẬT TOÁN IQR (LOẠI BỎ GIÁ ẢO)
             validPrices.Sort();
             int n = validPrices.Count;
-            decimal q1 = validPrices[n / 4];
-            decimal q3 = validPrices[n * 3 / 4];
-            decimal iqr = q3 - q1;
+            List<decimal> marketPrices;
 
-            var finalPrices = validPrices.Where(p => p >= q1 - 1.5m * iqr && p <= q3 + 1.5m * iqr).ToList();
-            if (!finalPrices.Any()) finalPrices = validPrices;
+            // Nếu dữ liệu đủ lớn (>=4), dùng IQR để lọc giá ảo (spam)
+            if (n >= 4)
+            {
+                decimal q1 = validPrices[n / 4];
+                decimal q3 = validPrices[n * 3 / 4];
+                decimal iqr = q3 - q1;
+                marketPrices = validPrices.Where(p => p >= q1 - 1.5m * iqr && p <= q3 + 1.5m * iqr).ToList();
+            }
+            else
+            {
+                marketPrices = validPrices;
+            }
 
-            decimal avg = finalPrices.Average();
+            if (!marketPrices.Any()) marketPrices = validPrices;
+
+            // 5. TÍNH KẾT QUẢ (DỰA TRÊN TOÀN BỘ THỊ TRƯỜNG CỐ ĐỊNH)
+            decimal marketMin = marketPrices.Min();
+            decimal marketMax = marketPrices.Max();
+            decimal marketAvg = marketPrices.Average();
+
+            // Xử lý trường hợp Min = Max (chỉ có 1 mức giá hoặc 1 tin) -> Nới rộng ảo 1 chút để vẽ biểu đồ đẹp
+            if (marketMin == marketMax)
+            {
+                marketMin = marketMin * 0.9m;
+                marketMax = marketMax * 1.1m;
+            }
+
+            // So sánh giá tin hiện tại với giá trung bình thị trường
             double diffPercent = 0;
-            if (avg > 0) diffPercent = (double)((currentPost.Gia - avg) / avg) * 100;
+            if (marketAvg > 0)
+                diffPercent = (double)((currentPost.Gia - marketAvg) / marketAvg) * 100;
 
             string status = "Giá hợp lý";
             if (diffPercent < -5) status = "Rẻ hơn thị trường";
             else if (diffPercent > 5) status = "Cao hơn thị trường";
 
+            Console.WriteLine($"✅ SUCCESS: Thị trường [{marketMin:N0} - {marketMax:N0}], Phổ biến: {marketAvg:N0}");
+
             return new MarketAnalysisResult
             {
                 IsSuccess = true,
-                MinPrice = finalPrices.Min(),
-                MaxPrice = finalPrices.Max(),
-                AveragePrice = avg,
+                MinPrice = marketMin,
+                MaxPrice = marketMax,
+                AveragePrice = marketAvg, // Giá phổ biến này sẽ CỐ ĐỊNH cho mọi tin cùng loại
                 CurrentPrice = currentPost.Gia,
                 Status = status,
                 DifferencePercent = Math.Round(diffPercent, 1),
-                SampleSize = finalPrices.Count
+                SampleSize = marketPrices.Count
             };
         }
 
         // =================================================================================
-        // 🔥 BỘ LỌC TỪ KHÓA & DỌN RÁC (SUPER CLEANER)
+        // CÁC HÀM BỔ TRỢ (HELPER FUNCTIONS) - GIỮ NGUYÊN
         // =================================================================================
 
+        private bool IsStringMatch(string? s1, string? s2)
+        {
+            if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2)) return false;
+            return string.Equals(s1.Trim(), s2.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
         private readonly string[] _modelKeywords = new[] {
-            "pro", "max", "mini", "plus", "se", "ultra",
-            "note", "fold", "flip", "gaming", "5g", "4g"
+            "pro", "max", "mini", "plus", "se", "ultra", "note", "fold", "flip", "fe", "5g", "4g"
         };
 
-        // Hàm xóa sạch rác trong tiêu đề
         private string CleanTitle(string title)
         {
             if (string.IsNullOrEmpty(title)) return "";
             string clean = title.ToLower();
-
-            // 1. Xóa phần trăm độ mới/pin (99%, 9x%, 85%...)
             clean = Regex.Replace(clean, @"\d+[x]*%", " ");
-
-            // 2. Xóa thời gian bảo hành (6 tháng, 12 th...)
             clean = Regex.Replace(clean, @"\d+\s*(tháng|th|thang|năm|ngày)", " ");
-
-            // 3. Xóa thông tin Pin (5000mah, pin 8x...)
             clean = Regex.Replace(clean, @"pin\s*[\d%x]+", " ");
-
-            // 4. Xóa thông số kỹ thuật (gb, tb, hz, w, sim...)
-            clean = Regex.Replace(clean, @"\d+\s*(gb|tb|hz|w|wat|sim|mp)", " ");
-
-            // 5. Xóa các từ rác phổ biến trong mua bán
+            clean = Regex.Replace(clean, @"\d+\s*(hz|w|wat|sim|mp|mah)", " ");
+            clean = Regex.Replace(clean, @"\d+\s*(gb|tb)", " ");
             clean = Regex.Replace(clean, @"(chính hãng|xách tay|quốc tế|lock|vn/a|ll/a|fullbox|zin|keng|đẹp|cũ|mới|pass|bán|giá|rẻ)", " ");
-
             return clean;
         }
 
         private ModelSignature ExtractModelSignature(string title)
         {
             var sig = new ModelSignature();
-
-            // BƯỚC 1: Dọn rác
             string cleanTitle = CleanTitle(title);
 
-            // BƯỚC 2: Bắt số đời máy
             var numberMatches = Regex.Matches(cleanTitle, @"\d+");
             foreach (Match match in numberMatches)
             {
                 if (int.TryParse(match.Value, out int num))
                 {
-                    // Lọc số rác còn sót lại:
-                    // - Bỏ qua 32, 64, 128... (dung lượng nếu lỡ sót)
-                    // - Bỏ qua 99, 98, 95 (độ mới phổ biến nếu lỡ sót)
-                    // - Bỏ qua năm 20xx
-
                     bool isStorage = num == 32 || num == 64 || num == 128 || num == 256 || num == 512;
-                    bool isCommonPercent = num == 99 || num == 98 || num == 95 || num == 90;
                     bool isYear = num > 2000;
-
-                    // Lấy số nếu nó không phải rác VÀ (lớn hơn 3 hoặc là số nhỏ nhưng có chữ iphone/samsung...)
-                    // Để an toàn cho case này, tui lấy num >= 3
-                    if (!isStorage && !isCommonPercent && !isYear && num >= 3)
-                    {
-                        sig.Numbers.Add(match.Value);
-                    }
+                    if (!isStorage && !isYear && num >= 3) sig.Numbers.Add(match.Value);
                 }
             }
-
-            // BƯỚC 3: Bắt từ khóa Hậu tố (Pro, Max...)
-            // Quét trên title gốc để tránh bị Clean mất từ khóa (dù CleanTitle tui ko xóa Pro/Max nhưng cứ chắc ăn)
-            string normalizedOriginal = title.ToLower();
             foreach (var key in _modelKeywords)
             {
-                if (Regex.IsMatch(normalizedOriginal, $@"\b{key}\b"))
-                {
-                    sig.Keywords.Add(key);
-                }
+                if (Regex.IsMatch(cleanTitle, $@"\b{key}\b")) sig.Keywords.Add(key);
             }
-
             return sig;
         }
 
         private bool IsSimilarModel(ModelSignature source, ModelSignature target)
         {
-            // 1. Số phải khớp (13 == 13)
             if (source.Numbers.Count != target.Numbers.Count) return false;
             foreach (var num in source.Numbers) if (!target.Numbers.Contains(num)) return false;
 
-            // 2. Từ khóa phải khớp (Pro == Pro, Max == Max)
             foreach (var key in source.Keywords) if (!target.Keywords.Contains(key)) return false;
             foreach (var key in target.Keywords) if (!source.Keywords.Contains(key)) return false;
 
@@ -184,12 +249,6 @@ namespace UniMarket.Services.PriceAnalysis
         {
             public List<string> Numbers { get; set; } = new List<string>();
             public HashSet<string> Keywords { get; set; } = new HashSet<string>();
-        }
-
-        private bool IsMatch(string? s1, string? s2)
-        {
-            if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2)) return false;
-            return string.Equals(s1.Trim(), s2.Trim(), StringComparison.OrdinalIgnoreCase);
         }
     }
 }
