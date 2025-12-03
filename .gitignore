@@ -29,3 +29,5 @@ appsettings*.json
 # Ignore uploaded images and temporary uploads under wwwroot
 /UniMarket/wwwroot/images/temp-uploads/
 /UniMarket/wwwroot/images/categories/*_download.*
+# Bỏ qua file AI Model
+UniMarket/wwwroot/AIModels/video_recommender.zip
