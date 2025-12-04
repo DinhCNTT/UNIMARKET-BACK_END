@@ -7,17 +7,56 @@ using UniMarket.DTO;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize] // Yêu cầu authentication
 public class UserController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly UserPresenceService _presenceService;
+
     public UserController(UserManager<ApplicationUser> userManager, UserPresenceService presenceService)
     {
         _userManager = userManager;
         _presenceService = presenceService;
     }
+
+    // ✅ ENDPOINT MỚI - KHÔNG CẦN ĐĂNG NHẬP (Public)
+    [HttpGet("public/status/{userId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPublicStatus(string userId)
+    {
+        // First check in-memory service for most up-to-date status
+        var memoryStatus = _presenceService.GetStatus(userId);
+
+        // Also get database info for fallback
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        bool isOnline;
+        DateTime? lastActive;
+
+        if (memoryStatus.HasValue)
+        {
+            // Use in-memory data if available (more current)
+            isOnline = memoryStatus.Value.IsOnline;
+            lastActive = memoryStatus.Value.IsOnline ? null : memoryStatus.Value.LastActive;
+        }
+        else
+        {
+            // Fallback to database
+            isOnline = user.IsOnline;
+            lastActive = user.IsOnline ? null : user.LastOnlineTime;
+        }
+
+        return Ok(new
+        {
+            isOnline = isOnline,
+            lastActive = lastActive,
+            formattedLastSeen = FormatLastSeen(lastActive)
+        });
+    }
+
+    // ✅ GIỮ NGUYÊN ENDPOINT CŨ CHO USER ĐÃ ĐĂNG NHẬP
     [HttpGet("status/{userId}")]
+    [Authorize]
     public async Task<IActionResult> GetStatus(string userId)
     {
         // First check in-memory service for most up-to-date status
@@ -66,7 +105,9 @@ public class UserController : ControllerBase
         else
             return $"{(int)timeAgo.TotalDays} ngày trước";
     }
+
     [HttpGet("profile/{userId}")]
+    [Authorize]
     public async Task<IActionResult> GetUserProfile(string userId)
     {
         // Kiểm tra user có quyền truy cập (chỉ được xem profile của chính mình)
@@ -96,8 +137,8 @@ public class UserController : ControllerBase
         });
     }
 
-    // Thêm method tiện ích để update user profile
     [HttpPut("update-profile")]
+    [Authorize]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileModel model)
     {
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
