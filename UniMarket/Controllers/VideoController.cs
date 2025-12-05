@@ -11,6 +11,7 @@ using UniMarket.Hubs;
 using UniMarket.Services.Recommendation; // ✅ Namespace quan trọng
 using UniMarket.Helpers;
 using UniMarket.Extensions;
+using System.Security.Claims;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -250,7 +251,7 @@ namespace UniMarket.Controllers
                 QuanHuyen = item.Data.QuanHuyen?.TenQuanHuyen,
                 item.Data.TinhTrang,
                 item.Data.NgayDang,
-
+                ThoiGianHienThi = CalculateTimeAgo(item.Data.NgayDang),
                 AnhCount = item.Data.AnhTinDangs?.Count(a => a.LoaiMedia == MediaType.Image) ?? 0,
                 AnhUrls = item.Data.AnhTinDangs?.Where(a => a.LoaiMedia == MediaType.Image)
                                                 .Select(a => a.DuongDan).ToList() ?? new List<string>(),
@@ -763,7 +764,8 @@ namespace UniMarket.Controllers
                     FullName = td.NguoiBan.FullName,
                     AvatarUrl = td.NguoiBan.AvatarUrl
                 },
-                IsLiked = likedVideoIds.Contains(td.MaTinDang)
+                IsLiked = likedVideoIds.Contains(td.MaTinDang),
+                ThoiGianHienThi = CalculateTimeAgo(td.NgayDang)
             });
 
             return Ok(new
@@ -821,6 +823,95 @@ namespace UniMarket.Controllers
                 .ToListAsync();
 
             return Ok(users);
+        }
+
+
+        [HttpGet("search-users-smart")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SearchUsersSmart([FromQuery] string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+                return BadRequest("Từ khóa tìm kiếm không được để trống.");
+
+            keyword = keyword.ToLower();
+
+            // Lấy ID người dùng hiện tại (nếu đã đăng nhập)
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // --- BƯỚC 1: TRUY VẤN (QUERY) ---
+            // Sử dụng AsNoTracking để tối ưu tốc độ đọc
+            var query = _context.Users
+                .AsNoTracking()
+                .Where(u =>
+                    // Tìm theo tên người dùng
+                    u.FullName.ToLower().Contains(keyword) ||
+                    // HOẶC Tìm theo người dùng có video chứa từ khóa
+                    _context.TinDangs.Any(t => t.MaNguoiBan == u.Id &&
+                                                t.VideoUrl != null &&
+                                                t.TrangThai == TrangThaiTinDang.DaDuyet &&
+                                                t.TieuDe.ToLower().Contains(keyword))
+                )
+                .Select(u => new
+                {
+                    User = u,
+
+                    // 1. Đếm số Follower
+                    FollowersCount = _context.Follows.Count(f => f.FollowingId == u.Id),
+
+                    // 2. Đếm số Video đã duyệt
+                    TotalVideos = _context.TinDangs.Count(t => t.MaNguoiBan == u.Id && t.TrangThai == TrangThaiTinDang.DaDuyet),
+
+                    // 3. Đếm tổng lượt Tym (SỬA LỖI TẠI ĐÂY)
+                    // Thay vì đi từ TinDang, ta đếm trực tiếp từ bảng VideoLikes dựa vào quan hệ ngược
+                    TotalLikes = _context.VideoLikes
+                                    .Count(vl => vl.TinDang.MaNguoiBan == u.Id),
+
+                    // 4. Đếm tổng lượt Lưu (SỬA LỖI TẠI ĐÂY)
+                    TotalSaves = _context.VideoTinDangSaves
+                                    .Count(vs => vs.TinDang.MaNguoiBan == u.Id),
+
+                    // 5. Tính tổng View
+                    TotalViews = _context.TinDangs
+                        .Where(t => t.MaNguoiBan == u.Id)
+                        .Sum(t => (int?)t.SoLuotXem) ?? 0,
+
+                    // 6. Check trạng thái Follow
+                    IsFollowed = currentUserId != null &&
+                                 _context.Follows.Any(f => f.FollowerId == currentUserId && f.FollowingId == u.Id)
+                });
+
+            // Lấy dữ liệu thô về Memory
+            var rawData = await query.ToListAsync();
+
+            // --- BƯỚC 2: TÍNH ĐIỂM & SẮP XẾP (RANKING ALGORITHM) ---
+            var rankedUsers = rawData.Select(x => new UserSearchResultDto
+            {
+                Id = x.User.Id,
+                FullName = x.User.FullName,
+                AvatarUrl = x.User.AvatarUrl,
+                PhoneNumber = x.User.PhoneNumber,
+
+                FollowersCount = x.FollowersCount,
+                TotalVideos = x.TotalVideos,
+                TotalLikes = x.TotalLikes,
+                TotalViews = x.TotalViews,
+                TotalSaves = x.TotalSaves,
+                IsFollowed = x.IsFollowed,
+
+                // 🔥 CÔNG THỨC ĐỀ XUẤT (Ranking Formula)
+                // - Ưu tiên người được Lưu nhiều (Interest cao)
+                // - Ưu tiên người được Tym nhiều (Engagement cao)
+                // - Thưởng điểm cho người chăm chỉ đăng video
+                RankingScore = (x.TotalSaves * 3.0) +       // Hệ số 3
+                               (x.TotalLikes * 2.0) +       // Hệ số 2
+                               (x.FollowersCount * 1.5) +   // Hệ số 1.5
+                               (x.TotalVideos * 5.0) +      // Thưởng 5đ mỗi video
+                               (x.TotalViews * 0.01)        // View chỉ là phụ
+            })
+            .OrderByDescending(u => u.RankingScore) // Người điểm cao nhất lên đầu
+            .ToList();
+
+            return Ok(rankedUsers);
         }
 
         [AllowAnonymous]
@@ -1327,6 +1418,18 @@ namespace UniMarket.Controllers
             public bool IsCompleted { get; set; }
             public int RewatchCount { get; set; } = 0;
             public bool SkipViewCount { get; set; } = false;
+        }
+        private string CalculateTimeAgo(DateTime date)
+        {
+            var timeSpan = DateTime.Now - date;
+
+            if (timeSpan.TotalMinutes < 1) return "Vừa xong";
+            if (timeSpan.TotalMinutes < 60) return $"{(int)timeSpan.TotalMinutes} phút trước";
+            if (timeSpan.TotalHours < 24) return $"{(int)timeSpan.TotalHours} giờ trước";
+            if (timeSpan.TotalDays < 30) return $"{(int)timeSpan.TotalDays} ngày trước";
+            if (timeSpan.TotalDays < 365) return $"{(int)(timeSpan.TotalDays / 30)} tháng trước";
+
+            return $"{(int)(timeSpan.TotalDays / 365)} năm trước";
         }
     }
 }
