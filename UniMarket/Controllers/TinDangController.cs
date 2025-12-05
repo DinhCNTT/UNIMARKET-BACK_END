@@ -1117,6 +1117,7 @@ namespace UniMarket.Controllers
                     post.Gia,
                     post.TinhTrang,
                     post.DiaChi,
+                    post.CoTheThoaThuan,
 
                     // 👇👇👇 QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ TRẢ VỀ DỮ LIỆU JSON 👇👇👇
                     ThongTinChiTiet = post.ThongTinChiTiet,
