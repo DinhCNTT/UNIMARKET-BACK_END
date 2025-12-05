@@ -118,10 +118,12 @@ namespace UniMarket.Controllers
                 // A. LẤY DANH SÁCH ID ĐỀ XUẤT TỪ AI
                 // -------------------------------------------------------------
                 // Sử dụng _recommendationService đã được inject ở Constructor
-                var recommendedIds = await _recommendationService.GetForYouVideoIds(
+                // Sử dụng tên hàm mới là GetRecommendedPostIds
+                var recommendedIds = await _recommendationService.GetRecommendedPostIds(
                     userId,
-                    new List<int>(),
-                    limit
+                    new List<int>(), // Danh sách ID đã xem (nếu có)
+                    limit,
+                    isVideoOnly: false // 👈 QUAN TRỌNG: Truyền false để lấy cả Tin đăng ảnh và Video
                 );
 
                 if (recommendedIds == null || !recommendedIds.Any())

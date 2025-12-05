@@ -25,7 +25,7 @@ namespace UniMarket.Services.Recommendation
         public int CommentCount { get; set; }
         public int LikeCount { get; set; }
 
-        // 🔥 ĐÃ TÁCH RIÊNG (Theo yêu cầu Code 2):
+        // 🔥 ĐÃ TÁCH RIÊNG:
         public int SaveCount { get; set; }      // Chỉ đếm VideoTinDangSave (Lưu để xem lại nội dung)
         public int FavoriteCount { get; set; }  // Chỉ đếm TinDangYeuThich (Quan tâm mua sản phẩm)
 
@@ -49,7 +49,7 @@ namespace UniMarket.Services.Recommendation
         private const double WEIGHT_COMMENT = 4.0;
         private const double WEIGHT_SHARE = 8.0;
 
-        // 🔥 Cập nhật trọng số mới (Code 2)
+        // 🔥 Cập nhật trọng số mới
         private const double WEIGHT_SAVE = 7.0;        // Quan tâm nội dung video
         private const double WEIGHT_FAVORITE = 12.0;   // Quan tâm sản phẩm (Tín hiệu mua hàng mạnh nhất)
 
@@ -78,9 +78,9 @@ namespace UniMarket.Services.Recommendation
         }
 
         // =================================================================================
-        // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID VIDEO ĐỀ XUẤT
+        // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID BÀI ĐĂNG ĐỀ XUẤT (VIDEO HOẶC TIN THƯỜNG)
         // =================================================================================
-        public async Task<List<int>> GetForYouVideoIds(string? userId, List<int> clientExcludedIds, int count = 10)
+        public async Task<List<int>> GetRecommendedPostIds(string? userId, List<int> clientExcludedIds, int count = 10, bool isVideoOnly = true)
         {
             var finalExcludedIds = new List<int>(clientExcludedIds);
             var userProfile = new UserProfileDto();
@@ -125,16 +125,31 @@ namespace UniMarket.Services.Recommendation
             // BƯỚC 2: TẠO TẬP ỨNG VIÊN (CANDIDATE GENERATION)
             // -----------------------------------------------------
             var query = _context.TinDangs.AsNoTracking()
-                .Where(t => t.VideoUrl != null && t.TrangThai == TrangThaiTinDang.DaDuyet)
+                .Where(t => t.TrangThai == TrangThaiTinDang.DaDuyet) // ✅ Chỉ lấy tin đã duyệt
                 .Where(t => !finalExcludedIds.Contains(t.MaTinDang));
+
+            // ✅ PHÂN LUỒNG: Video Feed vs General Feed
+            if (isVideoOnly)
+            {
+                // Luồng 1: Chỉ đề xuất Video (Cho Video Feed - TikTok style)
+                query = query.Where(t => t.VideoUrl != null && t.VideoUrl != "");
+            }
+            else
+            {
+                // Luồng 2: Đề xuất Tin đăng (Cho Trang chủ/Dành cho bạn)
+                // Lấy cả tin có video VÀ tin chỉ có ảnh (nhưng phải có ít nhất 1 ảnh)
+                query = query.Where(t => t.AnhTinDangs.Any() || t.VideoUrl != null);
+            }
 
             // Chiến lược Cold/Warm Start
             if (userProfile.PreferredCategoryIds.Any())
             {
-                query = query.Where(t => userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) || t.SoLuotXem > 100);
+                // Nếu user đã có sở thích: Lấy tin đúng danh mục HOẶC tin hot (View > 50)
+                query = query.Where(t => userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) || t.SoLuotXem > 50);
             }
             else
             {
+                // Nếu user mới (Cold start): Lấy tin mới nhất trong 30 ngày qua
                 query = query.Where(t => t.NgayDang >= DateTime.UtcNow.AddDays(-30));
             }
 

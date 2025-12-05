@@ -38,10 +38,11 @@ namespace UniMarket.Controllers
                 // ---------------------------------------------------------
                 // 1. Lấy danh sách ID video đề xuất từ Service AI (Đã sắp xếp theo điểm)
                 // ---------------------------------------------------------
-                var recommendedIds = await _recommendationService.GetForYouVideoIds(
+                var recommendedIds = await _recommendationService.GetRecommendedPostIds(
                     userId,
                     request.ExcludedIds ?? new List<int>(),
-                    request.PageSize
+                    request.PageSize,
+                    isVideoOnly: true // 👈 Truyền true vì API này chuyên lấy Video (theo tên hàm GetForYouVideos)
                 );
 
                 if (!recommendedIds.Any())

@@ -13,6 +13,7 @@
         public int SoBinhLuan { get; set; }
         public UserSummaryDto NguoiDang { get; set; }
         public bool IsLiked { get; set; }
+        public string ThoiGianHienThi { get; set; }
     }
     public class UserSummaryDto
     {
