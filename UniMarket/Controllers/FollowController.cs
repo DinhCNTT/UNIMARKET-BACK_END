@@ -4,36 +4,42 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using UniMarket.DataAccess;
 using UniMarket.Models;
+using UniMarket.Services;
 
 namespace UniMarket.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // ✅ Bắt buộc đăng nhập mới được gọi API
+    [Authorize]
     public class FollowController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
 
-        public FollowController(ApplicationDbContext context)
+        private readonly IUserNotificationService _notiService;
+
+
+        public FollowController(ApplicationDbContext context, IUserNotificationService notiService)
         {
             _context = context;
+            _notiService = notiService;
         }
 
-        // 📌 Helper: Lấy UserId từ Claims (Identity)
+
         private string? GetUserId()
         {
             return User.FindFirstValue(ClaimTypes.NameIdentifier);
         }
 
         // =========================================================================================
-        // ✅ API MỚI: TOGGLE FOLLOW (Dùng cho giao diện UserRow thông minh)
-        // Tự động phát hiện Follow/Unfollow và trả về số liệu mới nhất
+        // 1. API TOGGLE FOLLOW (Đã sửa lỗi so sánh Enum)
         // =========================================================================================
         [HttpPost("toggle")]
         public async Task<IActionResult> ToggleFollow([FromQuery] string targetUserId)
         {
-            var currentUserId = GetUserId();
-            if (currentUserId == null)
+            // Lấy UserID hiện tại
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized("Vui lòng đăng nhập để thực hiện chức năng này.");
 
             if (currentUserId == targetUserId)
@@ -52,13 +58,31 @@ namespace UniMarket.Controllers
 
             if (existingFollow != null)
             {
-                // Đang follow -> Thực hiện Hủy follow (Unfollow)
+                // --- TRƯỜNG HỢP 1: ĐANG FOLLOW -> HỦY FOLLOW (UNFOLLOW) ---
                 _context.Follows.Remove(existingFollow);
                 isFollowedNow = false;
+
+                // [MỚI] Xóa thông báo cũ khi Unfollow để dọn dẹp Database
+                try
+                {
+                    // SỬA LỖI TẠI ĐÂY: Dùng NotificationType.Follow thay vì "Follow"
+                    var oldNoti = await _context.UserNotifications
+                        .FirstOrDefaultAsync(n => n.Type == NotificationType.Follow
+                                             && n.SenderId == currentUserId
+                                             && n.ReceiverId == targetUserId);
+                    if (oldNoti != null)
+                    {
+                        _context.UserNotifications.Remove(oldNoti);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi xóa thông báo cũ: {ex.Message}");
+                }
             }
             else
             {
-                // Chưa follow -> Thực hiện Follow
+                // --- TRƯỜNG HỢP 2: CHƯA FOLLOW -> THỰC HIỆN FOLLOW ---
                 var newFollow = new Follow
                 {
                     FollowerId = currentUserId,
@@ -67,41 +91,92 @@ namespace UniMarket.Controllers
                 };
                 _context.Follows.Add(newFollow);
                 isFollowedNow = true;
+
+                // ========================================================================
+                // [MỚI] SỬA LỖI SPAM THÔNG BÁO
+                // ========================================================================
+                try
+                {
+                    // 1. Tìm thông báo trùng
+                    // SỬA LỖI TẠI ĐÂY: Dùng NotificationType.Follow thay vì "Follow"
+                    var duplicateNoti = await _context.UserNotifications
+                        .FirstOrDefaultAsync(n => n.Type == NotificationType.Follow
+                                             && n.SenderId == currentUserId
+                                             && n.ReceiverId == targetUserId);
+
+                    // 2. Nếu có rồi -> Xóa nó đi trước khi tạo cái mới
+                    if (duplicateNoti != null)
+                    {
+                        _context.UserNotifications.Remove(duplicateNoti);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    // 3. Tạo thông báo mới
+                    await _notiService.CreateNotification(
+                        senderId: currentUserId,
+                        receiverId: targetUserId,
+                        type: NotificationType.Follow,
+                        refId: null,
+                        content: "đã bắt đầu follow bạn"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi xử lý thông báo follow: {ex.Message}");
+                }
+                // ========================================================================
             }
 
+            // Lưu tất cả thay đổi (Follow/Unfollow) vào DB
             await _context.SaveChangesAsync();
 
-            // 🔥 QUAN TRỌNG: Đếm lại tổng số follower của người kia để trả về cho Client cập nhật UI
+            // Đếm lại tổng số follower
             var newFollowerCount = await _context.Follows.CountAsync(f => f.FollowingId == targetUserId);
 
             return Ok(new
             {
                 success = true,
-                isFollowed = isFollowedNow,     // Trạng thái mới (true: đang follow, false: chưa)
-                newFollowerCount = newFollowerCount // Số lượng follower mới nhất
+                isFollowed = isFollowedNow,
+                newFollowerCount = newFollowerCount
             });
         }
 
         // =========================================================================================
-        // CÁC API CŨ (Giữ lại để tương thích nếu cần)
+        // 2. CÁC API KHÁC (GIỮ NGUYÊN)
         // =========================================================================================
-
-        // ✅ Follow ai đó (Cũ)
         [HttpPost("follow")]
         public async Task<IActionResult> FollowUser([FromQuery] string followingId)
         {
-            var followerId = GetUserId();
-            if (followerId == null) return Unauthorized();
+            var followerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(followerId)) return Unauthorized();
             if (followerId == followingId) return BadRequest("Không thể tự follow.");
 
             var exists = await _context.Follows.AnyAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
             if (exists) return BadRequest("Đã follow rồi.");
 
-            _context.Follows.Add(new Follow { FollowerId = followerId, FollowingId = followingId });
+            _context.Follows.Add(new Follow { FollowerId = followerId, FollowingId = followingId, FollowedAt = DateTime.UtcNow });
+
+            try
+            {
+                await _notiService.CreateNotification(
+                    senderId: followerId,
+                    receiverId: followingId,
+                    type: NotificationType.Follow,
+                    refId: null,
+                    content: "đã bắt đầu follow bạn"
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi gửi thông báo (Legacy API): {ex.Message}");
+            }
+
             await _context.SaveChangesAsync();
 
             return Ok(new { success = true, message = "Follow thành công" });
         }
+
 
         // ✅ Unfollow ai đó (Cũ)
         [HttpPost("unfollow")]
@@ -128,7 +203,7 @@ namespace UniMarket.Controllers
 
             var following = await _context.Follows
                 .Where(f => f.FollowerId == userId)
-                .Include(f => f.Following) // Load thông tin người được follow
+                .Include(f => f.Following)
                 .Select(f => new
                 {
                     f.FollowingId,
@@ -150,7 +225,7 @@ namespace UniMarket.Controllers
 
             var followers = await _context.Follows
                 .Where(f => f.FollowingId == userId)
-                .Include(f => f.Follower) // Load thông tin người follow mình
+                .Include(f => f.Follower)
                 .Select(f => new
                 {
                     f.FollowerId,
@@ -170,13 +245,11 @@ namespace UniMarket.Controllers
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Lấy list ID những người mình follow
             var myFollowingIds = await _context.Follows
                 .Where(f => f.FollowerId == userId)
                 .Select(f => f.FollowingId)
                 .ToListAsync();
 
-            // Lấy list những người follow mình mà ID nằm trong list trên
             var mutualFriends = await _context.Follows
                 .Where(f => f.FollowingId == userId && myFollowingIds.Contains(f.FollowerId))
                 .Include(f => f.Follower)
@@ -196,7 +269,6 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> IsFollowing(string targetUserId)
         {
             var userId = GetUserId();
-            // Cho phép check kể cả khi chưa login (trả về false)
             if (userId == null) return Ok(new { isFollowing = false });
 
             var isFollowing = await _context.Follows

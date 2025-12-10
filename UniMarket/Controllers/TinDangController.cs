@@ -15,10 +15,11 @@ using Newtonsoft.Json;
 using UniMarket.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
-using UniMarket.Services.Recommendation; // ✅ Namespace chứa RecommendationService
+using UniMarket.Services.Recommendation; 
 using UniMarket.Services.PriceAnalysis;
 using System.Security.Claims;
-
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization; 
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -27,15 +28,15 @@ namespace UniMarket.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly string _imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
         private readonly PhotoService _photoService;
         private readonly IWebHostEnvironment _env;
         private readonly IHubContext<ChatHub> _hubContext;
-
-        // ✅ 1. Khai báo Service AI
         private readonly VideoRecommendationService _recommendationService;
-        private readonly PriceAnalysisService _priceService;
-        // ✅ 2. Inject Service vào Constructor
+        private readonly UniMarket.Services.PriceAnalysis.PriceAnalysisService _priceService;
+        private readonly UniMarket.Services.TinDangDetailService _mongoService;
+        private readonly string _imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
+
+       
         public TinDangController(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
@@ -43,7 +44,8 @@ namespace UniMarket.Controllers
             IWebHostEnvironment env,
             IHubContext<ChatHub> hubContext,
             VideoRecommendationService recommendationService,
-            PriceAnalysisService priceService) // <--- Thêm tham số này
+            UniMarket.Services.PriceAnalysis.PriceAnalysisService priceService,
+            UniMarket.Services.TinDangDetailService mongoService)
         {
             _context = context;
             _userManager = userManager;
@@ -52,6 +54,7 @@ namespace UniMarket.Controllers
             _hubContext = hubContext;
             _recommendationService = recommendationService;
             _priceService = priceService;
+            _mongoService = mongoService; 
         }
 
         [HttpGet("get-posts")]
@@ -270,20 +273,22 @@ namespace UniMarket.Controllers
         [RequestSizeLimit(157286400)] // 150MB
         [HttpPost("add-post")]
         public async Task<IActionResult> AddPost(
-            [FromForm] string title,
-            [FromForm] string description,
-            [FromForm] decimal price,
-            [FromForm] string contactInfo,
-            [FromForm] string condition,
-            [FromForm] int province,
-            [FromForm] int district,
-            [FromForm] List<IFormFile> images, // Frontend gửi cả ảnh và video qua đây
-            [FromForm] string userId,
-            [FromForm] int categoryId,
-            [FromForm] string categoryName, // Tham số này không thấy dùng, nhưng giữ nguyên
-            [FromForm] bool canNegotiate,
-            [FromForm] string? thongTinChiTiet)
+        [FromForm] string title,
+        [FromForm] string description,
+        [FromForm] decimal price,
+        [FromForm] string contactInfo,
+        [FromForm] string condition,
+        [FromForm] int province,
+        [FromForm] int district,
+        [FromForm] List<IFormFile> images, 
+        [FromForm] string userId,
+        [FromForm] int categoryId,
+        [FromForm] string categoryName,
+        [FromForm] bool canNegotiate,
+        [FromForm] string? thongTinChiTiet) 
         {
+            // Sử dụng Transaction để đảm bảo tính toàn vẹn dữ liệu (SQL + Mongo)
+            using var transaction = _context.Database.BeginTransaction();
             try
             {
                 // =================================
@@ -298,11 +303,11 @@ namespace UniMarket.Controllers
                 if (!await _context.QuanHuyens.AnyAsync(q => q.MaQuanHuyen == district))
                     return BadRequest("Quận huyện không hợp lệ!");
 
-                // ✅ SỬA LỖI 1: Thêm kiểm tra MaDanhMuc (Rất quan trọng)
+                // Kiểm tra danh mục
                 if (!await _context.DanhMucs.AnyAsync(c => c.MaDanhMuc == categoryId))
                     return BadRequest("Danh mục không hợp lệ!");
 
-                // Kiểm tra giới hạn file (tổng)
+                // Kiểm tra số lượng file
                 if (images != null && images.Count > 8)
                     return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh và 1 video.");
 
@@ -318,20 +323,16 @@ namespace UniMarket.Controllers
                         var isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
                                       extension == ".wmv" || extension == ".flv" || extension == ".webm";
 
-                        if (isVideo)
-                            videoFiles.Add(file);
-                        else
-                            imageFiles.Add(file);
+                        if (isVideo) videoFiles.Add(file);
+                        else imageFiles.Add(file);
                     }
 
-                    if (imageFiles.Count > 7)
-                        return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh.");
-                    if (videoFiles.Count > 1)
-                        return BadRequest("Chỉ được phép tải lên tối đa 1 video.");
+                    if (imageFiles.Count > 7) return BadRequest("Chỉ được phép tải lên tối đa 7 ảnh.");
+                    if (videoFiles.Count > 1) return BadRequest("Chỉ được phép tải lên tối đa 1 video.");
                 }
 
                 // =================================
-                // 2. TẠO ĐỐI TƯỢNG TIN ĐĂNG
+                // 2. TẠO ĐỐI TƯỢNG TIN ĐĂNG (SQL SERVER)
                 // =================================
                 var post = new TinDang
                 {
@@ -344,60 +345,49 @@ namespace UniMarket.Controllers
                     MaTinhThanh = province,
                     MaQuanHuyen = district,
                     MaNguoiBan = userId,
-                    NgayDang = DateTime.UtcNow, // ✅ SỬA LỖI 3: Dùng UtcNow
+                    NgayDang = DateTime.UtcNow, 
                     TrangThai = TrangThaiTinDang.ChoDuyet,
                     MaDanhMuc = categoryId,
-                    ThongTinChiTiet = thongTinChiTiet,
                     AnhTinDangs = new List<AnhTinDang>(),
-                    VideoUrl = null // Sẽ được set bên dưới
+                    VideoUrl = null 
                 };
 
                 // =================================
-                // 3. UPLOAD FILE LÊN CLOUDINARY (SỬA LỖI 2)
+                // 3. UPLOAD FILE LÊN CLOUDINARY
                 // =================================
                 int order = 1;
 
-                // Xử lý ảnh trước
+                // Xử lý ảnh
                 foreach (var image in imageFiles)
                 {
-                    // Dùng PhotoService (Cloudinary) thay vì lưu local
                     var result = await _photoService.UploadPhotoAsync(image);
-                    if (result.Error != null)
-                    {
-                        Console.WriteLine("❌ Lỗi upload ảnh: " + result.Error.Message);
-                        return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
-                    }
+                    if (result.Error != null) return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
 
                     post.AnhTinDangs.Add(new AnhTinDang
                     {
-                        DuongDan = result.SecureUrl.ToString(), // Dùng URL của Cloudinary
+                        DuongDan = result.SecureUrl.ToString(),
                         LoaiMedia = MediaType.Image,
                         Order = order++,
                         TinDang = post
                     });
                 }
 
-                // Xử lý video sau
+                // Xử lý video
                 foreach (var video in videoFiles)
                 {
-                    // Dùng PhotoService (Cloudinary) thay vì lưu local
                     var result = await _photoService.UploadVideoAsync(video);
-                    if (result.Error != null)
-                    {
-                        Console.WriteLine("❌ Lỗi upload video: " + result.Error.Message);
-                        return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
-                    }
+                    if (result.Error != null) return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
 
                     var newVideo = new AnhTinDang
                     {
-                        DuongDan = result.SecureUrl.ToString(), // Dùng URL của Cloudinary
+                        DuongDan = result.SecureUrl.ToString(),
                         LoaiMedia = MediaType.Video,
                         Order = order++,
                         TinDang = post
                     };
                     post.AnhTinDangs.Add(newVideo);
 
-                    // Set VideoUrl cho tin đăng (lấy video đầu tiên làm đại diện)
+                    // Set VideoUrl đại diện
                     if (string.IsNullOrEmpty(post.VideoUrl))
                     {
                         post.VideoUrl = newVideo.DuongDan;
@@ -405,10 +395,40 @@ namespace UniMarket.Controllers
                 }
 
                 // =================================
-                // 4. LƯU VÀO DATABASE
+                // 4. LƯU VÀO SQL SERVER
                 // =================================
                 _context.TinDangs.Add(post);
-                await _context.SaveChangesAsync(); // Lưu 1 lần duy nhất
+                await _context.SaveChangesAsync(); // Lúc này post.MaTinDang đã được sinh ra
+
+                // =================================
+                // 5. LƯU CHI TIẾT VÀO MONGODB
+                // =================================
+                if (!string.IsNullOrEmpty(thongTinChiTiet))
+                {
+                    try
+                    {
+                        // Parse chuỗi JSON từ Frontend thành BsonDocument
+                        var bsonDoc = MongoDB.Bson.BsonDocument.Parse(thongTinChiTiet);
+
+                        var mongoDetail = new UniMarket.Models.Mongo.TinDangDetail
+                        {
+                            MaTinDang = post.MaTinDang, // Liên kết ID từ SQL
+                            ChiTiet = bsonDoc
+                        };
+
+                        await _mongoService.CreateAsync(mongoDetail);
+                    }
+                    catch (Exception mongoEx)
+                    {
+                        // Nếu lỗi format JSON hoặc lỗi kết nối Mongo -> Rollback SQL
+                        throw new Exception("Lỗi lưu chi tiết MongoDB: " + mongoEx.Message);
+                    }
+                }
+
+                // =================================
+                // 6. COMMIT TRANSACTION (HOÀN TẤT)
+                // =================================
+                await transaction.CommitAsync();
 
                 var responseMessage = $"Bài đăng đã được thêm thành công và đang chờ duyệt! " +
                                       $"(Đã tải lên: {imageFiles.Count} ảnh, {videoFiles.Count} video)";
@@ -418,12 +438,14 @@ namespace UniMarket.Controllers
                     message = responseMessage,
                     imageCount = imageFiles.Count,
                     videoCount = videoFiles.Count,
-                    newPostId = post.MaTinDang // Trả về ID của bài post mới
+                    newPostId = post.MaTinDang
                 });
             }
             catch (Exception ex)
             {
-                // Thêm try-catch để bắt các lỗi 500 khác và log chi tiết
+                // Rollback lại toàn bộ thao tác SQL nếu có bất kỳ lỗi gì xảy ra
+                await transaction.RollbackAsync();
+
                 Console.WriteLine("❌ LỖI KHÔNG XÁC ĐỊNH KHI ĐĂNG TIN (add-post):");
                 Console.WriteLine("Message: " + ex.Message);
                 if (ex.InnerException != null)
@@ -464,6 +486,9 @@ namespace UniMarket.Controllers
 
             return Ok(posts);
         }
+        // =========================================================================
+        // 1. API CẬP NHẬT TIN ĐĂNG (PUT) - HYBRID (SQL + MONGODB)
+        // =========================================================================
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTinDang(
     int id,
@@ -482,35 +507,30 @@ namespace UniMarket.Controllers
     [FromForm] string? oldImagesToDelete,
     [FromForm] string? oldVideosToDelete,
     [FromForm] string? imageOrderMap,
-     [FromForm] string? videoOrderMap,
-    [FromForm] string? thongTinChiTiet)
+    [FromForm] string? videoOrderMap,
+    [FromForm] string? thongTinChiTiet) // JSON từ Frontend
         {
-            // =================================================================
-            // 1. GHI LOG DỮ LIỆU ĐẦU VÀO (ĐỂ DEBUG)
-            // =================================================================
             Console.WriteLine($"\n--- [START] CẬP NHẬT TIN ĐĂNG ID: {id} ---");
-            Console.WriteLine($"Data (Text): title={title}, price={price}, province={province}, district={district}, categoryId={categoryId}");
 
+            // ✅ SỬ DỤNG TRANSACTION: Đảm bảo SQL và MongoDB cùng thành công hoặc cùng thất bại
+            using var transaction = _context.Database.BeginTransaction();
             try
             {
-                // Lấy tin đăng từ DB
+                // =========================================================
+                // BƯỚC 1: KIỂM TRA TỒN TẠI (SQL SERVER)
+                // =========================================================
                 var post = await _context.TinDangs
                     .Include(td => td.AnhTinDangs)
                     .FirstOrDefaultAsync(td => td.MaTinDang == id);
 
                 if (post == null)
                 {
-                    Console.WriteLine($"[LỖI] Không tìm thấy tin đăng ID={id} để cập nhật.");
                     return NotFound(new { message = "Không tìm thấy tin đăng" });
                 }
 
-                // TODO: Kiểm tra quyền sở hữu nếu cần (post.MaNguoiBan != userId)
-
-                Console.WriteLine($"[OK] Đã tìm thấy tin đăng. Bắt đầu cập nhật thông tin cơ bản...");
-
-                // =================================================================
-                // ✅ CẬP NHẬT THÔNG TIN CƠ BẢN (TEXT)
-                // =================================================================
+                // =========================================================
+                // BƯỚC 2: CẬP NHẬT THÔNG TIN CƠ BẢN (SQL SERVER)
+                // =========================================================
                 post.TieuDe = title;
                 post.MoTa = description;
                 post.Gia = price;
@@ -521,342 +541,297 @@ namespace UniMarket.Controllers
                 post.MaQuanHuyen = district;
                 post.MaDanhMuc = categoryId;
                 post.NgayCapNhat = DateTime.UtcNow;
+                post.TrangThai = TrangThaiTinDang.ChoDuyet; // Reset về chờ duyệt
 
-                if (thongTinChiTiet != null)
+                // Lưu tạm vào SQL để lock dòng dữ liệu
+                await _context.SaveChangesAsync();
+
+                // =========================================================
+                // BƯỚC 3: CẬP NHẬT THÔNG TIN CHI TIẾT (MONGODB)
+                // 🔥 FIX: XÓA CŨ -> TẠO MỚI (Tránh lỗi lồng nhau và dữ liệu rác)
+                // =========================================================
+                if (!string.IsNullOrEmpty(thongTinChiTiet))
                 {
-                    post.ThongTinChiTiet = thongTinChiTiet;
+                    try
+                    {
+                        // 1. Chuẩn bị dữ liệu SẠCH từ Frontend
+                        // Parse JSON: {"Hang": "Samsung", "DongMay": "S24"...}
+                        var bsonDoc = MongoDB.Bson.BsonDocument.Parse(thongTinChiTiet);
+
+                        // 2. Tạo object MỚI TINH (Clean Object)
+                        // Cấu trúc mong muốn: { MaTinDang: 20, ChiTiet: { ...DATA... } }
+                        var cleanDetail = new UniMarket.Models.Mongo.TinDangDetail
+                        {
+                            MaTinDang = id,
+                            ChiTiet = bsonDoc
+                        };
+
+                        // 3. Kiểm tra xem tin này đã có trong Mongo chưa
+                        var existingDetail = await _mongoService.GetByMaTinDangAsync(id);
+
+                        if (existingDetail != null)
+                        {
+                            // 🛑 QUAN TRỌNG: XÓA BẢN GHI CŨ BỊ LỖI
+                            // Thay vì Update (dễ bị merge/lồng nhau), ta xóa luôn bản ghi cũ
+                            // Bạn cần đảm bảo Service có hàm RemoveAsync hoặc DeleteAsync
+                            await _mongoService.DeleteByIdAsync(existingDetail.Id);
+                            Console.WriteLine("[MONGO] Đã xóa dữ liệu cũ (để tránh lỗi lồng nhau/zombie data).");
+                        }
+
+                        // 4. TẠO MỚI LẠI TỪ ĐẦU
+                        await _mongoService.CreateAsync(cleanDetail);
+                        Console.WriteLine("[MONGO] Đã tạo mới chi tiết chuẩn.");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Ghi log lỗi nhưng ném ra để transaction SQL bên ngoài biết đường rollback
+                        Console.WriteLine($"[MONGO ERROR] {ex.Message}");
+                        // Nếu service của bạn chưa có hàm RemoveAsync, hãy thêm vào Service:
+                        // public async Task RemoveAsync(string id) => await _collection.DeleteOneAsync(x => x.Id == id);
+                        throw new Exception($"Lỗi cập nhật MongoDB: {ex.Message}");
+                    }
                 }
 
-                // Reset trạng thái về chờ duyệt mỗi khi cập nhật
-                post.TrangThai = TrangThaiTinDang.ChoDuyet;
+                // =========================================================
+                // BƯỚC 4: XỬ LÝ MEDIA (XÓA CŨ - THÊM MỚI - SẮP XẾP)
+                // =========================================================
 
-                // 🔥🔥🔥 [FIX QUAN TRỌNG] 🔥🔥🔥
-                // Lưu ngay lập tức các thay đổi về Text và Trạng thái.
-                // Nếu không có dòng này, code chạy xuống dưới mà không có ảnh/video thay đổi 
-                // thì nó sẽ kết thúc hàm mà KHÔNG HỀ lưu gì cả.
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"[OK] Đã lưu thông tin cơ bản và reset trạng thái về Chờ Duyệt.");
-
-                // =================================================================
-                // 2. XỬ LÝ MEDIA (ẢNH/VIDEO)
-                // =================================================================
-
-                // Deserialize JSON parameters
+                // 4.1 Parse JSON maps từ Frontend
                 var idsToDeleteImage = (string.IsNullOrEmpty(oldImagesToDelete) || oldImagesToDelete == "null")
-                    ? new List<int>()
-                    : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
-
+                    ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldImagesToDelete);
                 var idsToDeleteVideo = (string.IsNullOrEmpty(oldVideosToDelete) || oldVideosToDelete == "null")
-                    ? new List<int>()
-                    : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
+                    ? new List<int>() : JsonConvert.DeserializeObject<List<int>>(oldVideosToDelete);
 
-                var imgOrderMap = (string.IsNullOrEmpty(imageOrderMap) || imageOrderMap == "null")
-                    ? new List<dynamic>()
-                    : JsonConvert.DeserializeObject<List<dynamic>>(imageOrderMap);
-
-                var vidOrderMap = (string.IsNullOrEmpty(videoOrderMap) || videoOrderMap == "null")
-                    ? new List<dynamic>()
-                    : JsonConvert.DeserializeObject<List<dynamic>>(videoOrderMap);
+                var imgOrderMapList = (string.IsNullOrEmpty(imageOrderMap) || imageOrderMap == "null")
+                    ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(imageOrderMap);
+                var vidOrderMapList = (string.IsNullOrEmpty(videoOrderMap) || videoOrderMap == "null")
+                    ? new List<dynamic>() : JsonConvert.DeserializeObject<List<dynamic>>(videoOrderMap);
 
                 var allIdsToDelete = idsToDeleteImage.Concat(idsToDeleteVideo).ToList();
 
-                // -----------------------------------------------------------------
-                // BƯỚC 1: XÓA MEDIA CŨ
-                // -----------------------------------------------------------------
+                // 4.2 Xóa Media cũ (Cloudinary + DB)
                 if (allIdsToDelete.Any())
                 {
                     var mediaToDelete = post.AnhTinDangs.Where(m => allIdsToDelete.Contains(m.MaAnh)).ToList();
-                    Console.WriteLine($"[BƯỚC 1] Đang xóa {mediaToDelete.Count} media cũ...");
                     foreach (var media in mediaToDelete)
                     {
+                        // Xóa trên Cloudinary nếu là link online
                         if (!string.IsNullOrEmpty(media.DuongDan) && media.DuongDan.StartsWith("http"))
                         {
-                            await _photoService.DeletePhotoAsync(media.DuongDan); // Giả sử bạn có hàm này hoặc logic xóa Cloudinary cũ
+                            await DeleteCloudinaryPhotoByUrlAsync(media.DuongDan);
                         }
+                        // Xóa trong DB
                         _context.AnhTinDangs.Remove(media);
                     }
                     await _context.SaveChangesAsync();
-                    Console.WriteLine($"[BƯỚC 1] Đã xóa media cũ thành công.");
                 }
 
-                // -----------------------------------------------------------------
-                // BƯỚC 2: UPLOAD ẢNH/VIDEO MỚI
-                // -----------------------------------------------------------------
-                Console.WriteLine($"[BƯỚC 2] Bắt đầu upload media mới...");
+                // 4.3 Upload Media mới
                 var newlyUploadedImages = new List<AnhTinDang>();
                 var newlyUploadedVideos = new List<AnhTinDang>();
 
-                // Upload Ảnh
-                if (newImages != null && newImages.Count > 0)
+                // Upload ảnh mới
+                if (newImages != null)
                 {
                     foreach (var img in newImages)
                     {
                         var result = await _photoService.UploadPhotoAsync(img);
-                        if (result.Error != null) return BadRequest(new { message = "Lỗi upload ảnh", error = result.Error.Message });
+                        if (result.Error != null) throw new Exception("Lỗi upload ảnh: " + result.Error.Message);
 
-                        var newImage = new AnhTinDang
-                        {
-                            MaTinDang = post.MaTinDang,
-                            DuongDan = result.SecureUrl.ToString(),
-                            LoaiMedia = MediaType.Image,
-                            Order = 0, // Tạm thời
-                            TinDang = post
-                        };
-                        _context.AnhTinDangs.Add(newImage);
-                        newlyUploadedImages.Add(newImage);
+                        var newImg = new AnhTinDang { MaTinDang = id, DuongDan = result.SecureUrl.ToString(), LoaiMedia = MediaType.Image, Order = 0 };
+                        _context.AnhTinDangs.Add(newImg);
+                        newlyUploadedImages.Add(newImg);
                     }
                 }
 
-                // Upload Video
-                if (newVideos != null && newVideos.Count > 0)
+                // Upload video mới
+                if (newVideos != null)
                 {
                     foreach (var vid in newVideos)
                     {
                         var result = await _photoService.UploadVideoAsync(vid);
-                        if (result.Error != null) return BadRequest(new { message = "Lỗi upload video", error = result.Error.Message });
+                        if (result.Error != null) throw new Exception("Lỗi upload video: " + result.Error.Message);
 
-                        var newVideo = new AnhTinDang
-                        {
-                            MaTinDang = post.MaTinDang,
-                            DuongDan = result.SecureUrl.ToString(),
-                            LoaiMedia = MediaType.Video,
-                            Order = 0, // Tạm thời
-                            TinDang = post
-                        };
-                        _context.AnhTinDangs.Add(newVideo);
-                        newlyUploadedVideos.Add(newVideo);
+                        var newVid = new AnhTinDang { MaTinDang = id, DuongDan = result.SecureUrl.ToString(), LoaiMedia = MediaType.Video, Order = 0 };
+                        _context.AnhTinDangs.Add(newVid);
+                        newlyUploadedVideos.Add(newVid);
                     }
                 }
 
-                // Lưu media mới vào DB để có ID
+                // Lưu tạm để sinh ID cho ảnh/video mới (cần ID để sắp xếp)
                 if (newlyUploadedImages.Any() || newlyUploadedVideos.Any())
                 {
                     await _context.SaveChangesAsync();
-                    Console.WriteLine($"[BƯỚC 2] Đã upload và lưu media mới thành công.");
                 }
 
-                // -----------------------------------------------------------------
-                // BƯỚC 3: LẤY LẠI DỮ LIỆU ĐẦY ĐỦ (Để tính toán thứ tự)
-                // -----------------------------------------------------------------
-                // Refresh lại post instance để lấy full danh sách ảnh mới nhất từ DB
-                post = await _context.TinDangs
-                    .Include(td => td.AnhTinDangs)
-                    .FirstOrDefaultAsync(td => td.MaTinDang == id);
-
-                if (post == null) return StatusCode(500, new { message = "Lỗi server: Mất dữ liệu post sau khi upload." });
-
-                var allMedia = post.AnhTinDangs.ToList();
-
-                // -----------------------------------------------------------------
-                // BƯỚC 4: TÍNH TOÁN THỨ TỰ MỚI
-                // -----------------------------------------------------------------
+                // 4.4 Sắp xếp lại thứ tự (Re-order logic)
+                var allMedia = await _context.AnhTinDangs.Where(a => a.MaTinDang == id).ToListAsync();
                 var finalOrderMap = new Dictionary<int, int>();
 
-                // 4.1: Xử lý Images Order
-                for (int i = 0; i < imgOrderMap.Count; i++)
+                // Map Order Ảnh
+                for (int i = 0; i < imgOrderMapList.Count; i++)
                 {
-                    var orderItem = imgOrderMap[i];
-                    var finalOrder = i + 1;
-                    string? type = orderItem.type?.ToString();
+                    var item = imgOrderMapList[i];
+                    string type = item.type;
 
-                    if (type == "old")
-                    {
-                        if (int.TryParse(orderItem.id?.ToString(), out int mediaId)) finalOrderMap[mediaId] = finalOrder;
-                    }
-                    else if (type == "new")
-                    {
-                        if (int.TryParse(orderItem.fileIndex?.ToString(), out int fileIndex) && fileIndex >= 0 && fileIndex < newlyUploadedImages.Count)
-                        {
-                            finalOrderMap[newlyUploadedImages[fileIndex].MaAnh] = finalOrder;
-                        }
-                    }
+                    int mid = 0;
+                    int fidx = 0;
+
+                    if (type == "old" && int.TryParse(item.id.ToString(), out mid))
+                        finalOrderMap[mid] = i + 1;
+                    else if (type == "new" && int.TryParse(item.fileIndex.ToString(), out fidx) && fidx < newlyUploadedImages.Count)
+                        finalOrderMap[newlyUploadedImages[fidx].MaAnh] = i + 1;
                 }
 
-                // 4.2: Xử lý Videos Order
-                int videoStartOrder = imgOrderMap.Count + 1;
-                for (int i = 0; i < vidOrderMap.Count; i++)
+                // Map Order Video
+                int videoStartOrder = imgOrderMapList.Count + 1;
+                for (int i = 0; i < vidOrderMapList.Count; i++)
                 {
-                    var orderItem = vidOrderMap[i];
-                    var finalOrder = videoStartOrder + i;
-                    string? type = orderItem.type?.ToString();
+                    var item = vidOrderMapList[i];
+                    string type = item.type;
 
-                    if (type == "old")
-                    {
-                        if (int.TryParse(orderItem.id?.ToString(), out int mediaId)) finalOrderMap[mediaId] = finalOrder;
-                    }
-                    else if (type == "new")
-                    {
-                        if (int.TryParse(orderItem.fileIndex?.ToString(), out int fileIndex) && fileIndex >= 0 && fileIndex < newlyUploadedVideos.Count)
-                        {
-                            finalOrderMap[newlyUploadedVideos[fileIndex].MaAnh] = finalOrder;
-                        }
-                    }
+                    int mid = 0;
+                    int fidx = 0;
+
+                    if (type == "old" && int.TryParse(item.id.ToString(), out mid))
+                        finalOrderMap[mid] = videoStartOrder + i;
+                    else if (type == "new" && int.TryParse(item.fileIndex.ToString(), out fidx) && fidx < newlyUploadedVideos.Count)
+                        finalOrderMap[newlyUploadedVideos[fidx].MaAnh] = videoStartOrder + i;
                 }
 
-                // -----------------------------------------------------------------
-                // BƯỚC 5: CẬP NHẬT ORDER VÀO DB
-                // -----------------------------------------------------------------
-                bool hasOrderChanged = false;
+                // Apply Order vào DB
                 foreach (var media in allMedia)
                 {
                     if (finalOrderMap.ContainsKey(media.MaAnh))
                     {
-                        var newOrder = finalOrderMap[media.MaAnh];
-                        if (media.Order != newOrder)
+                        if (media.Order != finalOrderMap[media.MaAnh])
                         {
-                            media.Order = newOrder;
-                            hasOrderChanged = true;
+                            media.Order = finalOrderMap[media.MaAnh];
                             _context.Entry(media).Property(x => x.Order).IsModified = true;
                         }
                     }
                 }
 
-                if (hasOrderChanged) await _context.SaveChangesAsync();
-
-                // -----------------------------------------------------------------
-                // BƯỚC 6: CẬP NHẬT VideoUrl (Thumbnail video)
-                // -----------------------------------------------------------------
+                // Cập nhật Thumbnail Video
                 var firstVideo = allMedia.Where(m => m.LoaiMedia == MediaType.Video).OrderBy(m => m.Order).FirstOrDefault();
-                bool videoUrlChanged = false;
+                post.VideoUrl = firstVideo?.DuongDan;
 
-                if (firstVideo != null && firstVideo.DuongDan != post.VideoUrl)
-                {
-                    post.VideoUrl = firstVideo.DuongDan;
-                    videoUrlChanged = true;
-                }
-                else if (firstVideo == null && !string.IsNullOrEmpty(post.VideoUrl))
-                {
-                    post.VideoUrl = null;
-                    videoUrlChanged = true;
-                }
+                await _context.SaveChangesAsync();
 
-                if (videoUrlChanged) await _context.SaveChangesAsync();
-
-                // -----------------------------------------------------------------
-                // BƯỚC 7: SIGNALR NOTIFICATION
-                // -----------------------------------------------------------------
+                // =========================================================
+                // BƯỚC 5: GỬI THÔNG BÁO SIGNALR & HOÀN TẤT
+                // =========================================================
                 var updatedPostSignalR = new
                 {
                     MaTinDang = post.MaTinDang,
                     TieuDe = post.TieuDe,
                     Gia = post.Gia,
-                    AnhDaiDien = post.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? "",
+                    AnhDaiDien = allMedia.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan ?? "",
                     VideoUrl = post.VideoUrl
                 };
                 await _hubContext.Clients.All.SendAsync("CapNhatTinDang", updatedPostSignalR);
 
-                // -----------------------------------------------------------------
-                // BƯỚC 8: TRẢ VỀ KẾT QUẢ
-                // -----------------------------------------------------------------
-                // Lấy bản ghi cuối cùng (Read-only cho nhanh)
-                var finalPost = await _context.TinDangs
-                    .Include(td => td.AnhTinDangs)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(td => td.MaTinDang == id);
+                await transaction.CommitAsync();
 
                 return Ok(new
                 {
                     message = "Cập nhật thành công",
-                    MaTinDang = finalPost.MaTinDang,
-                    TotalMedia = finalPost.AnhTinDangs.Count,
-                    HasOrderChanged = hasOrderChanged,
-                    VideoUrlChanged = videoUrlChanged,
-                    VideoUrl = finalPost.VideoUrl,
-                    AnhTinDangs = finalPost.AnhTinDangs
-                        .OrderBy(a => a.Order)
-                        .Select(a => new {
-                            a.MaAnh,
-                            a.DuongDan,
-                            a.Order,
-                            a.LoaiMedia,
-                            FileName = a.DuongDan.Split('/').LastOrDefault()
-                        })
-                        .ToList()
+                    MaTinDang = post.MaTinDang,
+                    VideoUrl = post.VideoUrl
                 });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n--- [ERROR 500] LỖI CẬP NHẬT TIN ĐĂNG ID: {id} ---");
-                Console.WriteLine($"❌ Message: {ex.Message}");
-                if (ex.InnerException != null) Console.WriteLine($"❌ InnerException: {ex.InnerException.Message}");
-
-                return StatusCode(500, new
-                {
-                    message = "Lỗi server khi cập nhật tin đăng",
-                    error = ex.Message,
-                    details = ex.InnerException?.Message
-                });
+                await transaction.RollbackAsync();
+                Console.WriteLine($"[ERROR] Lỗi PutTinDang: {ex.Message}");
+                if (ex.InnerException != null) Console.WriteLine($"Inner: {ex.InnerException.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi cập nhật", error = ex.Message });
             }
         }
 
-
+        // =========================================================================
+        // 2. API LẤY CHI TIẾT ĐỂ HIỂN THỊ HOẶC SỬA (GET)
+        // =========================================================================
         [HttpGet("get-post/{id}")]
         public async Task<IActionResult> GetPostById(int id)
         {
-            // Tìm tin đăng trong cơ sở dữ liệu theo ID và bao gồm thông tin về danh mục
+            // BƯỚC 1: Lấy tin từ SQL Server
             var post = await _context.TinDangs
-                .Include(p => p.AnhTinDangs)  // Bao gồm các ảnh tin đăng nếu có
-                .Include(p => p.DanhMuc)      // Bao gồm thông tin danh mục
-                .FirstOrDefaultAsync(p => p.MaTinDang == id);  // Lọc theo ID tin đăng
+                .Include(p => p.AnhTinDangs)  // Lấy ảnh
+                .Include(p => p.DanhMuc)      // Lấy danh mục
+                .FirstOrDefaultAsync(p => p.MaTinDang == id);
 
             if (post == null)
             {
                 return NotFound(new { message = "Không tìm thấy tin đăng với mã này." });
             }
 
-            // Trả về thông tin tin đăng dưới dạng JSON, bao gồm cả mã danh mục
+            // BƯỚC 2: Lấy chi tiết từ MongoDB (nếu có)
+            try
+            {
+                var mongoDetail = await _mongoService.GetByMaTinDangAsync(id);
+
+                if (mongoDetail != null && mongoDetail.ChiTiet != null)
+                {
+                    // Xóa trường _id của Mongo để JSON đẹp hơn
+                    if (mongoDetail.ChiTiet.Contains("_id"))
+                        mongoDetail.ChiTiet.Remove("_id");
+
+                    // Convert BsonDocument sang Object .NET để trả về JSON
+                    var dotNetObj = MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(mongoDetail.ChiTiet);
+
+                    // Gán vào thuộc tính tạm [NotMapped] để trả về Frontend
+                    post.ChiTietObj = dotNetObj;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARNING] Lỗi lấy chi tiết MongoDB: {ex.Message}");
+                // Không return lỗi, vẫn trả về dữ liệu cơ bản để người dùng có thể sửa phần khác
+            }
+
             return Ok(post);
         }
 
-        // Hàm xóa ảnh/video trên Cloudinary từ URL publicId
+        // =========================================================================
+        // 3. HÀM HỖ TRỢ: XÓA ẢNH CLOUDINARY
+        // =========================================================================
         public async Task<bool> DeleteCloudinaryPhotoByUrlAsync(string imageUrl)
         {
-            if (string.IsNullOrEmpty(imageUrl))
-                return false;
+            if (string.IsNullOrEmpty(imageUrl)) return false;
 
             try
             {
                 var uri = new Uri(imageUrl);
                 var segments = uri.Segments;
 
-                // Tìm vị trí "upload/" hoặc "upload"
+                // Tìm vị trí "upload/" trong URL
                 int uploadIndex = segments.ToList().FindIndex(s => s.Equals("upload/", StringComparison.OrdinalIgnoreCase));
-                if (uploadIndex < 0)
-                {
-                    uploadIndex = segments.ToList().FindIndex(s => s.StartsWith("upload", StringComparison.OrdinalIgnoreCase));
-                }
+                if (uploadIndex < 0) uploadIndex = segments.ToList().FindIndex(s => s.StartsWith("upload", StringComparison.OrdinalIgnoreCase));
 
                 if (uploadIndex >= 0 && uploadIndex + 2 < segments.Length)
                 {
-                    // Lấy phần publicId (bỏ "upload/" và version "v123456/")
+                    // Trích xuất Public ID
                     var pathSegments = segments.Skip(uploadIndex + 2);
                     var publicIdPath = string.Join("", pathSegments).Trim('/');
-
-                    // Bỏ phần mở rộng file (vd: .png, .mp4, .mov...)
                     var publicId = Path.ChangeExtension(publicIdPath, null).Replace("\\", "/");
 
-                    // Xác định loại tài nguyên
+                    // Xác định loại file (Ảnh hay Video)
                     var lowerUrl = imageUrl.ToLower();
-                    ResourceType resourceType = ResourceType.Image; // Mặc định là ảnh
+                    ResourceType resourceType = ResourceType.Image;
 
-                    if (lowerUrl.Contains("/video/") || lowerUrl.EndsWith(".mp4") || lowerUrl.EndsWith(".mov") ||
-                        lowerUrl.EndsWith(".avi") || lowerUrl.EndsWith(".webm") || lowerUrl.EndsWith(".ogg"))
-                    {
+                    if (lowerUrl.Contains("/video/") || lowerUrl.EndsWith(".mp4") || lowerUrl.EndsWith(".mov"))
                         resourceType = ResourceType.Video;
-                    }
 
-                    // Gọi service xóa với loại tài nguyên chính xác
+                    // Gọi service xóa
                     var deletionResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
-
                     return deletionResult.Result == "ok";
                 }
             }
             catch (Exception ex)
             {
-                // Log hoặc xử lý lỗi nếu cần
-                Console.WriteLine("Lỗi khi xóa ảnh/video trên Cloudinary: " + ex.Message);
+                Console.WriteLine("Lỗi xóa Cloudinary: " + ex.Message);
             }
-
             return false;
         }
 
@@ -1027,6 +1002,9 @@ namespace UniMarket.Controllers
         [HttpGet("get-post-and-similar/{id}")]
         public async Task<IActionResult> GetPostAndSimilarPosts(int id)
         {
+            // =======================================================
+            // BƯỚC 1: LẤY TIN ĐĂNG CHÍNH TỪ SQL SERVER
+            // =======================================================
             var post = await _context.TinDangs
                 .Include(p => p.AnhTinDangs)
                 .Include(p => p.NguoiBan)
@@ -1039,12 +1017,44 @@ namespace UniMarket.Controllers
                 return NotFound(new { message = "Không tìm thấy tin đăng này hoặc tin đăng chưa được duyệt." });
             }
 
+            // =======================================================
+            // BƯỚC 2: LẤY CHI TIẾT KỸ THUẬT TỪ MONGODB (MỚI)
+            // =======================================================
+            object? chiTietMongoObj = null;
+            try
+            {
+                // Gọi service MongoDB để tìm chi tiết theo MaTinDang
+                var mongoResult = await _mongoService.GetByMaTinDangAsync(id);
+
+                if (mongoResult != null && mongoResult.ChiTiet != null)
+                {
+                    // Xóa trường _id của Mongo để JSON trả về sạch đẹp
+                    if (mongoResult.ChiTiet.Contains("_id"))
+                        mongoResult.ChiTiet.Remove("_id");
+
+                    // Convert BsonDocument sang Object .NET thuần để Frontend đọc được
+                    chiTietMongoObj = MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(mongoResult.ChiTiet);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi lấy dữ liệu MongoDB: {ex.Message}");
+                // Không return lỗi, vẫn trả về tin đăng nhưng thiếu chi tiết (để app không crash)
+            }
+
+            // =======================================================
+            // BƯỚC 3: LẤY CÁC TIN TƯƠNG TỰ (TỪ SQL)
+            // =======================================================
+
+            // 3.1 Tương tự theo Danh mục
             var similarPostsByCategory = await _context.TinDangs
                 .Where(p => p.MaDanhMuc == post.MaDanhMuc && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(p => p.AnhTinDangs)
                 .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
                 .Include(p => p.QuanHuyen)
+                .OrderByDescending(p => p.NgayDang) // Nên sắp xếp tin mới nhất
+                .Take(8) // Giới hạn số lượng để tối ưu query
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -1069,12 +1079,15 @@ namespace UniMarket.Controllers
                 })
                 .ToListAsync();
 
+            // 3.2 Tương tự theo Người bán
             var similarPostsBySeller = await _context.TinDangs
                 .Where(p => p.MaNguoiBan == post.MaNguoiBan && p.MaTinDang != post.MaTinDang && p.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Include(p => p.AnhTinDangs)
                 .Include(p => p.NguoiBan)
                 .Include(p => p.TinhThanh)
                 .Include(p => p.QuanHuyen)
+                .OrderByDescending(p => p.NgayDang)
+                .Take(8)
                 .Select(p => new
                 {
                     p.MaTinDang,
@@ -1099,6 +1112,9 @@ namespace UniMarket.Controllers
                 })
                 .ToListAsync();
 
+            // =======================================================
+            // BƯỚC 4: XỬ LÝ ẢNH CỦA TIN CHÍNH
+            // =======================================================
             var postImages = post.AnhTinDangs
                 .OrderBy(a => a.Order)
                 .Select(a =>
@@ -1107,6 +1123,9 @@ namespace UniMarket.Controllers
                     : (a.DuongDan.StartsWith("/images/Posts/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}")
                 ).ToList();
 
+            // =======================================================
+            // BƯỚC 5: TRẢ VỀ KẾT QUẢ
+            // =======================================================
             return Ok(new
             {
                 Post = new
@@ -1119,9 +1138,9 @@ namespace UniMarket.Controllers
                     post.DiaChi,
                     post.CoTheThoaThuan,
 
-                    // 👇👇👇 QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ TRẢ VỀ DỮ LIỆU JSON 👇👇👇
-                    ThongTinChiTiet = post.ThongTinChiTiet,
-                    // 👆👆👆 NẾU THIẾU DÒNG NÀY, FRONTEND SẼ KHÔNG CÓ GÌ ĐỂ HIỂN THỊ
+                    // 👇👇👇 QUAN TRỌNG: Gắn dữ liệu MongoDB vào đây 👇👇👇
+                    ChiTietObj = chiTietMongoObj,
+                    // 👆 Frontend sẽ gọi: data.Post.chiTietObj.Hang, data.Post.chiTietObj.MauSac ...
 
                     Images = postImages,
                     NguoiBan = post.NguoiBan.FullName,

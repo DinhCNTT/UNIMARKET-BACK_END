@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel;
+using System.Collections.Generic; // Cần thiết cho ICollection
 
 namespace UniMarket.Models
 {
@@ -10,6 +11,7 @@ namespace UniMarket.Models
         DaDuyet = 1,   // Đã Duyệt
         TuChoi = 2     // Từ Chối
     }
+
     public class TinDang
     {
         [Key]
@@ -65,15 +67,36 @@ namespace UniMarket.Models
         [Required]
         [DisplayName("Trạng thái tin")]
         public TrangThaiTinDang TrangThai { get; set; } = TrangThaiTinDang.ChoDuyet; // Mặc định là Chờ duyệt
+
         [DisplayName("Ngày hẹn xóa")]
         public DateTime? NgayHenXoa { get; set; }
+
         [DisplayName("Đường dẫn video")]
         [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
         public string? VideoUrl { get; set; }
-        [DisplayName("Thông tin chi tiết (JSON)")]
-        public string? ThongTinChiTiet { get; set; }
+
         [DisplayName("Số lượt xem")]
         public int SoLuotXem { get; set; } = 0;
+
+        // ==========================================
+        // KHU VỰC XỬ LÝ MONGODB (QUAN TRỌNG)
+        // ==========================================
+
+        // 1. Trường cũ: Đánh dấu NotMapped để SQL Server bỏ qua (Dữ liệu này giờ nằm bên Mongo)
+        // Giữ lại property này để hứng dữ liệu string nếu cần, nhưng không lưu vào DB SQL
+        [NotMapped]
+        [DisplayName("Thông tin chi tiết (JSON)")]
+        public string? ThongTinChiTiet { get; set; }
+
+        // 2. Trường mới: Dùng để chứa Object từ MongoDB khi trả về cho Frontend
+        // Frontend sẽ đọc dữ liệu từ property này
+        [NotMapped]
+        public object? ChiTietObj { get; set; }
+
+        // ==========================================
+        // KHU VỰC RELATIONSHIPS (FOREIGN KEYS)
+        // ==========================================
+
         [ForeignKey("MaDanhMuc")]
         public DanhMuc? DanhMuc { get; set; }
 
@@ -87,9 +110,10 @@ namespace UniMarket.Models
         public QuanHuyen? QuanHuyen { get; set; }
 
         public ICollection<AnhTinDang>? AnhTinDangs { get; set; }
+
         public virtual ICollection<TinDangYeuThich> TinDangYeuThichs { get; set; }
+
         [NotMapped]
         public bool IsHot => TinDangYeuThichs != null && TinDangYeuThichs.Count >= 2;
     }
-
 }

@@ -11,7 +11,7 @@ using UniMarket.Hubs;
 using UniMarket.Services.Recommendation; // ✅ Namespace quan trọng
 using UniMarket.Helpers;
 using UniMarket.Extensions;
-using System.Security.Claims;
+using UniMarket.Services;
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -21,7 +21,7 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IHubContext<VideoHub> _hubContext;
-
+        private readonly IUserNotificationService _notiService;
         // ✅ 1. Inject AI Engine (ML.NET - Collaborative Filtering)
         private readonly RecommendationEngine _aiEngine;
 
@@ -33,12 +33,14 @@ namespace UniMarket.Controllers
             UserManager<ApplicationUser> userManager,
             IHubContext<VideoHub> hubContext,
             RecommendationEngine aiEngine,
+            IUserNotificationService notiService,
             UserBehaviorService behaviorService) // ✅ Inject thêm ở đây
         {
             _context = context;
             _userManager = userManager;
             _hubContext = hubContext;
             _aiEngine = aiEngine;
+            _notiService = notiService;
             _behaviorService = behaviorService; // ✅ Gán biến
         }
 
@@ -442,17 +444,24 @@ namespace UniMarket.Controllers
             return Ok(likedVideos);
         }
 
-
-
         [Authorize]
         [HttpPost("{maTinDang}/like")]
         public async Task<IActionResult> LikeOrUnlikeVideo(int maTinDang)
         {
+            // 1. Lấy User ID hiện tại
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized("Người dùng chưa đăng nhập.");
 
+            // [TỐI ƯU] Lấy thông tin video NGAY TỪ ĐẦU
+            var video = await _context.TinDangs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.MaTinDang == maTinDang);
+
+            if (video == null)
+                return NotFound("Video không tồn tại.");
+
+            // 2. Kiểm tra xem đã like chưa
             var existing = await _context.VideoLikes
                 .FirstOrDefaultAsync(x => x.MaTinDang == maTinDang && x.UserId == userId);
 
@@ -460,13 +469,34 @@ namespace UniMarket.Controllers
 
             if (existing != null)
             {
-                // Người dùng đã like -> bỏ like
+                // --- TRƯỜNG HỢP 1: ĐÃ LIKE -> BỎ LIKE (UNLIKE) ---
                 _context.VideoLikes.Remove(existing);
                 isLiked = false;
+
+                // ========================================================================
+                // [MỚI] XÓA THÔNG BÁO CŨ KHI UNLIKE (CHỐNG RÁC DATA)
+                // ========================================================================
+                try
+                {
+                    // SỬA LỖI TẠI ĐÂY: Đổi n.RefId -> n.ReferenceId
+                    var oldNoti = await _context.UserNotifications
+                        .FirstOrDefaultAsync(n => n.Type == NotificationType.Like
+                                             && n.SenderId == userId
+                                             && n.ReferenceId == maTinDang); // <-- Đã sửa
+
+                    if (oldNoti != null)
+                    {
+                        _context.UserNotifications.Remove(oldNoti);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi xóa thông báo like: {ex.Message}");
+                }
             }
             else
             {
-                // Người dùng chưa like -> thêm like
+                // --- TRƯỜNG HỢP 2: CHƯA LIKE -> THÊM LIKE (LIKE) ---
                 _context.VideoLikes.Add(new VideoLike
                 {
                     MaTinDang = maTinDang,
@@ -474,18 +504,55 @@ namespace UniMarket.Controllers
                     CreatedAt = DateTime.UtcNow
                 });
                 isLiked = true;
+
+                // ========================================================================
+                // TÍCH HỢP CODE 2: GỬI THÔNG BÁO (NOTIFICATION)
+                // ========================================================================
+                if (video.MaNguoiBan != userId)
+                {
+                    try
+                    {
+                        // [MỚI] CHỐNG SPAM: Kiểm tra và xóa thông báo trùng
+                        // SỬA LỖI TẠI ĐÂY: Đổi n.RefId -> n.ReferenceId
+                        var duplicateNoti = await _context.UserNotifications
+                            .FirstOrDefaultAsync(n => n.Type == NotificationType.Like
+                                                 && n.SenderId == userId
+                                                 && n.ReferenceId == maTinDang); // <-- Đã sửa
+
+                        if (duplicateNoti != null)
+                        {
+                            _context.UserNotifications.Remove(duplicateNoti);
+                            await _context.SaveChangesAsync();
+                        }
+
+                        // Tạo thông báo mới
+                        await _notiService.CreateNotification(
+                            senderId: userId,
+                            receiverId: video.MaNguoiBan,
+                            type: NotificationType.Like,
+                            refId: maTinDang,
+                            content: "đã thích video của bạn"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Lỗi gửi thông báo: {ex.Message}");
+                    }
+                }
             }
 
+            // 3. Lưu thay đổi vào Database
             await _context.SaveChangesAsync();
 
-            // Đếm lại tổng số tym hiện tại
+            // 4. Đếm lại tổng số tym
             var soTym = await _context.VideoLikes.CountAsync(x => x.MaTinDang == maTinDang);
 
-            // ✅✅ GỬI REALTIME QUA HUB CHO MỌI NGƯỜI ĐANG XEM VIDEO NÀY
-            // Chỉ gửi số lượng mới cho cả nhóm
-            await _hubContext.Clients.Group(maTinDang.ToString()).SendAsync("UpdateLikeCount", maTinDang, soTym);
+            // 5. Gửi Realtime (nếu có Hub)
+            if (_hubContext != null)
+            {
+                await _hubContext.Clients.Group(maTinDang.ToString()).SendAsync("UpdateLikeCount", maTinDang, soTym);
+            }
 
-            // Trả kết quả về cho client hiện tại
             return Ok(new
             {
                 isLiked,
@@ -497,6 +564,7 @@ namespace UniMarket.Controllers
         [HttpPost("{maTinDang}/comment")]
         public async Task<IActionResult> CommentVideo(int maTinDang, [FromBody] CreateVideoCommentDto model)
         {
+            // 1. Validate đầu vào
             if (string.IsNullOrWhiteSpace(model.Content))
                 return BadRequest("Nội dung bình luận không được để trống.");
 
@@ -504,19 +572,26 @@ namespace UniMarket.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            // --- SỬA LỖI TIMEOUT TẠI ĐÂY ---
-            // Thay vì FindAsync (tải cả object nặng), chỉ kiểm tra sự tồn tại (nhẹ hơn nhiều)
-            bool tinDangExists = await _context.TinDangs.AnyAsync(td => td.MaTinDang == maTinDang);
-            if (!tinDangExists)
+            // 2. Validate Video & Lấy thông tin chủ Video
+            var videoOwnerId = await _context.TinDangs
+                .AsNoTracking()
+                .Where(td => td.MaTinDang == maTinDang)
+                .Select(td => td.MaNguoiBan)
+                .FirstOrDefaultAsync();
+
+            if (videoOwnerId == null)
                 return NotFound("Tin đăng không tồn tại.");
-            // -------------------------------
+
+            // 3. Validate Comment cha & Chuẩn bị biến lưu người được reply
+            string? replyToUserId = null; // ID của người mà mình đang trả lời
 
             if (model.ParentCommentId.HasValue)
             {
-                // Tối ưu hóa: Chỉ lấy MaTinDang của comment cha để kiểm tra, không tải cả object
+                // Lấy MaTinDang và UserId của người đã viết comment cha
                 var parentInfo = await _context.VideoComments
+                    .AsNoTracking()
                     .Where(c => c.Id == model.ParentCommentId.Value)
-                    .Select(c => new { c.MaTinDang })
+                    .Select(c => new { c.MaTinDang, c.UserId }) // Lấy thêm UserId của cha
                     .FirstOrDefaultAsync();
 
                 if (parentInfo == null)
@@ -524,8 +599,11 @@ namespace UniMarket.Controllers
 
                 if (parentInfo.MaTinDang != maTinDang)
                     return BadRequest("Bình luận cha không thuộc về tin đăng này.");
+
+                replyToUserId = parentInfo.UserId; // Lưu lại ID người được reply
             }
 
+            // 4. Lưu Comment vào DB
             var comment = new VideoComment
             {
                 MaTinDang = maTinDang,
@@ -538,18 +616,77 @@ namespace UniMarket.Controllers
             _context.VideoComments.Add(comment);
             await _context.SaveChangesAsync();
 
-            // ✅ --- THÊM ĐOẠN CODE 2 Ở ĐÂY ---
-            // 1. Đếm lại tổng số bình luận mới nhất của video này
-            var totalComments = await _context.VideoComments
-                .CountAsync(c => c.MaTinDang == maTinDang);
+            // ========================================================================
+            // [LOGIC THÔNG BÁO HOÀN CHỈNH]
+            // ========================================================================
+            try
+            {
+                // Cắt nội dung ngắn gọn
+                string shortContent = model.Content.Length > 30
+                    ? model.Content.Substring(0, 30) + "..."
+                    : model.Content;
 
-            // 2. Gửi realtime sự kiện cập nhật số lượng bình luận
-            await _hubContext.Clients.Group(maTinDang.ToString())
-                .SendAsync("UpdateCommentCount", maTinDang, totalComments);
-            // ✅ --- HẾT ĐOẠN MỚI ---
+                // --- TRƯỜNG HỢP 1: Đây là Reply (Trả lời bình luận) ---
+                if (replyToUserId != null)
+                {
+                    // Gửi thông báo cho người được trả lời (trừ khi tự trả lời chính mình)
+                    if (replyToUserId != userId)
+                    {
+                        await _notiService.CreateNotification(
+                            senderId: userId,
+                            receiverId: replyToUserId, // Gửi cho người viết comment cha
+                            type: NotificationType.Reply, // Dùng loại Reply (Cần thêm vào Enum nếu chưa có)
+                            refId: maTinDang,
+                            content: $"đã trả lời bình luận của bạn: {shortContent}"
+                        );
+                    }
 
-            // --- PHẦN REALTIME CŨ (giữ nguyên) ---
-            // Tải thông tin User để trả về DTO. Dùng AsNoTracking để nhẹ hơn vì chỉ đọc.
+                    // (Tùy chọn) Có gửi cho chủ video không? 
+                    // Thường TikTok vẫn gửi, nhưng nếu chủ video chính là người được reply thì không gửi 2 lần.
+                    if (videoOwnerId != userId && videoOwnerId != replyToUserId)
+                    {
+                        await _notiService.CreateNotification(
+                            senderId: userId,
+                            receiverId: videoOwnerId,
+                            type: NotificationType.Comment,
+                            refId: maTinDang,
+                            content: $"đã bình luận trong video của bạn: {shortContent}"
+                        );
+                    }
+                }
+                // --- TRƯỜNG HỢP 2: Comment thường (Cấp 1) ---
+                else
+                {
+                    // Chỉ gửi cho chủ video (nếu không phải tự comment video mình)
+                    if (videoOwnerId != userId)
+                    {
+                        await _notiService.CreateNotification(
+                            senderId: userId,
+                            receiverId: videoOwnerId,
+                            type: NotificationType.Comment,
+                            refId: maTinDang,
+                            content: $"đã bình luận: {shortContent}"
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Lỗi gửi thông báo comment: {ex.Message}");
+            }
+            // ========================================================================
+
+            // 5. Gửi Realtime cập nhật số lượng Comment
+            var totalComments = await _context.VideoComments.CountAsync(c => c.MaTinDang == maTinDang);
+
+            // Kiểm tra Hub trước khi gửi
+            if (_hubContext != null)
+            {
+                await _hubContext.Clients.Group(maTinDang.ToString())
+                    .SendAsync("UpdateCommentCount", maTinDang, totalComments);
+            }
+
+            // 6. Gửi Realtime nội dung Comment mới
             var userInfo = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Id == userId)
@@ -567,13 +704,14 @@ namespace UniMarket.Controllers
                 Replies = new List<VideoCommentDto>()
             };
 
-            // Gửi realtime comment mới (Drawer, viewer, v.v.)
-            await _hubContext.Clients.Group(maTinDang.ToString())
-                             .SendAsync("ReceiveComment", newCommentDto, comment.ParentCommentId);
+            if (_hubContext != null)
+            {
+                await _hubContext.Clients.Group(maTinDang.ToString())
+                    .SendAsync("ReceiveComment", newCommentDto, comment.ParentCommentId);
+            }
 
             return Ok(newCommentDto);
         }
-
 
         [HttpGet("{maTinDang}/comments")]
         [AllowAnonymous]

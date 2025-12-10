@@ -57,12 +57,16 @@ builder.Services.AddCors(options =>
     });
 });
 
-// --- Database Context ---
+// --- Database Context (SQL Server) ---
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions => sqlOptions.CommandTimeout(120) // Tăng lên 120 giây
     ));
+
+// --- MongoDB Service (Chi tiết tin đăng - MỚI THÊM) ---
+// Đăng ký Singleton để kết nối MongoDB được tái sử dụng xuyên suốt vòng đời ứng dụng
+builder.Services.AddSingleton<UniMarket.Services.TinDangDetailService>();
 
 // --- Tăng giới hạn upload file (150MB) ---
 builder.Services.Configure<FormOptions>(options =>
@@ -95,12 +99,14 @@ builder.Services.AddAuthentication(options =>
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
 
+            // Đã thêm /userNotificationHub vào điều kiện kiểm tra
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
                  path.StartsWithSegments("/SocialChatHub") ||
                  path.StartsWithSegments("/videoHub") ||
-                 path.StartsWithSegments("/hub/notifications")))
+                 path.StartsWithSegments("/hub/notifications") ||
+                 path.StartsWithSegments("/userNotificationHub"))) // <-- MỚI THÊM
             {
                 context.Token = accessToken;
             }
@@ -165,6 +171,8 @@ builder.Services.AddScoped<UniMarket.Services.PriceAnalysis.PriceAnalysisService
 
 // --- Các Service Nghiệp vụ ---
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
+// ✅ MỚI THÊM: Đăng ký UserNotificationService
+builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 
 // ✅ [QUAN TRỌNG] Đăng ký AI Recommendation Services
 builder.Services.AddScoped<UserBehaviorService>();          // Service xử lý dữ liệu hành vi
@@ -258,6 +266,8 @@ app.MapHub<CommentHub>("/hub/comment");
 app.MapHub<SocialChatHub>("/SocialChatHub");
 app.MapHub<VideoHub>("/videoHub");
 app.MapHub<NotificationHub>("/hub/notifications");
+// ✅ MỚI THÊM: Map UserNotificationHub
+app.MapHub<UserNotificationHub>("/userNotificationHub");
 
 // ====================================================
 // 3. KHỞI TẠO DỮ LIỆU (Seeding)
@@ -268,9 +278,6 @@ using (var scope = app.Services.CreateScope())
 
     // Tạo Roles và Admin mặc định
     await InitializeRolesAndAdmin(services);
-
-    // ❌ LƯU Ý: Không gọi Train AI ở đây nữa.
-    // Việc Train AI đã được chuyển sang 'AITrainingWorker' chạy ngầm.
 }
 
 // Endpoint debug xem tất cả route

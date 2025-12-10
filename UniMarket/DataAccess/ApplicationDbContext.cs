@@ -51,6 +51,7 @@ namespace UniMarket.DataAccess
         // Reports (user-submitted reports for posts/videos)
         public DbSet<Report> Reports { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<UserNotification> UserNotifications { get; set; }
 
         // 🗨️ Chat state, Follow, Share, Hidden Chat
         public DbSet<UserChatState> UserChatStates { get; set; }
