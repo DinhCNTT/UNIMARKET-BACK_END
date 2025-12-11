@@ -54,6 +54,23 @@ namespace UniMarket.Controllers
             _priceService = priceService;
         }
 
+        // ⭐ DEFAULT ENDPOINT - Xử lý request /api/tindang (không có action)
+        [HttpGet]
+        public IActionResult Index()
+        {
+            return Ok(new 
+            { 
+                message = "Vui lòng sử dụng endpoint cụ thể như /api/tindang/get-posts hoặc /api/tindang/get-recommended-posts",
+                availableEndpoints = new[]
+                {
+                    "/api/tindang/get-posts - Lấy tất cả bài đăng đã duyệt",
+                    "/api/tindang/get-recommended-posts?limit=20 - Lấy bài đăng gợi ý",
+                    "/api/tindang/get-post/{id} - Lấy chi tiết bài đăng",
+                    "/api/tindang/search-history - Lấy lịch sử tìm kiếm"
+                }
+            });
+        }
+
         [HttpGet("get-posts")]
         public async Task<IActionResult> GetPosts()
         {

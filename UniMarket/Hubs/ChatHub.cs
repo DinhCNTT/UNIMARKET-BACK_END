@@ -146,7 +146,36 @@ namespace UniMarket.Hubs
                     .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
                 if (chat == null)
-                    throw new HubException("Cuộc trò chuyện không tồn tại.");
+                {
+                    // If this is an AI-generated chat id, create a placeholder conversation so messages can be saved
+                    if (!string.IsNullOrEmpty(maCuocTroChuyen) && maCuocTroChuyen.StartsWith("ai-assistant-"))
+                    {
+                        var placeholder = new CuocTroChuyen
+                        {
+                            MaCuocTroChuyen = maCuocTroChuyen,
+                            ThoiGianTao = DateTime.UtcNow,
+                            IsEmpty = true,
+                            MaTinDang = 0,
+                            TieuDeTinDang = "Uni.AI",
+                            AnhDaiDienTinDang = "/images/uni-ai-avatar.png",
+                            GiaTinDang = 0,
+                            MaNguoiBan = null,
+                            IsPostDeleted = false
+                        };
+
+                        _context.CuocTroChuyens.Add(placeholder);
+                        _context.NguoiThamGias.Add(new NguoiThamGia { MaCuocTroChuyen = maCuocTroChuyen, MaNguoiDung = maNguoiGui });
+                        await _context.SaveChangesAsync();
+
+                        chat = await _context.CuocTroChuyens
+                            .Include(c => c.NguoiThamGias)
+                            .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+                    }
+                    else
+                    {
+                        throw new HubException("Cuộc trò chuyện không tồn tại.");
+                    }
+                }
 
                 var otherUser = chat.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
                 if (otherUser != null)

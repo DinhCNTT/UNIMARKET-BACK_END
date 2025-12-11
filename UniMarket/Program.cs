@@ -10,6 +10,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using System.Text;
 using UniMarket.DataAccess;
 using UniMarket.Hubs;
@@ -78,7 +79,13 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
 
 // --- JWT Authentication ---
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new ArgumentNullException("Jwt:Key không được để trống"));
+var jwtKey = jwtSettings["Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    // Fallback to default if key is missing
+    jwtKey = "default-secret-key-for-development-only-change-in-production-1234567890";
+}
+var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -174,12 +181,20 @@ builder.Services.AddScoped<VideoRecommendationService>();   // Logic tính đi�
 // ✅ [QUAN TRỌNG] Worker chạy ngầm để Train AI (Fix lỗi treo Server)
 builder.Services.AddHostedService<AITrainingWorker>();
 
+// Đăng ký HttpClient và AiService cho việc gọi API bên ngoài (Gemini/OpenAI)
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<AiService>();
+// AiClient used by AiService to call external LLMs
+builder.Services.AddScoped<AiClient>();
+
 // --- Controllers & JSON ---
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
         options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
+        // ✅ Cấu hình camelCase naming cho JSON output (để frontend nhận đúng casing)
+        options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
     })
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -228,6 +243,11 @@ if (app.Environment.IsDevelopment())
 
 // File Tĩnh (Images)
 app.UseStaticFiles();
+// Ensure image directories exist to avoid DirectoryNotFoundException when saving files
+var postsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "Posts");
+var categoriesDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
+Directory.CreateDirectory(postsDir);
+Directory.CreateDirectory(categoriesDir);
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories")),
@@ -266,8 +286,16 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
 
-    // Tạo Roles và Admin mặc định
-    await InitializeRolesAndAdmin(services);
+    try
+    {
+        // Tạo Roles và Admin mặc định
+        await InitializeRolesAndAdmin(services);
+    }
+    catch (Exception ex)
+    {
+        // Database not available - skip initialization (e.g., for API-only testing)
+        System.Console.WriteLine($"⚠️ Database initialization skipped: {ex.Message}");
+    }
 
     // ❌ LƯU Ý: Không gọi Train AI ở đây nữa.
     // Việc Train AI đã được chuyển sang 'AITrainingWorker' chạy ngầm.

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Text.Json;
 using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
@@ -30,6 +32,60 @@ namespace UniMarket.Controllers
             _hubContext = hubContext;
             _presenceService = presenceService;
             _userManager = userManager;
+        }
+
+        [HttpPost("ai/create/{userId}")]
+        public async Task<IActionResult> CreateOrGetAiChat(string userId)
+        {
+            if (string.IsNullOrEmpty(userId)) return BadRequest(new { message = "userId required" });
+
+            var chatId = $"ai-assistant-{userId}";
+
+            var existing = await _context.CuocTroChuyens
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == chatId);
+
+            if (existing != null)
+            {
+                return Ok(new { MaCuocTroChuyen = existing.MaCuocTroChuyen });
+            }
+
+            try
+            {
+                var newChat = new CuocTroChuyen
+                {
+                    MaCuocTroChuyen = chatId,
+                    ThoiGianTao = DateTime.UtcNow,
+                    IsEmpty = true,
+                    MaTinDang = 0,
+                    TieuDeTinDang = "Uni.AI",
+                    AnhDaiDienTinDang = "/images/uni-ai-avatar.png",
+                    GiaTinDang = 0,
+                    MaNguoiBan = null,
+                    IsPostDeleted = false
+                };
+
+                _context.CuocTroChuyens.Add(newChat);
+                _context.NguoiThamGias.Add(new NguoiThamGia { MaCuocTroChuyen = chatId, MaNguoiDung = userId });
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { MaCuocTroChuyen = chatId });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException?.Message.Contains("PRIMARY KEY") == true)
+            {
+                // Race condition: another request already created this chat
+                // Fetch and return it
+                var createdChat = await _context.CuocTroChuyens
+                    .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == chatId);
+
+                if (createdChat != null)
+                {
+                    return Ok(new { MaCuocTroChuyen = createdChat.MaCuocTroChuyen });
+                }
+
+                // If still not found, re-throw the original exception
+                throw;
+            }
         }
         [HttpPost("start")]
         public async Task<IActionResult> StartChat([FromBody] StartChatRequest request)
@@ -130,7 +186,7 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> GetUserConversations(string userId)
         {
             var userChats = await _context.CuocTroChuyens
-                .Where(c => c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
+                .Where(c => c.NguoiThamGias != null && c.NguoiThamGias.Any(n => n.MaNguoiDung == userId))
                 .Select(c => new
                 {
                     c.MaCuocTroChuyen,
@@ -148,20 +204,20 @@ namespace UniMarket.Controllers
                             LoaiTinNhan = t.IsRecalled ? "text" : t.Loai.ToString().ToLower(),
                             ThoiGianGui = t.ThoiGianGui,
                             IsRecalled = t.IsRecalled,  // ✅ THÊM FIELD
-                            TenNguoiGui = t.NguoiGui.FullName  // ✅ THÊM TÊN NGƯỜI GỬI
+                            TenNguoiGui = (t.NguoiGui == null ? "" : t.NguoiGui.FullName)  // ✅ THÊM TÊN NGƯỜI GỬI
                         })
                         .FirstOrDefault(),
                     ThoiGianCapNhat = _context.TinNhans
                         .Where(t => t.MaCuocTroChuyen == c.MaCuocTroChuyen)
                         .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == userId))
                         .Max(t => (DateTime?)t.ThoiGianGui) ?? c.ThoiGianTao,
-                    MaNguoiConLai = c.NguoiThamGias
+                    MaNguoiConLai = c.NguoiThamGias!
                         .Where(n => n.MaNguoiDung != userId)
                         .Select(n => n.MaNguoiDung)
                         .FirstOrDefault(),
-                    TenNguoiConLai = c.NguoiThamGias
+                    TenNguoiConLai = c.NguoiThamGias!
                         .Where(n => n.MaNguoiDung != userId)
-                        .Select(n => n.NguoiDung.FullName)
+                        .Select(n => (n.NguoiDung == null ? "" : n.NguoiDung.FullName))
                         .FirstOrDefault(),
                     c.TieuDeTinDang,
                     c.AnhDaiDienTinDang,
@@ -197,7 +253,7 @@ namespace UniMarket.Controllers
                 var thoiGianCapNhat = c.ThoiGianCapNhat;
                 var tinNhanCuoi = c.TinNhanCuoi;
 
-                if (hasHidden)
+                if (hasHidden && hidden != null)
                 {
                     var cutoff = hidden.ThoiGianAn;
                     if (c.ThoiGianCapNhat < cutoff)
@@ -230,7 +286,44 @@ namespace UniMarket.Controllers
                 };
             }).ToList();
 
-            return Ok(result);
+            // Post-process: normalize AI assistant chats so they appear as "Uni.AI" previews
+            var finalResult = new List<object>();
+            foreach (var c in result)
+            {
+                try
+                {
+                    if (!string.IsNullOrEmpty(c.MaCuocTroChuyen) && c.MaCuocTroChuyen.StartsWith("ai-assistant-"))
+                    {
+                        finalResult.Add(new
+                        {
+                            MaCuocTroChuyen = c.MaCuocTroChuyen,
+                            ThoiGianTao = c.ThoiGianTao,
+                            ThoiGianCapNhat = c.ThoiGianCapNhat,
+                            IsEmpty = false,
+                            MaTinDang = (int?)null,
+                            TinNhanCuoi = c.TinNhanCuoi,
+                            MaNguoiConLai = (string?)null,
+                            TenNguoiConLai = "Uni.AI",
+                            TieuDeTinDang = "Uni.AI",
+                            AnhDaiDienTinDang = "/images/uni-ai-avatar.png",
+                            GiaTinDang = 0,
+                            IsSeller = false,
+                            HasUnreadMessages = c.HasUnreadMessages,
+                            IsHidden = false,
+                            IsDeleted = false,
+                            IsPostDeleted = false,
+                            IsBlocked = false,
+                            MaNguoiChan = (string?)null
+                        });
+                        continue;
+                    }
+                }
+                catch { }
+
+                finalResult.Add(c);
+            }
+
+            return Ok(finalResult);
         }
 
         [HttpGet("history/{maCuocTroChuyen}")]
@@ -279,7 +372,84 @@ namespace UniMarket.Controllers
                     })
                     .ToListAsync();
 
-                return Ok(paginatedMessages);
+                // Enhance messages: for AI-generated messages (MaNguoiGui == "uni.ai")
+                // try to parse a JSON payload containing suggested products so frontend
+                // can render boxes/cards. If parsing fails, we still return the message
+                // and mark it as AI-generated via `isAi` flag.
+                var responseMessages = new List<object>();
+                foreach (var m in paginatedMessages)
+                {
+                    if (string.Equals(m.MaNguoiGui, "uni.ai", StringComparison.OrdinalIgnoreCase))
+                    {
+                        List<object>? aiSuggestions = null;
+                        string? clarifyingQuestion = null;
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(m.NoiDung) && m.NoiDung.TrimStart().StartsWith("{"))
+                            {
+                                using var doc = JsonDocument.Parse(m.NoiDung);
+                                var root = doc.RootElement;
+                                // Common property names we accept: suggestedProducts, aiSuggestions, suggestions
+                                JsonElement arr;
+                                // also try clarifyingQuestion field
+                                if (root.TryGetProperty("clarifyingQuestion", out var cq) && cq.ValueKind == JsonValueKind.String)
+                                {
+                                    clarifyingQuestion = cq.GetString();
+                                }
+                                if (root.TryGetProperty("suggestedProducts", out arr) && arr.ValueKind == JsonValueKind.Array)
+                                {
+                                    aiSuggestions = JsonSerializer.Deserialize<List<object>>(arr.GetRawText()) ?? new List<object>();
+                                }
+                                else if (root.TryGetProperty("aiSuggestions", out arr) && arr.ValueKind == JsonValueKind.Array)
+                                {
+                                    aiSuggestions = JsonSerializer.Deserialize<List<object>>(arr.GetRawText()) ?? new List<object>();
+                                }
+                                else if (root.TryGetProperty("suggestions", out arr) && arr.ValueKind == JsonValueKind.Array)
+                                {
+                                    aiSuggestions = JsonSerializer.Deserialize<List<object>>(arr.GetRawText()) ?? new List<object>();
+                                }
+                            }
+                        }
+                        catch {
+                            // swallow parse errors - don't break chat retrieval
+                        }
+
+                        responseMessages.Add(new
+                        {
+                            m.MaTinNhan,
+                            m.MaCuocTroChuyen,
+                            m.MaNguoiGui,
+                            m.NoiDung,
+                            LoaiTinNhan = m.LoaiTinNhan,
+                            m.ThoiGianGui,
+                            m.DaXem,
+                            m.ThoiGianXem,
+                            m.IsRecalled,
+                            isAi = true,
+                            aiSuggestions = aiSuggestions,
+                            clarifyingQuestion = clarifyingQuestion
+                        });
+                    }
+                    else
+                    {
+                        responseMessages.Add(new
+                        {
+                            m.MaTinNhan,
+                            m.MaCuocTroChuyen,
+                            m.MaNguoiGui,
+                            m.NoiDung,
+                            LoaiTinNhan = m.LoaiTinNhan,
+                            m.ThoiGianGui,
+                            m.DaXem,
+                            m.ThoiGianXem,
+                            m.IsRecalled,
+                            isAi = false,
+                            aiSuggestions = (List<object>?)null
+                        });
+                    }
+                }
+
+                return Ok(responseMessages);
             }
             catch (Exception ex)
             {
@@ -292,11 +462,41 @@ namespace UniMarket.Controllers
         public async Task<IActionResult> GetChatInfo(string maCuocTroChuyen)
         {
             var cuocTroChuyen = await _context.CuocTroChuyens
-                .Include(c => c.NguoiThamGias)
+                .Include(c => c.NguoiThamGias!)
                     .ThenInclude(ntg => ntg.NguoiDung)
                 .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
 
-            if (cuocTroChuyen == null) return NotFound();
+            if (cuocTroChuyen == null)
+            {
+                // If this is an AI-generated chat id, return a placeholder so frontend can render
+                if (!string.IsNullOrEmpty(maCuocTroChuyen) && maCuocTroChuyen.StartsWith("ai-assistant-"))
+                {
+                    var aiPlaceholder = new
+                    {
+                        MaTinDang = (int?)null,
+                        TieuDeTinDang = "Uni.AI",
+                        GiaTinDang = 0,
+                        AnhDaiDienTinDang = "/images/uni-ai-avatar.png",
+                        IsPostDeleted = false,
+                        IsBlocked = false,
+                        MaNguoiChan = (string?)null,
+                        maChuSanPham = (string?)null,
+                        tenChuSanPham = "Uni.AI",
+                        avatarChuSanPham = "/images/uni-ai-avatar.png",
+                        daXacMinhEmailChuSanPham = false,
+                        trangThaiChuSanPham = new { isOnline = true, lastActive = (DateTime?)null, formattedLastSeen = (string?)null },
+                        maNguoiConLai = (string?)null,
+                        tenNguoiConLai = (string?)null,
+                        avatarNguoiConLai = (string?)null,
+                        daXacMinhEmailNguoiConLai = false,
+                        trangThaiNguoiConLai = (object?)null
+                    };
+
+                    return Ok(aiPlaceholder);
+                }
+
+                return NotFound();
+            }
 
             var result = new
             {
@@ -349,9 +549,9 @@ namespace UniMarket.Controllers
             }
 
             var chuSanPham = await _context.Users.FindAsync(chuSanPhamId);
-            var nguoiConLai = cuocTroChuyen.NguoiThamGias
+            var nguoiConLai = (cuocTroChuyen.NguoiThamGias ?? Enumerable.Empty<NguoiThamGia>())
                 .Select(ntg => ntg.NguoiDung)
-                .FirstOrDefault(u => u.Id != chuSanPhamId);
+                .FirstOrDefault(u => u != null && u.Id != chuSanPhamId);
 
             var chuSanPhamStatus = GetUserPresenceStatus(chuSanPham?.Id);
             var nguoiConLaiStatus = GetUserPresenceStatus(nguoiConLai?.Id);
@@ -378,7 +578,7 @@ namespace UniMarket.Controllers
             });
         }
 
-        private object GetUserPresenceStatus(string userId)
+        private object? GetUserPresenceStatus(string? userId)
         {
             if (string.IsNullOrEmpty(userId)) return null;
 
@@ -411,7 +611,7 @@ namespace UniMarket.Controllers
             };
         }
 
-        private string FormatLastSeen(DateTime? lastActive)
+        private string? FormatLastSeen(DateTime? lastActive)
         {
             if (!lastActive.HasValue) return null;
 
@@ -562,7 +762,7 @@ namespace UniMarket.Controllers
             }
         }
 
-        private string ExtractPublicIdFromUrl(string cloudinaryUrl)
+        private string? ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
             try
             {
@@ -621,8 +821,8 @@ namespace UniMarket.Controllers
             // 👉 Lấy tất cả các cuộc trò chuyện có cả 2 user
             var cuocTroChuyens = await _context.CuocTroChuyens
                 .Where(c =>
-                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
-                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
+                    c.NguoiThamGias != null && c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
+                    c.NguoiThamGias != null && c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
                 )
                 .ToListAsync();
 
@@ -689,8 +889,8 @@ namespace UniMarket.Controllers
             // 👉 Lấy tất cả các cuộc trò chuyện có cả 2 user
             var cuocTroChuyens = await _context.CuocTroChuyens
                 .Where(c =>
-                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
-                    c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
+                    c.NguoiThamGias != null && c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockerId) &&
+                    c.NguoiThamGias != null && c.NguoiThamGias.Any(ntg => ntg.MaNguoiDung == request.BlockedId)
                 )
                 .ToListAsync();
 
