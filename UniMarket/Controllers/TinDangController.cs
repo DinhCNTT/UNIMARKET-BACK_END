@@ -88,6 +88,7 @@ namespace UniMarket.Controllers
                                     : $"/images/Posts/{a.DuongDan}")
                         ),
                     NguoiBan = p.NguoiBan.FullName,
+                    Avatar = p.NguoiBan.AvatarUrl,
                     TinhThanh = p.TinhThanh.TenTinhThanh,
                     QuanHuyen = p.QuanHuyen.TenQuanHuyen,
                     DanhMuc = p.DanhMuc.TenDanhMuc,
@@ -838,50 +839,95 @@ namespace UniMarket.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTinDang(int id)
         {
-            var tinDang = await _context.TinDangs
-                .Include(t => t.AnhTinDangs)
-                .FirstOrDefaultAsync(t => t.MaTinDang == id);
-
-            if (tinDang == null)
-                return NotFound(new { message = "Không tìm thấy tin đăng" });
-
-            // Xóa ảnh trên Cloudinary
-            foreach (var img in tinDang.AnhTinDangs)
+            // ✅ SỬ DỤNG TRANSACTION: Đảm bảo cả SQL và Mongo cùng xóa thành công
+            using var transaction = _context.Database.BeginTransaction();
+            try
             {
-                if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
+                var tinDang = await _context.TinDangs
+                    .Include(t => t.AnhTinDangs)
+                    .FirstOrDefaultAsync(t => t.MaTinDang == id);
+
+                if (tinDang == null)
+                    return NotFound(new { message = "Không tìm thấy tin đăng" });
+
+                // =========================================================
+                // 1. XÓA ẢNH TRÊN CLOUDINARY
+                // =========================================================
+                foreach (var img in tinDang.AnhTinDangs)
                 {
-                    await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                    if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
+                    {
+                        await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                    }
                 }
+
+                // =========================================================
+                // 2. XÓA DỮ LIỆU LIÊN QUAN TRONG SQL SERVER
+                // =========================================================
+                _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == id));
+                _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == id));
+                _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == id));
+                _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == id));
+                _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == id));
+                _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id));
+
+                // Xử lý chat: Không xóa, chỉ đánh dấu
+                var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == id).ToListAsync();
+                foreach (var c in cuocTros)
+                {
+                    c.IsPostDeleted = true;
+                    c.TieuDeTinDang += " (đã xóa)";
+                }
+
+                // =========================================================
+                // 3. XÓA CHI TIẾT TRONG MONGODB (PHẦN BẠN THIẾU) 👈 QUAN TRỌNG
+                // =========================================================
+                try
+                {
+                    // Tìm bản ghi chi tiết trong Mongo dựa theo MaTinDang
+                    var mongoDetail = await _mongoService.GetByMaTinDangAsync(id);
+
+                    if (mongoDetail != null)
+                    {
+                        // Nếu tồn tại thì xóa nó đi bằng Id của Mongo Object
+                        await _mongoService.DeleteByIdAsync(mongoDetail.Id);
+                        Console.WriteLine($"[MONGO] Đã xóa chi tiết tin đăng ID: {id}");
+                    }
+                }
+                catch (Exception mongoEx)
+                {
+                    // Ghi log lỗi Mongo nhưng có thể cân nhắc không Rollback nếu muốn SQL vẫn xóa được.
+                    // Tuy nhiên để sạch dữ liệu, nên ném lỗi để Rollback.
+                    throw new Exception("Lỗi khi xóa dữ liệu MongoDB: " + mongoEx.Message);
+                }
+
+                // =========================================================
+                // 4. XÓA TIN ĐĂNG CHÍNH (SQL) VÀ HOÀN TẤT
+                // =========================================================
+
+                // Notify qua SignalR
+                await _hubContext.Clients.All.SendAsync("CapNhatTinDang", new
+                {
+                    MaTinDang = id,
+                    IsDeleted = true
+                });
+
+                // Xóa TinDang trong SQL
+                _context.TinDangs.Remove(tinDang);
+                await _context.SaveChangesAsync();
+
+                // Commit Transaction
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "Xóa tin đăng thành công (Đã xóa cả SQL và MongoDB)." });
             }
-
-            // Xóa bảng phụ liên quan
-            _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == id));
-            _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == id));
-            _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == id));
-            _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == id));
-            _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == id));
-            _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == id));
-
-            // ✅ SỬA: Không xóa chat, chỉ set flag IsPostDeleted
-            var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == id).ToListAsync();
-            foreach (var c in cuocTros)
+            catch (Exception ex)
             {
-                c.IsPostDeleted = true;
-                c.TieuDeTinDang += " (đã xóa)";  // Optional
+                // Nếu có lỗi, Rollback lại toàn bộ (SQL sẽ không bị xóa nếu Mongo lỗi)
+                await transaction.RollbackAsync();
+                Console.WriteLine($"Lỗi xóa tin đăng: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi server khi xóa tin đăng", error = ex.Message });
             }
-
-            // Notify qua SignalR
-            await _hubContext.Clients.All.SendAsync("CapNhatTinDang", new
-            {
-                MaTinDang = id,
-                IsDeleted = true
-            });
-
-            // Xóa TinDang
-            _context.TinDangs.Remove(tinDang);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Xóa tin đăng thành công. Cuộc trò chuyện liên quan vẫn được giữ nguyên." });
         }
 
 
