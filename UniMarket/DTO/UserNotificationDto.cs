@@ -19,6 +19,7 @@ namespace UniMarket.DTOs
 
         // ID tham chiếu (để click vào chuyển trang, ví dụ MaTinDang)
         public int? ReferenceId { get; set; }
+        public int? EntityId { get; set; }
 
         // Ảnh thumbnail bài viết (hiển thị bên phải giống TikTok)
         public string? PostThumbnailUrl { get; set; }

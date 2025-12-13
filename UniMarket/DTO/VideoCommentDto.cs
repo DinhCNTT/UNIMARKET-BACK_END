@@ -17,7 +17,7 @@
         public int? ParentCommentId { get; set; }  // ✅ Để biết bình luận này là con của ai
 
         public bool IsReply => ParentCommentId.HasValue; // ✅ Dùng để hiển thị có phải là reply không
-
+        public string TimeAgo { get; set; }
         public List<VideoCommentDto> Replies { get; set; } = new();
     }
 }

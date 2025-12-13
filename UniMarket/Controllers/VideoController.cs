@@ -615,13 +615,14 @@ namespace UniMarket.Controllers
 
             _context.VideoComments.Add(comment);
             await _context.SaveChangesAsync();
+            // 🔥 LƯU Ý: Phải SaveChangesAsync xong thì comment mới có ID để truyền vào thông báo
 
             // ========================================================================
-            // [LOGIC THÔNG BÁO HOÀN CHỈNH]
+            // [LOGIC THÔNG BÁO - ĐÃ CẬP NHẬT ENTITY ID]
             // ========================================================================
             try
             {
-                // Cắt nội dung ngắn gọn
+                // Cắt nội dung ngắn gọn cho thông báo
                 string shortContent = model.Content.Length > 30
                     ? model.Content.Substring(0, 30) + "..."
                     : model.Content;
@@ -634,15 +635,15 @@ namespace UniMarket.Controllers
                     {
                         await _notiService.CreateNotification(
                             senderId: userId,
-                            receiverId: replyToUserId, // Gửi cho người viết comment cha
-                            type: NotificationType.Reply, // Dùng loại Reply (Cần thêm vào Enum nếu chưa có)
-                            refId: maTinDang,
-                            content: $"đã trả lời bình luận của bạn: {shortContent}"
+                            receiverId: replyToUserId,    // Gửi cho người viết comment cha
+                            type: NotificationType.Reply,
+                            refId: maTinDang,             // ID Video (để load trang)
+                            content: $"đã trả lời bình luận của bạn: {shortContent}",
+                            entityId: comment.Id          // 🔥 QUAN TRỌNG: ID Comment vừa tạo (để scroll tới)
                         );
                     }
 
-                    // (Tùy chọn) Có gửi cho chủ video không? 
-                    // Thường TikTok vẫn gửi, nhưng nếu chủ video chính là người được reply thì không gửi 2 lần.
+                    // (Tùy chọn) Gửi cho chủ video nếu chủ video không phải là người đang comment và không phải người được reply
                     if (videoOwnerId != userId && videoOwnerId != replyToUserId)
                     {
                         await _notiService.CreateNotification(
@@ -650,7 +651,8 @@ namespace UniMarket.Controllers
                             receiverId: videoOwnerId,
                             type: NotificationType.Comment,
                             refId: maTinDang,
-                            content: $"đã bình luận trong video của bạn: {shortContent}"
+                            content: $"đã bình luận trong video của bạn: {shortContent}",
+                            entityId: comment.Id          // 🔥 QUAN TRỌNG: ID Comment vừa tạo
                         );
                     }
                 }
@@ -665,7 +667,8 @@ namespace UniMarket.Controllers
                             receiverId: videoOwnerId,
                             type: NotificationType.Comment,
                             refId: maTinDang,
-                            content: $"đã bình luận: {shortContent}"
+                            content: $"đã bình luận: {shortContent}",
+                            entityId: comment.Id          // 🔥 QUAN TRỌNG: ID Comment vừa tạo
                         );
                     }
                 }
@@ -676,17 +679,16 @@ namespace UniMarket.Controllers
             }
             // ========================================================================
 
-            // 5. Gửi Realtime cập nhật số lượng Comment
+            // 5. Gửi Realtime cập nhật số lượng Comment (SignalR)
             var totalComments = await _context.VideoComments.CountAsync(c => c.MaTinDang == maTinDang);
 
-            // Kiểm tra Hub trước khi gửi
             if (_hubContext != null)
             {
                 await _hubContext.Clients.Group(maTinDang.ToString())
                     .SendAsync("UpdateCommentCount", maTinDang, totalComments);
             }
 
-            // 6. Gửi Realtime nội dung Comment mới
+            // 6. Gửi Realtime nội dung Comment mới (SignalR)
             var userInfo = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Id == userId)
@@ -701,7 +703,8 @@ namespace UniMarket.Controllers
                 UserId = comment.UserId,
                 UserName = userInfo?.FullName ?? userInfo?.UserName ?? "Unknown User",
                 AvatarUrl = userInfo?.AvatarUrl,
-                Replies = new List<VideoCommentDto>()
+                Replies = new List<VideoCommentDto>(),
+                TimeAgo = "Vừa xong"
             };
 
             if (_hubContext != null)
@@ -717,27 +720,29 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetComments(int maTinDang)
         {
-            // 1. Truy vấn tối ưu: Chỉ lấy dữ liệu cần thiết, không load cả User entity
             var rawComments = await _context.VideoComments
-                .AsNoTracking() // ✅ Quan trọng: Giúp query nhanh hơn và tốn ít RAM hơn
+                .AsNoTracking()
                 .Where(c => c.MaTinDang == maTinDang)
-                .OrderBy(c => c.CreatedAt) // Sắp xếp ngay từ DB
-                .Select(c => new VideoCommentDto // ✅ Projection: Chỉ lấy trường cần dùng
+                .OrderBy(c => c.CreatedAt)
+                .Select(c => new VideoCommentDto
                 {
                     Id = c.Id,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
                     UserId = c.UserId,
-                    UserName = c.User.FullName ?? c.User.UserName, // Lấy thẳng từ quan hệ
+                    UserName = c.User.FullName ?? c.User.UserName,
                     AvatarUrl = c.User.AvatarUrl,
-                    ParentCommentId = c.ParentCommentId // Cần trường này để dựng cây
+                    ParentCommentId = c.ParentCommentId,
                 })
                 .ToListAsync();
 
-            // 2. Dựng cây trong bộ nhớ (In-memory)
-            // Lưu ý: Hàm BuildCommentTree cần sửa nhẹ để nhận List<VideoCommentDto>
-            var commentTree = BuildCommentTree(rawComments);
+            // ✅ VÒNG LẶP TÍNH TOÁN SAU KHI LẤY DỮ LIỆU TỪ DB
+            foreach (var item in rawComments)
+            {
+                item.TimeAgo = CalculateTimeAgo(item.CreatedAt);
+            }
 
+            var commentTree = BuildCommentTree(rawComments);
             return Ok(commentTree);
         }
 
@@ -1559,15 +1564,16 @@ namespace UniMarket.Controllers
         }
         private string CalculateTimeAgo(DateTime date)
         {
-            var timeSpan = DateTime.Now - date;
+            var diff = DateTime.UtcNow - date;
 
-            if (timeSpan.TotalMinutes < 1) return "Vừa xong";
-            if (timeSpan.TotalMinutes < 60) return $"{(int)timeSpan.TotalMinutes} phút trước";
-            if (timeSpan.TotalHours < 24) return $"{(int)timeSpan.TotalHours} giờ trước";
-            if (timeSpan.TotalDays < 30) return $"{(int)timeSpan.TotalDays} ngày trước";
-            if (timeSpan.TotalDays < 365) return $"{(int)(timeSpan.TotalDays / 30)} tháng trước";
+            if (diff.TotalSeconds < 60)
+                return "Vừa xong";
+            if (diff.TotalMinutes < 60)
+                return $"{Math.Floor(diff.TotalMinutes)} phút trước";
+            if (diff.TotalHours < 24)
+                return $"{Math.Floor(diff.TotalHours)} giờ trước";
 
-            return $"{(int)(timeSpan.TotalDays / 365)} năm trước";
+            return $"{Math.Floor(diff.TotalDays)} ngày trước";
         }
     }
 }

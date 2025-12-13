@@ -5,7 +5,7 @@ using System.Security.Claims;
 using UniMarket.DataAccess;
 using UniMarket.Models;
 using UniMarket.Services.Recommendation;
-using UniMarket.DTO; // Đảm bảo namespace này chứa ForYouRequestDto
+using UniMarket.DTO;
 
 namespace UniMarket.Controllers
 {
@@ -22,37 +22,34 @@ namespace UniMarket.Controllers
             _recommendationService = recommendationService;
         }
 
-        // ==========================================
-        // 🎯 API: LẤY DANH SÁCH VIDEO "FOR YOU"
-        // ==========================================
+        // ==========================================================================================
+        // 🎯 API: LẤY DANH SÁCH VIDEO "FOR YOU" (ĐÃ FIX LỖI COUNT VÀ TIME)
+        // ==========================================================================================
         [HttpPost("foryou")]
         [AllowAnonymous]
         public async Task<IActionResult> GetForYouVideos([FromBody] ForYouRequestDto request)
         {
             try
             {
+                // 1. Lấy UserId nếu đã đăng nhập
                 var userId = User.Identity != null && User.Identity.IsAuthenticated
                     ? User.FindFirstValue(ClaimTypes.NameIdentifier)
                     : null;
 
-                // ---------------------------------------------------------
-                // 1. Lấy danh sách ID video đề xuất từ Service AI (Đã sắp xếp theo điểm)
-                // ---------------------------------------------------------
+                // 2. Gọi AI Service để lấy danh sách ID bài đăng phù hợp
                 var recommendedIds = await _recommendationService.GetRecommendedPostIds(
                     userId,
                     request.ExcludedIds ?? new List<int>(),
                     request.PageSize,
-                    isVideoOnly: true // 👈 Chỉ lấy tin có Video
+                    isVideoOnly: true
                 );
 
+                // Nếu AI không trả về gì thì return rỗng luôn
                 if (!recommendedIds.Any())
-                {
                     return Ok(new List<object>());
-                }
 
-                // ---------------------------------------------------------
-                // 2. Fetch chi tiết video từ Database (Bulk Query)
-                // ---------------------------------------------------------
+                // 3. Lấy dữ liệu chi tiết Video từ Database
+                // Sử dụng AsNoTracking để tối ưu tốc độ đọc
                 var videosData = await _context.TinDangs
                     .AsNoTracking()
                     .Where(t => recommendedIds.Contains(t.MaTinDang))
@@ -62,49 +59,56 @@ namespace UniMarket.Controllers
                     .Include(t => t.QuanHuyen)
                     .ToListAsync();
 
-                // ---------------------------------------------------------
-                // 3. Tối ưu: Đếm số lượng tương tác (Bulk Count)
-                // ---------------------------------------------------------
+                // Tạo danh sách ID thực tế tìm thấy trong DB (đề phòng AI trả về ID rác)
                 var foundIds = videosData.Select(v => v.MaTinDang).ToList();
 
-                // 3.1. Likes
+                // ==================================================================================
+                // 4. ĐẾM SỐ LƯỢNG TƯƠNG TÁC (TỐI ƯU HIỆU NĂNG)
+                // ==================================================================================
+
+                // Đếm Like (Tym) - Dùng AsNoTracking để lấy số chính xác nhất
                 var tymCounts = await _context.VideoLikes
+                    .AsNoTracking()
                     .Where(v => foundIds.Contains(v.MaTinDang))
                     .GroupBy(v => v.MaTinDang)
-                    .Select(g => new { g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(g => g.Key, g => g.Count);
+                    .Select(g => new { MaTinDang = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTinDang, x => x.Count);
 
-                // 3.2. Comments
+                // Đếm Bình luận
                 var commentCounts = await _context.VideoComments
+                    .AsNoTracking()
                     .Where(c => foundIds.Contains(c.MaTinDang))
                     .GroupBy(c => c.MaTinDang)
-                    .Select(g => new { g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(g => g.Key, g => g.Count);
+                    .Select(g => new { MaTinDang = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTinDang, x => x.Count);
 
-                // 3.3. Shares
+                // Đếm Chia sẻ
                 var shareCounts = await _context.Shares
+                    .AsNoTracking()
                     .Where(s => s.TinDangId.HasValue && foundIds.Contains(s.TinDangId.Value))
                     .GroupBy(s => s.TinDangId.Value)
-                    .Select(g => new { g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(g => g.Key, g => g.Count);
+                    .Select(g => new { MaTinDang = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTinDang, x => x.Count);
 
-                // 3.4. Video Saves (Lưu Video)
+                // Đếm Lưu Video
                 var videoSaveCounts = await _context.VideoTinDangSaves
+                    .AsNoTracking()
                     .Where(s => foundIds.Contains(s.MaTinDang))
                     .GroupBy(s => s.MaTinDang)
-                    .Select(g => new { g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(g => g.Key, g => g.Count);
+                    .Select(g => new { MaTinDang = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTinDang, x => x.Count);
 
-                // 3.5. Post Favorites (Yêu Thích Tin - Giỏ hàng/Tim)
+                // Đếm Yêu thích (Favorite)
                 var postFavCounts = await _context.TinDangYeuThichs
+                    .AsNoTracking()
                     .Where(s => foundIds.Contains(s.MaTinDang))
                     .GroupBy(s => s.MaTinDang)
-                    .Select(g => new { g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(g => g.Key, g => g.Count);
+                    .Select(g => new { MaTinDang = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTinDang, x => x.Count);
 
-                // ---------------------------------------------------------
-                // 4. Kiểm tra trạng thái cá nhân của User hiện tại
-                // ---------------------------------------------------------
+                // ==================================================================================
+                // 5. LẤY TRẠNG THÁI CÁ NHÂN CỦA USER (Đã Like chưa, Đã Follow chưa...)
+                // ==================================================================================
                 var userLikedIds = new HashSet<int>();
                 var userVideoSavedIds = new HashSet<int>();
                 var userPostFavoritedIds = new HashSet<int>();
@@ -112,45 +116,59 @@ namespace UniMarket.Controllers
 
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    // Lấy danh sách Like
-                    var likes = await _context.VideoLikes
-                        .Where(v => v.UserId == userId && foundIds.Contains(v.MaTinDang))
-                        .Select(v => v.MaTinDang).ToListAsync();
-                    userLikedIds = new HashSet<int>(likes);
+                    // User đã like bài nào?
+                    userLikedIds = new HashSet<int>(
+                        await _context.VideoLikes
+                            .AsNoTracking()
+                            .Where(v => v.UserId == userId && foundIds.Contains(v.MaTinDang))
+                            .Select(v => v.MaTinDang)
+                            .ToListAsync()
+                    );
 
-                    // Lấy danh sách Save Video
-                    var saves = await _context.VideoTinDangSaves
-                        .Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
-                        .Select(s => s.MaTinDang).ToListAsync();
-                    userVideoSavedIds = new HashSet<int>(saves);
+                    // User đã lưu video nào?
+                    userVideoSavedIds = new HashSet<int>(
+                        await _context.VideoTinDangSaves
+                            .AsNoTracking()
+                            .Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
+                            .Select(s => s.MaTinDang)
+                            .ToListAsync()
+                    );
 
-                    // Lấy danh sách Favorite Post
-                    var favs = await _context.TinDangYeuThichs
-                        .Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
-                        .Select(s => s.MaTinDang).ToListAsync();
-                    userPostFavoritedIds = new HashSet<int>(favs);
+                    // User đã yêu thích bài nào?
+                    userPostFavoritedIds = new HashSet<int>(
+                        await _context.TinDangYeuThichs
+                            .AsNoTracking()
+                            .Where(s => s.MaNguoiDung == userId && foundIds.Contains(s.MaTinDang))
+                            .Select(s => s.MaTinDang)
+                            .ToListAsync()
+                    );
 
-                    // Lấy danh sách Follow Author
+                    // User đã follow tác giả nào?
                     var authorIds = videosData.Select(v => v.MaNguoiBan).Distinct().ToList();
-                    var follows = await _context.Follows
-                        .Where(f => f.FollowerId == userId && authorIds.Contains(f.FollowingId))
-                        .Select(f => f.FollowingId).ToListAsync();
-                    userFollowedAuthors = new HashSet<string>(follows);
+                    userFollowedAuthors = new HashSet<string>(
+                        await _context.Follows
+                            .AsNoTracking()
+                            .Where(f => f.FollowerId == userId && authorIds.Contains(f.FollowingId))
+                            .Select(f => f.FollowingId)
+                            .ToListAsync()
+                    );
                 }
 
-                // ---------------------------------------------------------
-                // 5. Map kết quả & Xử lý ưu tiên Thumbnail Video
-                // ---------------------------------------------------------
-                // Sử dụng .Join để đảm bảo thứ tự ranking của recommendedIds được bảo toàn
+                // ==================================================================================
+                // 6. MAP DỮ LIỆU TRẢ VỀ (GIỮ ĐÚNG THỨ TỰ CỦA recommendedIds)
+                // ==================================================================================
+
+                // Sử dụng Join để đảm bảo thứ tự của list kết quả khớp với thứ tự mà AI gợi ý
                 var result = recommendedIds
-                    .Join(videosData, id => id, v => v.MaTinDang, (id, v) => v)
+                    .Join(videosData, id => id, v => v.MaTinDang, (id, td) => td)
                     .Select(td =>
                     {
-                        // 🔥 LOGIC QUAN TRỌNG: Ưu tiên lấy Thumbnail từ Video Cloudinary
+                        // Xử lý Thumbnail (Ưu tiên ảnh Cloudinary generate nếu là video)
                         string? generatedThumb = GetCloudinaryThumbnail(td.VideoUrl);
-                        string? productThumb = td.AnhTinDangs?.OrderBy(a => a.Order).FirstOrDefault()?.DuongDan;
+                        string? productThumb = td.AnhTinDangs?
+                            .OrderBy(a => a.Order)
+                            .FirstOrDefault()?.DuongDan;
 
-                        // Nếu tạo được thumb từ video thì dùng nó, nếu không thì dùng ảnh sản phẩm
                         string finalImage = !string.IsNullOrEmpty(generatedThumb) ? generatedThumb : (productThumb ?? "");
 
                         return new
@@ -159,30 +177,30 @@ namespace UniMarket.Controllers
                             td.TieuDe,
                             td.MoTa,
                             td.VideoUrl,
-
-                            // ✅ Trả về ảnh đã được xử lý logic
                             HinhAnh = finalImage,
 
+                            // Thông tin cơ bản
                             td.Gia,
                             td.DiaChi,
                             TinhThanh = td.TinhThanh?.TenTinhThanh ?? "",
                             QuanHuyen = td.QuanHuyen?.TenQuanHuyen ?? "",
                             td.TinhTrang,
-                            td.NgayDang,
 
-                            // Thông số kỹ thuật hiển thị
+                            // Thời gian (Đã sửa logic tiếng Việt)
+                            td.NgayDang,
+                            TimeAgo = GetVietnameseTimeAgo(td.NgayDang),
+
                             td.SoLuotXem,
                             AnhCount = td.AnhTinDangs?.Count(a => a.LoaiMedia == MediaType.Image) ?? 0,
 
-                            // Số liệu tương tác
-                            SoTym = tymCounts.GetValueOrDefault(td.MaTinDang, 0),
-                            SoBinhLuan = commentCounts.GetValueOrDefault(td.MaTinDang, 0),
-                            SoLuotChiaSe = shareCounts.GetValueOrDefault(td.MaTinDang, 0),
+                            // Số liệu tương tác (Lấy từ Dictionary đã đếm ở trên)
+                            SoTym = tymCounts.ContainsKey(td.MaTinDang) ? tymCounts[td.MaTinDang] : 0,
+                            SoBinhLuan = commentCounts.ContainsKey(td.MaTinDang) ? commentCounts[td.MaTinDang] : 0,
+                            SoLuotChiaSe = shareCounts.ContainsKey(td.MaTinDang) ? shareCounts[td.MaTinDang] : 0,
+                            SoNguoiLuu = videoSaveCounts.ContainsKey(td.MaTinDang) ? videoSaveCounts[td.MaTinDang] : 0,
+                            SoLuotYeuThich = postFavCounts.ContainsKey(td.MaTinDang) ? postFavCounts[td.MaTinDang] : 0,
 
-                            SoNguoiLuu = videoSaveCounts.GetValueOrDefault(td.MaTinDang, 0),
-                            SoLuotYeuThich = postFavCounts.GetValueOrDefault(td.MaTinDang, 0),
-
-                            // Trạng thái User
+                            // Trạng thái của User đối với Video này
                             IsLiked = userLikedIds.Contains(td.MaTinDang),
                             IsSaved = userVideoSavedIds.Contains(td.MaTinDang),
                             IsFavorited = userPostFavoritedIds.Contains(td.MaTinDang),
@@ -205,42 +223,62 @@ namespace UniMarket.Controllers
             }
             catch (Exception ex)
             {
-                // Log error (nên dùng ILogger trong thực tế)
+                // Log lỗi ra console để debug nếu cần
                 Console.WriteLine($"Error in GetForYouVideos: {ex.Message}");
                 return StatusCode(500, new { message = "Lỗi hệ thống khi lấy danh sách video đề xuất." });
             }
         }
 
         // ==========================================================
-        // 🛠️ HÀM HỖ TRỢ: CHUYỂN LINK VIDEO CLOUDINARY -> ẢNH JPG
+        // 🛠️ HÀM PHỤ TRỢ: TÍNH THỜI GIAN TIẾNG VIỆT
+        // ==========================================================
+        private string GetVietnameseTimeAgo(DateTime date)
+        {
+            // Lấy thời gian hiện tại
+            var now = DateTime.Now;
+            var timeSpan = now - date;
+
+            // Xử lý trường hợp thời gian bị âm (do lệch giờ server/client) -> Coi như vừa xong
+            if (timeSpan.TotalSeconds < 0) return "Vừa xong";
+
+            if (timeSpan.TotalMinutes < 1)
+                return "Vừa xong";
+
+            if (timeSpan.TotalMinutes < 60)
+                return $"{(int)timeSpan.TotalMinutes} phút trước";
+
+            if (timeSpan.TotalHours < 24)
+                return $"{(int)timeSpan.TotalHours} giờ trước";
+
+            if (timeSpan.TotalDays < 7)
+                return $"{(int)timeSpan.TotalDays} ngày trước";
+
+            // Nếu quá 7 ngày, hiển thị ngày tháng năm
+            return date.ToString("dd/MM/yyyy");
+        }
+
+        // ==========================================================
+        // 🛠️ HÀM PHỤ TRỢ: TẠO THUMBNAIL CLOUDINARY
         // ==========================================================
         private string? GetCloudinaryThumbnail(string? videoUrl)
         {
             if (string.IsNullOrEmpty(videoUrl)) return null;
 
+            // Logic lấy ảnh thumbnail tự động từ Cloudinary bằng cách đổi đuôi file
             if (videoUrl.Contains("cloudinary.com"))
             {
-                // Cloudinary hỗ trợ đổi đuôi file để lấy thumbnail
-                // VD: .../upload/v123/video.mp4 -> .../upload/v123/video.jpg
-
-                if (videoUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                if (videoUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                    videoUrl.EndsWith(".mov", StringComparison.OrdinalIgnoreCase))
                 {
-                    return videoUrl.Substring(0, videoUrl.LastIndexOf('.')) + ".jpg";
+                    return videoUrl[..videoUrl.LastIndexOf('.')] + ".jpg";
                 }
 
-                if (videoUrl.EndsWith(".mov", StringComparison.OrdinalIgnoreCase))
-                {
-                    return videoUrl.Substring(0, videoUrl.LastIndexOf('.')) + ".jpg";
-                }
-
-                // Nếu URL không có đuôi file rõ ràng nhưng là Cloudinary, thử append .jpg
-                // (Trừ khi nó đã là ảnh)
-                if (!videoUrl.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) &&
-                    !videoUrl.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                if (!videoUrl.EndsWith(".jpg") && !videoUrl.EndsWith(".png"))
                 {
                     return videoUrl + ".jpg";
                 }
             }
+
             return null;
         }
     }

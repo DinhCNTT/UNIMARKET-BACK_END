@@ -4,15 +4,15 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UniMarket.Models
 {
-    // Giữ nguyên Enum để phân loại
+    // Enum định nghĩa các loại thông báo
     public enum NotificationType
     {
-        Like = 1,       // Ai đó thích video của bạn
-        Comment = 2,    // Ai đó bình luận video
-        Reply = 3,      // Ai đó trả lời bình luận của bạn
-        Follow = 4,     // Ai đó follow bạn
-        System = 5,     // Thông báo từ hệ thống
-        Mention = 6     // Ai đó tag bạn (@tenban)
+        Like = 1,       // Ai đó thích bài/video
+        Comment = 2,    // Ai đó bình luận
+        Reply = 3,      // Ai đó trả lời bình luận
+        Follow = 4,     // Ai đó follow
+        System = 5,     // Hệ thống
+        Mention = 6     // Tag tên (@)
     }
 
     public class UserNotification
@@ -21,25 +21,37 @@ namespace UniMarket.Models
         public int Id { get; set; }
 
         [Required]
-        public string ReceiverId { get; set; } // Người nhận thông báo (User B)
+        public string ReceiverId { get; set; } // Người nhận (User B)
 
         [Required]
-        public string SenderId { get; set; }   // Người gây ra hành động (User A)
+        public string SenderId { get; set; }   // Người gửi (User A)
 
         [Required]
         public NotificationType Type { get; set; }
 
-        // ReferenceId: Lưu ID bài đăng (MaTinDang) hoặc ID khác tùy loại thông báo
+        // --- CÁC TRƯỜNG LIÊN KẾT (QUAN TRỌNG) ---
+
+        /// <summary>
+        /// ID của đối tượng CHÍNH (thường là Video/TinDang).
+        /// Dùng để lấy ảnh thumbnail và điều hướng đến trang xem video.
+        /// </summary>
         public int? ReferenceId { get; set; }
 
-        // Nội dung hiển thị (Ví dụ: "đã thích video của bạn")
+        /// <summary>
+        /// 🔥 [MỚI THÊM] ID của đối tượng CỤ THỂ (Comment hoặc Reply).
+        /// Dùng để scroll tới đúng vị trí bình luận đó.
+        /// </summary>
+        public int? EntityId { get; set; }
+
+        // Nội dung text hiển thị (VD: "đã bình luận vào video của bạn")
         public string? Content { get; set; }
 
         public bool IsRead { get; set; } = false;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // --- RELATIONSHIPS (Khóa ngoại) ---
+        // --- KHÓA NGOẠI (RELATIONSHIPS) ---
+
         [ForeignKey("ReceiverId")]
         public virtual ApplicationUser Receiver { get; set; }
 

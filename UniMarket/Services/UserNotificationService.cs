@@ -22,7 +22,8 @@ namespace UniMarket.Services
             _hubContext = hubContext;
         }
 
-        public async Task CreateNotification(string senderId, string receiverId, NotificationType type, int? refId, string content)
+        // 🔥 ĐÃ SỬA: Thêm tham số "int? entityId = null" vào cuối hàm để khớp với Interface và sửa lỗi "entityId does not exist"
+        public async Task CreateNotification(string senderId, string receiverId, NotificationType type, int? refId, string content, int? entityId = null)
         {
             if (senderId == receiverId) return;
 
@@ -33,6 +34,7 @@ namespace UniMarket.Services
                 ReceiverId = receiverId,
                 Type = type,
                 ReferenceId = refId,
+                EntityId = entityId, // Bây giờ biến entityId đã hợp lệ
                 Content = content,
                 CreatedAt = DateTime.UtcNow,
                 IsRead = false
@@ -47,7 +49,7 @@ namespace UniMarket.Services
                 .Select(u => new { u.FullName, u.AvatarUrl })
                 .FirstOrDefaultAsync();
 
-            // 3. Lấy ảnh thumbnail (LOGIC ĐÃ SỬA: Ưu tiên Video -> Sau đó mới đến Ảnh bìa)
+            // 3. Lấy ảnh thumbnail
             string? postThumbnail = null;
             if (refId.HasValue && (type == NotificationType.Like || type == NotificationType.Comment || type == NotificationType.Reply))
             {
@@ -56,17 +58,13 @@ namespace UniMarket.Services
                     .Select(t => new
                     {
                         t.VideoUrl,
-                        // Lấy đường dẫn ảnh đầu tiên trong danh sách (dự phòng)
                         ImageThumb = t.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault()
                     })
                     .FirstOrDefaultAsync();
 
                 if (postInfo != null)
                 {
-                    // 🔥 SỬA: Thử lấy thumbnail từ Video trước
                     var videoThumb = GetCloudinaryThumbnail(postInfo.VideoUrl);
-
-                    // Nếu có video thumb thì dùng, nếu không mới dùng ảnh sản phẩm
                     postThumbnail = !string.IsNullOrEmpty(videoThumb) ? videoThumb : postInfo.ImageThumb;
                 }
             }
@@ -81,6 +79,7 @@ namespace UniMarket.Services
                 Type = type.ToString(),
                 Content = content,
                 ReferenceId = refId,
+                EntityId = entityId, // Gửi ID Comment xuống Client
                 PostThumbnailUrl = postThumbnail,
                 IsRead = false,
                 CreatedAt = noti.CreatedAt,
@@ -124,7 +123,6 @@ namespace UniMarket.Services
                 .Distinct()
                 .ToList();
 
-            // Lấy VideoUrl và Ảnh từ DB
             var postInfos = await _context.TinDangs
                 .Where(t => postIds.Contains(t.MaTinDang))
                 .Select(t => new
@@ -135,8 +133,6 @@ namespace UniMarket.Services
                 })
                 .ToListAsync();
 
-            // 🔥 SỬA LOGIC CHỌN ẢNH (Quan trọng):
-            // Ưu tiên GetCloudinaryThumbnail(VideoUrl) trước. Nếu null mới lấy ImageThumb.
             var postImages = postInfos.ToDictionary(
                 k => k.MaTinDang,
                 v => GetCloudinaryThumbnail(v.VideoUrl) ?? v.ImageThumb
@@ -154,7 +150,7 @@ namespace UniMarket.Services
                 IsRead = item.IsRead,
                 CreatedAt = item.CreatedAt,
                 TimeAgo = CalculateTimeAgo(item.CreatedAt),
-
+                EntityId = item.EntityId, // Map từ DB sang DTO
                 PostThumbnailUrl = (item.ReferenceId.HasValue && postImages.ContainsKey(item.ReferenceId.Value))
                                     ? postImages[item.ReferenceId.Value]
                                     : null
@@ -188,16 +184,12 @@ namespace UniMarket.Services
             return date.ToString("dd/MM");
         }
 
-        // ==========================================================
-        // HÀM HỖ TRỢ: LẤY THUMBNAIL TỪ CLOUDINARY VIDEO URL
-        // ==========================================================
         private string? GetCloudinaryThumbnail(string? videoUrl)
         {
             if (string.IsNullOrEmpty(videoUrl)) return null;
 
             if (videoUrl.Contains("cloudinary.com"))
             {
-                // Đổi đuôi .mp4/.mov -> .jpg
                 if (videoUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
                 {
                     return videoUrl.Substring(0, videoUrl.Length - 4) + ".jpg";
@@ -206,7 +198,6 @@ namespace UniMarket.Services
                 {
                     return videoUrl.Substring(0, videoUrl.Length - 4) + ".jpg";
                 }
-                // Fallback: Nếu không phải mp4/mov nhưng là link video cloudinary, thử cộng .jpg vào cuối
                 if (!videoUrl.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) &&
                     !videoUrl.EndsWith(".png", StringComparison.OrdinalIgnoreCase) &&
                     !videoUrl.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
