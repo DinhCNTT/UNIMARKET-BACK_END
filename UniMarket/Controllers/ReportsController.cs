@@ -254,48 +254,15 @@ namespace UniMarket.Controllers
             if (report.TargetType != ReportTargetType.Post)
                 return BadRequest(new { message = "Target không phải là tin đăng." });
 
-            // Load the post and related collections
+            // Load the post
             var post = await _context.TinDangs
-                .Include(t => t.AnhTinDangs)
-                .Include(t => t.TinDangYeuThichs)
                 .FirstOrDefaultAsync(t => t.MaTinDang == report.TargetId);
 
             if (post == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng." });
 
-            // Capture a small snapshot (title + first image) so we can include it in live notifications
+            // Capture snapshot info for notification
             var snapshotTitle = post.TieuDe;
-            var snapshotImage = post.AnhTinDangs?.FirstOrDefault()?.DuongDan;
-            // Ensure image URL is absolute so frontend can load it even when served from a different dev port
-            string? snapshotImageAbsolute = null;
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(snapshotImage))
-                {
-                    if (snapshotImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                    {
-                        snapshotImageAbsolute = snapshotImage;
-                    }
-                    else
-                    {
-                        // Build absolute URL using current request host/scheme
-                        var req = this.Request;
-                        if (req != null && req.Scheme != null && req.Host.HasValue)
-                        {
-                            snapshotImageAbsolute = $"{req.Scheme}://{req.Host}{(snapshotImage.StartsWith("/") ? snapshotImage : "/" + snapshotImage)}";
-                        }
-                        else
-                        {
-                            // Fallback: send original path
-                            snapshotImageAbsolute = snapshotImage;
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                snapshotImageAbsolute = snapshotImage;
-            }
 
             // Fetch owner (if exists) so we can notify them after deletion
             var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.MaNguoiBan);
@@ -303,29 +270,17 @@ namespace UniMarket.Controllers
             using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Remove related child collections if present
-                if (post.AnhTinDangs != null && post.AnhTinDangs.Any())
+                // ✅ SOFT DELETE: Đánh dấu trạng thái thay vì xóa dữ liệu (giống logic QuanLyTin)
+                // Thay đổi TrangThai thành "TuChoi" để loại bỏ khỏi danh sách tin đã duyệt
+                post.TrangThai = TrangThaiTinDang.TuChoi;
+                
+                // Mark các tin nhắn chat liên quan - không xóa mà đánh dấu
+                var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == report.TargetId).ToListAsync();
+                foreach (var c in cuocTros)
                 {
-                    _context.AnhTinDangs.RemoveRange(post.AnhTinDangs);
+                    c.IsPostDeleted = true;
+                    c.TieuDeTinDang += " (đã xóa)";
                 }
-
-                if (post.TinDangYeuThichs != null && post.TinDangYeuThichs.Any())
-                {
-                    _context.TinDangYeuThichs.RemoveRange(post.TinDangYeuThichs);
-                }
-
-                // Remove other related entities that reference MaTinDang
-                var videoLikes = _context.VideoLikes.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoLikes.RemoveRange(videoLikes);
-
-                var videoComments = _context.VideoComments.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoComments.RemoveRange(videoComments);
-
-                var videoViews = _context.VideoViews.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoViews.RemoveRange(videoViews);
-
-                // Finally remove post
-                _context.TinDangs.Remove(post);
 
                 // Mark report as resolved
                 report.IsResolved = true;
@@ -339,7 +294,6 @@ namespace UniMarket.Controllers
                     {
                         var title = "Tin đăng của bạn đã bị xóa";
                         var url = $"/posts/{post.MaTinDang}";
-                        // Simple message without reason/details (those are shown in detail modal)
                         var message = "Tin đăng của bạn đã bị xóa bởi Quản trị viên vì vi phạm chính sách cộng đồng.";
 
                         notif = new Notification
@@ -364,16 +318,26 @@ namespace UniMarket.Controllers
 
                 await _context.SaveChangesAsync();
 
-                // commit DB transaction so removal + notification persist together
+                // Commit DB transaction
                 await tx.CommitAsync();
 
-                // Broadcast notification (best-effort) after commit - only to the owner to avoid duplicates
+                // Broadcast notification (best-effort) after commit
                 if (notif != null)
                 {
                     try
                     {
                         await _notificationHub.Clients.Group($"user-{notif.UserId}")
-                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt, postTitle = snapshotTitle, postImageUrl = snapshotImageAbsolute, type = "deleted", isFromAdmin = true });
+                            .SendAsync("ReceiveNotification", new 
+                            { 
+                                id = notif.Id, 
+                                title = notif.Title, 
+                                message = notif.Message, 
+                                url = notif.Url, 
+                                createdAt = notif.CreatedAt, 
+                                postTitle = snapshotTitle, 
+                                type = "deleted", 
+                                isFromAdmin = true 
+                            });
                     }
                     catch (Exception ex)
                     {
@@ -381,7 +345,7 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                _logger.LogInformation("Admin deleted post {PostId} due to report {ReportId}", post.MaTinDang, report.MaBaoCao);
+                _logger.LogInformation("Admin soft-deleted post {PostId} due to report {ReportId} (TrangThai=TuChoi)", post.MaTinDang, report.MaBaoCao);
                 return Ok(new { message = "Tin đăng đã bị xóa và báo cáo đã được xử lý.", notificationCreated = notif != null });
             }
             catch (Exception ex)
