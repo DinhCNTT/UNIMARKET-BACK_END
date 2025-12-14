@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Identity;
 using UniMarket.Hubs;
+using UniMarket.Services;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 
 namespace UniMarket.Controllers
 {
@@ -20,13 +23,17 @@ namespace UniMarket.Controllers
         private readonly ILogger<ReportsController> _logger;
         private readonly IHubContext<NotificationHub> _notificationHub;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly TinDangDetailService _mongoService;
+        private readonly PhotoService _photoService;
 
-        public ReportsController(ApplicationDbContext context, ILogger<ReportsController> logger, IHubContext<NotificationHub> notificationHub, UserManager<ApplicationUser> userManager)
+        public ReportsController(ApplicationDbContext context, ILogger<ReportsController> logger, IHubContext<NotificationHub> notificationHub, UserManager<ApplicationUser> userManager, TinDangDetailService mongoService, PhotoService photoService)
         {
             _context = context;
             _logger = logger;
             _notificationHub = notificationHub;
             _userManager = userManager;
+            _mongoService = mongoService;
+            _photoService = photoService;
         }
 
         public class ReportRequest
@@ -254,82 +261,75 @@ namespace UniMarket.Controllers
             if (report.TargetType != ReportTargetType.Post)
                 return BadRequest(new { message = "Target không phải là tin đăng." });
 
-            // Load the post and related collections
+            // Load the post
             var post = await _context.TinDangs
-                .Include(t => t.AnhTinDangs)
-                .Include(t => t.TinDangYeuThichs)
                 .FirstOrDefaultAsync(t => t.MaTinDang == report.TargetId);
 
             if (post == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng." });
 
-            // Capture a small snapshot (title + first image) so we can include it in live notifications
+            // Capture snapshot info for notification
             var snapshotTitle = post.TieuDe;
-            var snapshotImage = post.AnhTinDangs?.FirstOrDefault()?.DuongDan;
-            // Ensure image URL is absolute so frontend can load it even when served from a different dev port
-            string? snapshotImageAbsolute = null;
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(snapshotImage))
-                {
-                    if (snapshotImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                    {
-                        snapshotImageAbsolute = snapshotImage;
-                    }
-                    else
-                    {
-                        // Build absolute URL using current request host/scheme
-                        var req = this.Request;
-                        if (req != null && req.Scheme != null && req.Host.HasValue)
-                        {
-                            snapshotImageAbsolute = $"{req.Scheme}://{req.Host}{(snapshotImage.StartsWith("/") ? snapshotImage : "/" + snapshotImage)}";
-                        }
-                        else
-                        {
-                            // Fallback: send original path
-                            snapshotImageAbsolute = snapshotImage;
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                snapshotImageAbsolute = snapshotImage;
-            }
 
             // Fetch owner (if exists) so we can notify them after deletion
             var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.MaNguoiBan);
 
+            // Load related images for Cloudinary deletion
+            var images = await _context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId).ToListAsync();
+
             using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Remove related child collections if present
-                if (post.AnhTinDangs != null && post.AnhTinDangs.Any())
+                // ✅ HARD DELETE: Xóa dữ liệu hoàn toàn (giống logic QuanLyTin)
+                // Không chỉ đánh dấu status, mà xóa hẳn record khỏi DB
+                
+                // 1. Xóa file trên Cloudinary
+                foreach (var img in images)
                 {
-                    _context.AnhTinDangs.RemoveRange(post.AnhTinDangs);
+                    if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
+                    {
+                        try
+                        {
+                            await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                        }
+                        catch (Exception cloudEx)
+                        {
+                            _logger.LogWarning(cloudEx, "Failed to delete Cloudinary file for post {PostId}", report.TargetId);
+                        }
+                    }
                 }
 
-                if (post.TinDangYeuThichs != null && post.TinDangYeuThichs.Any())
-                {
-                    _context.TinDangYeuThichs.RemoveRange(post.TinDangYeuThichs);
-                }
-
-                // Remove other related entities that reference MaTinDang
-                var videoLikes = _context.VideoLikes.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoLikes.RemoveRange(videoLikes);
-
-                var videoComments = _context.VideoComments.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoComments.RemoveRange(videoComments);
-
-                var videoViews = _context.VideoViews.Where(v => v.MaTinDang == post.MaTinDang);
-                _context.VideoViews.RemoveRange(videoViews);
-
-                // Finally remove post
-                _context.TinDangs.Remove(post);
+                // 2. Xóa dữ liệu liên quan trong SQL Server
+                _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId));
+                _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == report.TargetId));
+                _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == report.TargetId));
+                _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == report.TargetId));
+                _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == report.TargetId));
+                _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == report.TargetId));
+                
+                // 3. Xóa các chat liên quan (hard delete)
+                var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == report.TargetId).ToListAsync();
+                _context.CuocTroChuyens.RemoveRange(cuocTros);
 
                 // Mark report as resolved
                 report.IsResolved = true;
                 report.ResolvedAt = DateTimeOffset.UtcNow;
+
+                // 4. Xóa chi tiết trong MongoDB
+                try
+                {
+                    var mongoDetail = await _mongoService.GetByMaTinDangAsync(report.TargetId);
+                    if (mongoDetail != null)
+                    {
+                        await _mongoService.DeleteByIdAsync(mongoDetail.Id);
+                        _logger.LogInformation("[MONGO] Deleted post details for post {PostId}", report.TargetId);
+                    }
+                }
+                catch (Exception mongoEx)
+                {
+                    _logger.LogWarning(mongoEx, "Warning: Could not delete MongoDB details for post {PostId}", report.TargetId);
+                    // Không rollback - tiếp tục xóa SQL ngay cả khi MongoDB không sẵn sàng
+                }
 
                 // Create a notification for the owner to inform them the post was deleted by admin
                 Notification? notif = null;
@@ -339,7 +339,6 @@ namespace UniMarket.Controllers
                     {
                         var title = "Tin đăng của bạn đã bị xóa";
                         var url = $"/posts/{post.MaTinDang}";
-                        // Simple message without reason/details (those are shown in detail modal)
                         var message = "Tin đăng của bạn đã bị xóa bởi Quản trị viên vì vi phạm chính sách cộng đồng.";
 
                         notif = new Notification
@@ -362,18 +361,31 @@ namespace UniMarket.Controllers
                     notif = null;
                 }
 
+                // 5. Xóa TinDang chính từ SQL (hard delete)
+                _context.TinDangs.Remove(post);
+
                 await _context.SaveChangesAsync();
 
-                // commit DB transaction so removal + notification persist together
+                // Commit DB transaction
                 await tx.CommitAsync();
 
-                // Broadcast notification (best-effort) after commit - only to the owner to avoid duplicates
+                // Broadcast notification (best-effort) after commit
                 if (notif != null)
                 {
                     try
                     {
                         await _notificationHub.Clients.Group($"user-{notif.UserId}")
-                            .SendAsync("ReceiveNotification", new { id = notif.Id, title = notif.Title, message = notif.Message, url = notif.Url, createdAt = notif.CreatedAt, postTitle = snapshotTitle, postImageUrl = snapshotImageAbsolute, type = "deleted", isFromAdmin = true });
+                            .SendAsync("ReceiveNotification", new 
+                            { 
+                                id = notif.Id, 
+                                title = notif.Title, 
+                                message = notif.Message, 
+                                url = notif.Url, 
+                                createdAt = notif.CreatedAt, 
+                                postTitle = snapshotTitle, 
+                                type = "deleted", 
+                                isFromAdmin = true 
+                            });
                     }
                     catch (Exception ex)
                     {
@@ -381,8 +393,8 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                _logger.LogInformation("Admin deleted post {PostId} due to report {ReportId}", post.MaTinDang, report.MaBaoCao);
-                return Ok(new { message = "Tin đăng đã bị xóa và báo cáo đã được xử lý.", notificationCreated = notif != null });
+                _logger.LogInformation("Admin hard-deleted post {PostId} due to report {ReportId}", post.MaTinDang, report.MaBaoCao);
+                return Ok(new { message = "Tin đăng đã bị xóa hoàn toàn và báo cáo đã được xử lý.", notificationCreated = notif != null });
             }
             catch (Exception ex)
             {
@@ -544,6 +556,45 @@ namespace UniMarket.Controllers
                 _logger.LogError(ex, "Error saving report state after warn-seller for report {ReportId}", id);
                 return StatusCode(500, new { message = "Lỗi khi cập nhật trạng thái báo cáo.", detail = ex.Message });
             }
+        }
+
+        private async Task<bool> DeleteCloudinaryPhotoByUrlAsync(string imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl)) return false;
+
+            try
+            {
+                var uri = new Uri(imageUrl);
+                var segments = uri.Segments;
+
+                // Tìm vị trí "upload/" trong URL
+                int uploadIndex = segments.ToList().FindIndex(s => s.Equals("upload/", StringComparison.OrdinalIgnoreCase));
+                if (uploadIndex < 0) uploadIndex = segments.ToList().FindIndex(s => s.StartsWith("upload", StringComparison.OrdinalIgnoreCase));
+
+                if (uploadIndex >= 0 && uploadIndex + 2 < segments.Length)
+                {
+                    // Trích xuất Public ID
+                    var pathSegments = segments.Skip(uploadIndex + 2);
+                    var publicIdPath = string.Join("", pathSegments).Trim('/');
+                    var publicId = Path.ChangeExtension(publicIdPath, null).Replace("\\", "/");
+
+                    // Xác định loại file (Ảnh hay Video)
+                    var lowerUrl = imageUrl.ToLower();
+                    ResourceType resourceType = ResourceType.Image;
+
+                    if (lowerUrl.Contains("/video/") || lowerUrl.EndsWith(".mp4") || lowerUrl.EndsWith(".mov"))
+                        resourceType = ResourceType.Video;
+
+                    // Gọi service xóa
+                    var deletionResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
+                    return deletionResult.Result == "ok";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi xóa Cloudinary: {Message}", ex.Message);
+            }
+            return false;
         }
     }
 }
