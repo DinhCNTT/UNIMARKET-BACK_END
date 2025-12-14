@@ -51,7 +51,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // Frontend URL
+        policy.WithOrigins("http://localhost:5173","http://localhost:3000") // Frontend URL
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Quan trọng cho SignalR/Cookies
@@ -62,7 +62,14 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.CommandTimeout(120) // Tăng lên 120 giây
+        sqlOptions => {
+            sqlOptions.CommandTimeout(120);
+            // 👇 THÊM DÒNG NÀY: Tự động thử lại tối đa 5 lần nếu lỗi kết nối
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        }
     ));
 
 // --- MongoDB Service (Chi tiết tin đăng - MỚI THÊM) ---
@@ -287,7 +294,7 @@ app.MapHub<NotificationHub>("/hub/notifications");
 app.MapHub<UserNotificationHub>("/userNotificationHub");
 
 // ====================================================
-// 3. KHỞI TẠO DỮ LIỆU (Seeding)
+// 3. KHỞI TẠO DỮ LIỆU (Seeding & Migration)
 // ====================================================
 using (var scope = app.Services.CreateScope())
 {
@@ -295,35 +302,26 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Tạo Roles và Admin mặc định
+        // 👇 1. TỰ ĐỘNG TẠO DB & MIGRATION (Thêm đoạn này vào đầu tiên)
+        var context = services.GetRequiredService<UniMarket.DataAccess.ApplicationDbContext>();
+        if (context.Database.GetPendingMigrations().Any())
+        {
+            context.Database.Migrate(); // Tương đương lệnh update-database
+            Console.WriteLine("--> Database migration applied successfully.");
+        }
+        // 👆 HẾT PHẦN THÊM
+
+        // 👇 2. Sau khi có DB rồi mới chạy tạo Admin
         await InitializeRolesAndAdmin(services);
     }
     catch (Exception ex)
     {
-        // Database not available - skip initialization (e.g., for API-only testing)
-        System.Console.WriteLine($"⚠️ Database initialization skipped: {ex.Message}");
+        // Database chưa sẵn sàng hoặc lỗi kết nối
+        Console.WriteLine($"⚠️ Database initialization skipped: {ex.Message}");
     }
 }
 
-// Endpoint debug xem tất cả route
-app.MapGet("/all-routes", (IActionDescriptorCollectionProvider provider) =>
-{
-    var routes = provider.ActionDescriptors.Items.Select(item =>
-    {
-        var action = item as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor;
-        return new
-        {
-            Path = item.AttributeRouteInfo?.Template,
-            Method = item.EndpointMetadata.OfType<HttpMethodMetadata>().FirstOrDefault()?.HttpMethods.FirstOrDefault(),
-            Controller = action?.ControllerName,
-            Action = action?.ActionName
-        };
-    })
-    .Where(r => r.Path != null).OrderBy(r => r.Path);
-    return Results.Ok(routes);
-});
-
-// Chạy ứng dụng
+// Chạy ứng dụng (Giữ nguyên dòng này của bạn)
 await app.RunAsync();
 
 // ====================================================

@@ -37,35 +37,46 @@ namespace UniMarket.Services
         }
 
         private async void DoWork(object state)
+{
+    // Tạo scope để lấy Service (DbContext, PhotoService)
+    using (var scope = _serviceProvider.CreateScope())
+    {
+        // 👇 QUAN TRỌNG: Phải có Try-Catch để không làm sập App nếu DB chưa có
+        try
         {
-            _logger.LogInformation("Checking for rejected posts to delete media...");
-
-            // Vì service này là "Singleton", chúng ta cần tạo "Scope"
-            // để lấy DbContext và PhotoService (là "Scoped")
-            using (var scope = _serviceProvider.CreateScope())
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            // Kiểm tra nhanh xem Database có kết nối được không
+            if (!await context.Database.CanConnectAsync())
             {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var photoService = scope.ServiceProvider.GetRequiredService<PhotoService>();
+                _logger.LogWarning("⚠️ Database chưa sẵn sàng. Bỏ qua lần quét này.");
+                return;
+            }
 
-                // Tìm tất cả tin đăng bị từ chối VÀ đã đến ngày hẹn xóa
-                var postsToDelete = await context.TinDangs
-                    .Include(p => p.AnhTinDangs)
-                    .Where(p => p.TrangThai == TrangThaiTinDang.TuChoi &&
-                                p.NgayHenXoa != null &&
-                                p.NgayHenXoa <= DateTime.UtcNow) // Đã đến hạn
-                    .ToListAsync();
+            _logger.LogInformation("Checking for rejected posts to delete media...");
+            var photoService = scope.ServiceProvider.GetRequiredService<PhotoService>();
 
-                if (!postsToDelete.Any())
+            // Tìm tất cả tin đăng bị từ chối VÀ đã đến ngày hẹn xóa
+            var postsToDelete = await context.TinDangs
+                .Include(p => p.AnhTinDangs)
+                .Where(p => p.TrangThai == TrangThaiTinDang.TuChoi &&
+                            p.NgayHenXoa != null &&
+                            p.NgayHenXoa <= DateTime.UtcNow) // Đã đến hạn
+                .ToListAsync();
+
+            if (!postsToDelete.Any())
+            {
+                _logger.LogInformation("No media to delete.");
+                return;
+            }
+
+            _logger.LogInformation($"Found {postsToDelete.Count} posts to process for media deletion.");
+
+            foreach (var post in postsToDelete)
+            {
+                // 1. Xóa media trên Cloudinary
+                if (post.AnhTinDangs != null)
                 {
-                    _logger.LogInformation("No media to delete.");
-                    return;
-                }
-
-                _logger.LogInformation($"Found {postsToDelete.Count} posts to process for media deletion.");
-
-                foreach (var post in postsToDelete)
-                {
-                    // 1. Xóa media trên Cloudinary
                     foreach (var media in post.AnhTinDangs)
                     {
                         if (string.IsNullOrEmpty(media.DuongDan) || !media.DuongDan.StartsWith("http"))
@@ -75,23 +86,38 @@ namespace UniMarket.Services
                             ? ResourceType.Video
                             : ResourceType.Image;
 
-                        await photoService.DeleteMediaByUrlAsync(media.DuongDan, resourceType);
+                        // Thêm try-catch nhỏ ở đây để nếu xóa 1 ảnh lỗi thì vẫn xóa tiếp ảnh khác
+                        try 
+                        {
+                            await photoService.DeleteMediaByUrlAsync(media.DuongDan, resourceType);
+                        }
+                        catch (Exception innerEx)
+                        {
+                            _logger.LogError($"Lỗi xóa ảnh trên Cloudinary: {innerEx.Message}");
+                        }
                     }
 
                     // 2. Xóa record media trong DB
                     context.AnhTinDangs.RemoveRange(post.AnhTinDangs);
-
-                    // 3. Cập nhật lại tin đăng (xóa ngày hẹn đi để không chạy lại)
-                    post.NgayHenXoa = null;
-                    context.TinDangs.Update(post);
-
-                    _logger.LogInformation($"Successfully deleted media for Post ID: {post.MaTinDang}");
                 }
 
-                // 4. Lưu tất cả thay đổi
-                await context.SaveChangesAsync();
+                // 3. Cập nhật lại tin đăng (xóa ngày hẹn đi để không chạy lại)
+                post.NgayHenXoa = null;
+                context.TinDangs.Update(post);
+
+                _logger.LogInformation($"Successfully deleted media for Post ID: {post.MaTinDang}");
             }
+
+            // 4. Lưu tất cả thay đổi
+            await context.SaveChangesAsync();
         }
+        catch (Exception ex)
+        {
+            // 👇 Bắt lỗi tại đây để App không bị Crash (Exited)
+            _logger.LogError(ex, "❌ Lỗi trong Background Service (MediaDeletion). Sẽ thử lại ở chu kỳ sau.");
+        }
+    }
+}
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
