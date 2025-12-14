@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Identity;
 using UniMarket.Hubs;
+using UniMarket.Services;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 
 namespace UniMarket.Controllers
 {
@@ -20,13 +23,17 @@ namespace UniMarket.Controllers
         private readonly ILogger<ReportsController> _logger;
         private readonly IHubContext<NotificationHub> _notificationHub;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly TinDangDetailService _mongoService;
+        private readonly PhotoService _photoService;
 
-        public ReportsController(ApplicationDbContext context, ILogger<ReportsController> logger, IHubContext<NotificationHub> notificationHub, UserManager<ApplicationUser> userManager)
+        public ReportsController(ApplicationDbContext context, ILogger<ReportsController> logger, IHubContext<NotificationHub> notificationHub, UserManager<ApplicationUser> userManager, TinDangDetailService mongoService, PhotoService photoService)
         {
             _context = context;
             _logger = logger;
             _notificationHub = notificationHub;
             _userManager = userManager;
+            _mongoService = mongoService;
+            _photoService = photoService;
         }
 
         public class ReportRequest
@@ -549,6 +556,45 @@ namespace UniMarket.Controllers
                 _logger.LogError(ex, "Error saving report state after warn-seller for report {ReportId}", id);
                 return StatusCode(500, new { message = "Lỗi khi cập nhật trạng thái báo cáo.", detail = ex.Message });
             }
+        }
+
+        private async Task<bool> DeleteCloudinaryPhotoByUrlAsync(string imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl)) return false;
+
+            try
+            {
+                var uri = new Uri(imageUrl);
+                var segments = uri.Segments;
+
+                // Tìm vị trí "upload/" trong URL
+                int uploadIndex = segments.ToList().FindIndex(s => s.Equals("upload/", StringComparison.OrdinalIgnoreCase));
+                if (uploadIndex < 0) uploadIndex = segments.ToList().FindIndex(s => s.StartsWith("upload", StringComparison.OrdinalIgnoreCase));
+
+                if (uploadIndex >= 0 && uploadIndex + 2 < segments.Length)
+                {
+                    // Trích xuất Public ID
+                    var pathSegments = segments.Skip(uploadIndex + 2);
+                    var publicIdPath = string.Join("", pathSegments).Trim('/');
+                    var publicId = Path.ChangeExtension(publicIdPath, null).Replace("\\", "/");
+
+                    // Xác định loại file (Ảnh hay Video)
+                    var lowerUrl = imageUrl.ToLower();
+                    ResourceType resourceType = ResourceType.Image;
+
+                    if (lowerUrl.Contains("/video/") || lowerUrl.EndsWith(".mp4") || lowerUrl.EndsWith(".mov"))
+                        resourceType = ResourceType.Video;
+
+                    // Gọi service xóa
+                    var deletionResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
+                    return deletionResult.Result == "ok";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi xóa Cloudinary: {Message}", ex.Message);
+            }
+            return false;
         }
     }
 }
