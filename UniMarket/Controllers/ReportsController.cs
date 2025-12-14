@@ -267,24 +267,62 @@ namespace UniMarket.Controllers
             // Fetch owner (if exists) so we can notify them after deletion
             var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.MaNguoiBan);
 
+            // Load related images for Cloudinary deletion
+            var images = await _context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId).ToListAsync();
+
             using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // ✅ SOFT DELETE: Đánh dấu trạng thái thay vì xóa dữ liệu (giống logic QuanLyTin)
-                // Thay đổi TrangThai thành "TuChoi" để loại bỏ khỏi danh sách tin đã duyệt
-                post.TrangThai = TrangThaiTinDang.TuChoi;
+                // ✅ HARD DELETE: Xóa dữ liệu hoàn toàn (giống logic QuanLyTin)
+                // Không chỉ đánh dấu status, mà xóa hẳn record khỏi DB
                 
-                // Mark các tin nhắn chat liên quan - không xóa mà đánh dấu
-                var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == report.TargetId).ToListAsync();
-                foreach (var c in cuocTros)
+                // 1. Xóa file trên Cloudinary
+                foreach (var img in images)
                 {
-                    c.IsPostDeleted = true;
-                    c.TieuDeTinDang += " (đã xóa)";
+                    if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
+                    {
+                        try
+                        {
+                            await DeleteCloudinaryPhotoByUrlAsync(img.DuongDan);
+                        }
+                        catch (Exception cloudEx)
+                        {
+                            _logger.LogWarning(cloudEx, "Failed to delete Cloudinary file for post {PostId}", report.TargetId);
+                        }
+                    }
                 }
+
+                // 2. Xóa dữ liệu liên quan trong SQL Server
+                _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId));
+                _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == report.TargetId));
+                _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == report.TargetId));
+                _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == report.TargetId));
+                _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == report.TargetId));
+                _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == report.TargetId));
+                
+                // 3. Xóa các chat liên quan (hard delete)
+                var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == report.TargetId).ToListAsync();
+                _context.CuocTroChuyens.RemoveRange(cuocTros);
 
                 // Mark report as resolved
                 report.IsResolved = true;
                 report.ResolvedAt = DateTimeOffset.UtcNow;
+
+                // 4. Xóa chi tiết trong MongoDB
+                try
+                {
+                    var mongoDetail = await _mongoService.GetByMaTinDangAsync(report.TargetId);
+                    if (mongoDetail != null)
+                    {
+                        await _mongoService.DeleteByIdAsync(mongoDetail.Id);
+                        _logger.LogInformation("[MONGO] Deleted post details for post {PostId}", report.TargetId);
+                    }
+                }
+                catch (Exception mongoEx)
+                {
+                    _logger.LogWarning(mongoEx, "Warning: Could not delete MongoDB details for post {PostId}", report.TargetId);
+                    // Không rollback - tiếp tục xóa SQL ngay cả khi MongoDB không sẵn sàng
+                }
 
                 // Create a notification for the owner to inform them the post was deleted by admin
                 Notification? notif = null;
@@ -316,6 +354,9 @@ namespace UniMarket.Controllers
                     notif = null;
                 }
 
+                // 5. Xóa TinDang chính từ SQL (hard delete)
+                _context.TinDangs.Remove(post);
+
                 await _context.SaveChangesAsync();
 
                 // Commit DB transaction
@@ -345,8 +386,8 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                _logger.LogInformation("Admin soft-deleted post {PostId} due to report {ReportId} (TrangThai=TuChoi)", post.MaTinDang, report.MaBaoCao);
-                return Ok(new { message = "Tin đăng đã bị xóa và báo cáo đã được xử lý.", notificationCreated = notif != null });
+                _logger.LogInformation("Admin hard-deleted post {PostId} due to report {ReportId}", post.MaTinDang, report.MaBaoCao);
+                return Ok(new { message = "Tin đăng đã bị xóa hoàn toàn và báo cáo đã được xử lý.", notificationCreated = notif != null });
             }
             catch (Exception ex)
             {
