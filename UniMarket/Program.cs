@@ -187,18 +187,22 @@ builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 // ✅ MỚI THÊM: Đăng ký UserNotificationService
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 
+// ✅ [QUAN TRỌNG] Đăng ký AI Services (refactored)
+builder.Services.AddScoped<AiIntentService>();          // Phân tích intent
+builder.Services.AddScoped<ProductSearchService>();     // Tìm kiếm sản phẩm
+builder.Services.AddScoped<ChatPersistenceService>();   // Lưu tin nhắn
+builder.Services.AddScoped<AiService>();                // Coordinator chính
+
+// ✅ [QUAN TRỌNG] Worker chạy ngầm để Train AI (Fix lỗi treo Server)
+builder.Services.AddHostedService<AITrainingWorker>();
+// Đăng ký HttpClient và AiClient cho việc gọi Gemini API
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<AiClient>();
+
 // ✅ [QUAN TRỌNG] Đăng ký AI Recommendation Services
 builder.Services.AddScoped<UserBehaviorService>();          // Service xử lý dữ liệu hành vi
 builder.Services.AddSingleton<RecommendationEngine>();      // AI Engine (Singleton để giữ Model)
 builder.Services.AddScoped<VideoRecommendationService>();   // Logic tính điểm video
-
-// ✅ [QUAN TRỌNG] Worker chạy ngầm để Train AI (Fix lỗi treo Server)
-builder.Services.AddHostedService<AITrainingWorker>();
-// Đăng ký HttpClient và AiService cho việc gọi API bên ngoài (Gemini/OpenAI)
-builder.Services.AddHttpClient();
-builder.Services.AddScoped<AiService>();
-// AiClient used by AiService to call external LLMs
-builder.Services.AddScoped<AiClient>();
 // --- Controllers & JSON ---
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>

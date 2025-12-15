@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
@@ -173,11 +175,11 @@ namespace UniMarket.Services
                 "price_asc" => query.OrderBy(p => p.Gia),
                 "price_desc" => query.OrderByDescending(p => p.Gia),
                 "views_desc" => query.OrderByDescending(p => p.SoLuotXem),
-                _ => query.OrderByDescending(p =>
-                    p.SoLuotXem +
-                    (DateTime.UtcNow.Subtract(p.NgayDang).TotalDays < 7 ? 100 :
-                     DateTime.UtcNow.Subtract(p.NgayDang).TotalDays < 14 ? 50 : 0)
-                ).ThenByDescending(p => p.NgayDang)
+                _ => query.OrderByDescending(p => 
+                        p.SoLuotXem + 
+                        (EF.Functions.DateDiffDay(p.NgayDang, DateTime.UtcNow) < 7 ? 100 : 
+                        EF.Functions.DateDiffDay(p.NgayDang, DateTime.UtcNow) < 14 ? 50 : 0)
+                    ).ThenByDescending(p => p.NgayDang)
             };
             _logger.LogInformation("[ProductSearch] Sort applied: {sort}", criteria.SortBy ?? "recent");
 
