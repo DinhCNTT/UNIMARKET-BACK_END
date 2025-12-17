@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -18,7 +17,8 @@ using UniMarket.Models;
 using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
-using UniMarket.Services.Recommendation; // Namespace chứa AI Services
+using UniMarket.Services.Recommendation;
+using UniMarket.Services.PriceAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +29,7 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Cloudinary (Upload ảnh/video) ---
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddScoped<PhotoService>();
-builder.Services.AddHostedService<UniMarket.Services.MediaDeletionService>();
+builder.Services.AddHostedService<MediaDeletionService>();
 builder.Services.AddSingleton(provider =>
 {
     var config = provider.GetRequiredService<IConfiguration>();
@@ -41,20 +41,20 @@ builder.Services.AddSingleton(provider =>
     return cloudinary;
 });
 
-// --- Email Service (Gmail) ---
+// --- Email Service ---
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS (Cho phép Frontend React gọi API) ---
+// --- CORS ---
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Frontend URL
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Quan trọng cho SignalR/Cookies
+              .AllowCredentials();
     });
 });
 
@@ -64,7 +64,6 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions => {
             sqlOptions.CommandTimeout(120);
-            // 👇 THÊM DÒNG NÀY: Tự động thử lại tối đa 5 lần nếu lỗi kết nối
             sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -72,9 +71,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         }
     ));
 
-// --- MongoDB Service (Chi tiết tin đăng - MỚI THÊM) ---
-// Đăng ký Singleton để kết nối MongoDB được tái sử dụng xuyên suốt vòng đời ứng dụng
-builder.Services.AddSingleton<UniMarket.Services.TinDangDetailService>();
+// --- MongoDB Service ---
+builder.Services.AddSingleton<TinDangDetailService>();
 
 // --- Tăng giới hạn upload file (150MB) ---
 builder.Services.Configure<FormOptions>(options =>
@@ -82,21 +80,17 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = 157286400;
 });
 
-// --- Identity (Quản lý User/Role) ---
+// --- Identity ---
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-// --- JWT Authentication ---
+// --- JWT Authentication & SignalR Token Logic ---
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSettings["Key"];
-if (string.IsNullOrWhiteSpace(jwtKey))
-{
-    // Fallback to default if key is missing
-    jwtKey = "default-secret-key-for-development-only-change-in-production-1234567890";
-}
+var jwtKey = jwtSettings["Key"] ?? "default-secret-key-for-development-only-change-in-production-1234567890";
 var key = Encoding.UTF8.GetBytes(jwtKey);
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -106,20 +100,19 @@ builder.Services.AddAuthentication(options =>
 {
     options.Events = new JwtBearerEvents
     {
-        // Logic lấy Token từ Query String cho SignalR
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
 
-            // Đã thêm /userNotificationHub vào điều kiện kiểm tra
+            // Kiểm tra tất cả các Hub Path
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hub/chat") ||
                  path.StartsWithSegments("/hub/comment") ||
                  path.StartsWithSegments("/SocialChatHub") ||
                  path.StartsWithSegments("/videoHub") ||
                  path.StartsWithSegments("/hub/notifications") ||
-                 path.StartsWithSegments("/userNotificationHub"))) // <-- MỚI THÊM
+                 path.StartsWithSegments("/userNotificationHub")))
             {
                 context.Token = accessToken;
             }
@@ -146,11 +139,11 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// --- SignalR (Real-time) ---
+// --- SignalR & Background Jobs ---
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<UserPresenceService>();
-builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddSingleton<ConnectionMapping<string>>();
+builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
 // --- Swagger API Docs ---
@@ -180,38 +173,33 @@ builder.Services.AddSwaggerGen(c =>
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
-builder.Services.AddScoped<UniMarket.Services.PriceAnalysis.PriceAnalysisService>();
-
-// --- Các Service Nghiệp vụ ---
+// --- Các Service Nghiệp vụ & AI ---
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<PriceAnalysisService>();
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
-// ✅ MỚI THÊM: Đăng ký UserNotificationService
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 
-// ✅ [QUAN TRỌNG] Đăng ký AI Services (refactored)
-builder.Services.AddScoped<AiIntentService>();          // Phân tích intent
-builder.Services.AddScoped<ProductSearchService>();     // Tìm kiếm sản phẩm
-builder.Services.AddScoped<ChatPersistenceService>();   // Lưu tin nhắn
-builder.Services.AddScoped<AiService>();                // Coordinator chính
-
-// ✅ [QUAN TRỌNG] Worker chạy ngầm để Train AI (Fix lỗi treo Server)
-builder.Services.AddHostedService<AITrainingWorker>();
-// Đăng ký HttpClient và AiClient cho việc gọi Gemini API
-builder.Services.AddHttpClient();
+// Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();
+builder.Services.AddScoped<AiIntentService>();
+builder.Services.AddScoped<ProductSearchService>();
+builder.Services.AddScoped<ChatPersistenceService>();
+builder.Services.AddScoped<AiService>();
+builder.Services.AddHostedService<AITrainingWorker>();
 
-// ✅ [QUAN TRỌNG] Đăng ký AI Recommendation Services
-builder.Services.AddScoped<UserBehaviorService>();          // Service xử lý dữ liệu hành vi
-builder.Services.AddScoped<UserRecommendationService>();
-builder.Services.AddSingleton<RecommendationEngine>();      // AI Engine (Singleton để giữ Model)
-builder.Services.AddScoped<VideoRecommendationService>();   // Logic tính điểm video
-// --- Controllers & JSON ---
+// Logic AI Recommendation
+builder.Services.AddScoped<UserBehaviorService>();
+builder.Services.AddScoped<UserRecommendationService>(); // Từ code 2
+builder.Services.AddScoped<VideoRecommendationService>();
+builder.Services.AddSingleton<RecommendationEngine>();
+
+// --- Controllers & JSON Serialization ---
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
         options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
-        // ✅ Cấu hình camelCase naming cho JSON output (để frontend nhận đúng casing)
-        options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
+        options.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
     })
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -223,6 +211,8 @@ builder.Services.AddControllers()
             return new BadRequestObjectResult(new { Message = "Dữ liệu không hợp lệ.", Errors = errors });
         };
     });
+
+builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
@@ -258,29 +248,27 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// File Tĩnh (Images)
+// Cấu hình File Tĩnh & Thư mục ảnh
 app.UseStaticFiles();
-// Ensure image directories exist to avoid DirectoryNotFoundException when saving files
 var postsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "Posts");
 var categoriesDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "categories");
 Directory.CreateDirectory(postsDir);
 Directory.CreateDirectory(categoriesDir);
+
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/categories")),
+    FileProvider = new PhysicalFileProvider(categoriesDir),
     RequestPath = "/images/categories"
 });
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/Posts")),
+    FileProvider = new PhysicalFileProvider(postsDir),
     RequestPath = "/images/Posts"
 });
 
-// ✅ Kích hoạt WebSockets cho SignalR
 app.UseWebSockets();
-
 app.UseRouting();
-app.UseCors(MyAllowSpecificOrigins); // Đặt sau Routing, trước Auth
+app.UseCors(MyAllowSpecificOrigins);
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
@@ -289,13 +277,12 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
 
-// ✅ Map SignalR Hubs
+// Map SignalR Hubs
 app.MapHub<ChatHub>("/hub/chat");
 app.MapHub<CommentHub>("/hub/comment");
 app.MapHub<SocialChatHub>("/SocialChatHub");
 app.MapHub<VideoHub>("/videoHub");
 app.MapHub<NotificationHub>("/hub/notifications");
-// ✅ MỚI THÊM: Map UserNotificationHub
 app.MapHub<UserNotificationHub>("/userNotificationHub");
 
 // ====================================================
@@ -304,29 +291,22 @@ app.MapHub<UserNotificationHub>("/userNotificationHub");
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-
     try
     {
-        // 👇 1. TỰ ĐỘNG TẠO DB & MIGRATION (Thêm đoạn này vào đầu tiên)
-        var context = services.GetRequiredService<UniMarket.DataAccess.ApplicationDbContext>();
+        var context = services.GetRequiredService<ApplicationDbContext>();
         if (context.Database.GetPendingMigrations().Any())
         {
-            context.Database.Migrate(); // Tương đương lệnh update-database
+            context.Database.Migrate();
             Console.WriteLine("--> Database migration applied successfully.");
         }
-        // 👆 HẾT PHẦN THÊM
-
-        // 👇 2. Sau khi có DB rồi mới chạy tạo Admin
         await InitializeRolesAndAdmin(services);
     }
     catch (Exception ex)
     {
-        // Database chưa sẵn sàng hoặc lỗi kết nối
-        Console.WriteLine($"⚠️ Database initialization skipped: {ex.Message}");
+        Console.WriteLine($"⚠️ Database initialization skipped or failed: {ex.Message}");
     }
 }
 
-// Chạy ứng dụng (Giữ nguyên dòng này của bạn)
 await app.RunAsync();
 
 // ====================================================

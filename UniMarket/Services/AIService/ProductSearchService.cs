@@ -106,7 +106,7 @@ namespace UniMarket.Services
                     }
                     else if (allKeywords.Length > 1)
                     {
-                        // ✅ FALLBACK: Nếu không tìm thấy với tất cả keywords, tìm theo bất kỳ keyword nào (OR logic)
+                        // ✅ FALLBACK 1: Nếu không tìm thấy với tất cả keywords, tìm theo bất kỳ keyword nào (OR logic)
                         _logger.LogWarning("[ProductSearch] No strict matches, falling back to flexible search (ANY keyword)");
                         
                         var flexibleParam = Expression.Parameter(typeof(TinDang), "p");
@@ -131,6 +131,53 @@ namespace UniMarket.Services
                             var flexibleLambda = Expression.Lambda<Func<TinDang, bool>>(combinedOr, flexibleParam);
                             query = query.Where(flexibleLambda);
                             _logger.LogInformation("[ProductSearch] Applied flexible search with OR logic");
+                        }
+                        
+                        // ✅ FALLBACK 2: Nếu flexible search CŨNG không tìm thấy, nhưng có CategoryId, chỉ trả về category (bỏ qua keywords)
+                        var flexibleCount = await query.CountAsync();
+                        if (flexibleCount == 0 && criteria.CategoryId.HasValue)
+                        {
+                            _logger.LogWarning("[ProductSearch] ⚠️ Flexible search also returned 0 products. Since CategoryId is set, returning products from category only (ignoring keywords)");
+                            
+                            // Reset query - chỉ giữ category filter, bỏ keywords
+                            query = _context.TinDangs.AsNoTracking()
+                                .Include(p => p.AnhTinDangs)
+                                .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet);
+                            
+                            var categoryChildrenIds = await _context.DanhMucs
+                                .AsNoTracking()
+                                .Where(c => c.MaDanhMucCha == criteria.CategoryId.Value)
+                                .Select(c => c.MaDanhMuc)
+                                .ToListAsync();
+                            
+                            var categoryConstraint = categoryChildrenIds.Count > 0 ? categoryChildrenIds : new List<int> { criteria.CategoryId.Value };
+                            query = query.Where(p => categoryConstraint.Contains(p.MaDanhMuc));
+                            
+                            _logger.LogInformation("[ProductSearch] ✅ Category-only query applied: {count} categories", categoryConstraint.Count);
+                        }
+                    }
+                    else if (allKeywords.Length == 1)
+                    {
+                        // ✅ Single keyword: tính cả strict count
+                        var singleKeywordCount = await query.CountAsync();
+                        if (singleKeywordCount == 0 && criteria.CategoryId.HasValue)
+                        {
+                            _logger.LogWarning("[ProductSearch] ⚠️ Single keyword returned 0 products. Since CategoryId is set, returning products from category only");
+                            
+                            query = _context.TinDangs.AsNoTracking()
+                                .Include(p => p.AnhTinDangs)
+                                .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet);
+                            
+                            var categoryChildrenIds = await _context.DanhMucs
+                                .AsNoTracking()
+                                .Where(c => c.MaDanhMucCha == criteria.CategoryId.Value)
+                                .Select(c => c.MaDanhMuc)
+                                .ToListAsync();
+                            
+                            var categoryConstraint = categoryChildrenIds.Count > 0 ? categoryChildrenIds : new List<int> { criteria.CategoryId.Value };
+                            query = query.Where(p => categoryConstraint.Contains(p.MaDanhMuc));
+                            
+                            _logger.LogInformation("[ProductSearch] ✅ Category-only query applied: {count} categories", categoryConstraint.Count);
                         }
                     }
                 }
@@ -170,18 +217,24 @@ namespace UniMarket.Services
             }
 
             // 7. Sort
+            // ✅ AUTO-DETECT: Nếu keywords chứa "giá rẻ" hoặc "rẻ", sort theo giá từ thấp đến cao
+            var keywordLower = string.Join(" ", criteria.Keywords ?? Array.Empty<string>()).ToLower();
+            var shouldSortByPrice = keywordLower.Contains("giá rẻ") || 
+                                   keywordLower.Contains("rẻ") || 
+                                   keywordLower.Contains("cheap") ||
+                                   keywordLower.Contains("giá thấp");
+            
             query = (criteria.SortBy?.ToLower()) switch 
             {
                 "price_asc" => query.OrderBy(p => p.Gia),
                 "price_desc" => query.OrderByDescending(p => p.Gia),
                 "views_desc" => query.OrderByDescending(p => p.SoLuotXem),
-                _ => query.OrderByDescending(p =>
-                    p.SoLuotXem +
-                    (DateTime.UtcNow.Subtract(p.NgayDang).TotalDays < 7 ? 100 :
-                     DateTime.UtcNow.Subtract(p.NgayDang).TotalDays < 14 ? 50 : 0)
-                ).ThenByDescending(p => p.NgayDang)
+                _ => shouldSortByPrice 
+                    ? query.OrderBy(p => p.Gia)  // ✅ Giá từ thấp đến cao nếu user tìm "giá rẻ"
+                    : query.OrderByDescending(p => p.NgayDang)  // Sort by newest posts (default)
             };
-            _logger.LogInformation("[ProductSearch] Sort applied: {sort}", criteria.SortBy ?? "recent");
+            _logger.LogInformation("[ProductSearch] Sort applied: {sort} (auto-detect rẻ: {detectPrice})", 
+                criteria.SortBy ?? "recent", shouldSortByPrice);
 
             // 8. Fetch SQL
             int limit = criteria.Limit.HasValue && criteria.Limit > 0 ? criteria.Limit.Value : 12;
