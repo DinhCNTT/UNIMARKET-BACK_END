@@ -245,7 +245,7 @@ public class EmailVerificationController : ControllerBase
                     UserName = email,
                     Email = email,
                     FullName = name,
-                    AvatarUrl = picture,
+                    AvatarUrl = picture, // Tạo mới thì lấy luôn ảnh Google
                     EmailConfirmed = true
                 };
 
@@ -259,7 +259,7 @@ public class EmailVerificationController : ControllerBase
             }
             else
             {
-                // If user exists, update avatar if Google provided a picture and it's different
+                // ✅ ĐÃ SỬA: Chỉ cập nhật ảnh nếu user CHƯA CÓ ảnh đại diện
                 try
                 {
                     if (!string.IsNullOrEmpty(picture) && string.IsNullOrEmpty(user.AvatarUrl))
@@ -267,12 +267,9 @@ public class EmailVerificationController : ControllerBase
                         user.AvatarUrl = picture;
                         await _userManager.UpdateAsync(user);
                     }
-                    else if (!string.IsNullOrEmpty(picture) && !string.Equals(user.AvatarUrl, picture, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Update if different (keeps avatar in sync with Google)
-                        user.AvatarUrl = picture;
-                        await _userManager.UpdateAsync(user);
-                    }
+
+                    // ❌ ĐÃ XÓA ĐOẠN ELSE IF GÂY LỖI TẠI ĐÂY
+                    // Không tự động ghi đè ảnh Google nếu user đã có ảnh riêng
                 }
                 catch (Exception ex)
                 {
@@ -280,13 +277,13 @@ public class EmailVerificationController : ControllerBase
                 }
             }
 
-            // 🔒 4. KIỂM TRA KHÓA: Nếu user bị khóa thì không cho login
+            // 4. KIỂM TRA KHÓA
             if (user.LockoutEnd != null && user.LockoutEnd > DateTime.UtcNow)
             {
                 return Unauthorized(new { message = "Tài khoản của bạn đã bị khóa bởi quản trị viên." });
             }
 
-            // 5. Nếu user tồn tại mà chưa có role → thêm vào role "User"
+            // 5. Kiểm tra Role
             var roles = await _userManager.GetRolesAsync(user);
             if (!roles.Contains("User"))
             {
@@ -294,6 +291,8 @@ public class EmailVerificationController : ControllerBase
             }
 
             // 6. Cấp token
+            // Lưu ý: Token này sẽ lấy AvatarUrl hiện tại từ Database (do hàm GenerateJwtToken dùng user.Id để truy vấn hoặc claim user)
+            // Đảm bảo hàm GenerateJwtToken của bạn lấy AvatarUrl từ user object chứ không phải từ biến picture của Google
             var token = GenerateJwtToken(user, roles.FirstOrDefault() ?? "User");
 
             return Ok(new
@@ -304,7 +303,7 @@ public class EmailVerificationController : ControllerBase
                 role = roles.FirstOrDefault() ?? "User",
                 token = token,
                 emailConfirmed = user.EmailConfirmed,
-                avatarUrl = user.AvatarUrl
+                avatarUrl = user.AvatarUrl // Trả về avatarUrl hiện tại trong DB
             });
         }
         catch (InvalidJwtException ex)
@@ -316,7 +315,6 @@ public class EmailVerificationController : ControllerBase
             return StatusCode(500, new { message = "Lỗi không xác định.", detail = ex.Message });
         }
     }
-
 
 
     // Hàm tạo JWT token

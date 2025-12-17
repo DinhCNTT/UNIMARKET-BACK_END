@@ -406,20 +406,23 @@ namespace UniMarket.Controllers
         // ham lay video video da tym
         [HttpGet("liked")]
         [Authorize]
-        public async Task<IActionResult> GetLikedVideos()
+        public async Task<IActionResult> GetLikedVideos([FromQuery] string? userId)
         {
-            var user = await _userManager.GetUserAsync(User);
-            if (user == null)
-                return Unauthorized();
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null) return Unauthorized();
+
+            // Logic xác định ID mục tiêu tương tự
+            var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
 
             var likedVideos = await _context.VideoLikes
-                .Where(v => v.UserId == user.Id)
+                .Where(v => v.UserId == targetId) // Lọc theo ID mục tiêu
                 .OrderByDescending(v => v.CreatedAt)
                 .Select(v => new
                 {
                     v.MaTinDang,
                     v.TinDang.TieuDe,
                     v.TinDang.VideoUrl,
+                    Views = _context.VideoViews.Count(x => x.MaTinDang == v.MaTinDang),
                     v.TinDang.Gia,
                     v.TinDang.DiaChi,
                     TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
@@ -434,16 +437,15 @@ namespace UniMarket.Controllers
                     },
                     CurrentUser = new
                     {
-                        user.Id,
-                        user.FullName,
-                        user.AvatarUrl
+                        currentUser.Id,
+                        currentUser.FullName,
+                        currentUser.AvatarUrl
                     }
                 })
                 .ToListAsync();
 
             return Ok(likedVideos);
         }
-
         [Authorize]
         [HttpPost("{maTinDang}/like")]
         public async Task<IActionResult> LikeOrUnlikeVideo(int maTinDang)
@@ -1208,20 +1210,27 @@ namespace UniMarket.Controllers
         }
         [HttpGet("saved")]
         [Authorize]
-        public async Task<IActionResult> GetSavedVideos()
+        public async Task<IActionResult> GetSavedVideos([FromQuery] string? userId)
         {
-            var user = await _userManager.GetUserAsync(User);
-            if (user == null)
-                return Unauthorized();
+            // Lấy user đang thực hiện request (người đang xem)
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null) return Unauthorized();
+
+            // LOGIC QUAN TRỌNG:
+            // Nếu có userId gửi lên (xem profile người khác) -> targetId = userId
+            // Nếu không có (xem profile của chính mình) -> targetId = currentUser.Id
+            var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
 
             var savedVideos = await _context.VideoTinDangSaves
-                .Where(v => v.MaNguoiDung == user.Id)
+                .Where(v => v.MaNguoiDung == targetId) // Lọc theo ID mục tiêu
                 .OrderByDescending(v => v.NgayLuu)
                 .Select(v => new
                 {
                     v.MaTinDang,
                     v.TinDang.TieuDe,
                     v.TinDang.VideoUrl,
+                    // Đếm view chuẩn
+                    Views = _context.VideoViews.Count(x => x.MaTinDang == v.MaTinDang),
                     v.TinDang.Gia,
                     v.TinDang.DiaChi,
                     TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
@@ -1236,9 +1245,9 @@ namespace UniMarket.Controllers
                     },
                     CurrentUser = new
                     {
-                        user.Id,
-                        user.FullName,
-                        user.AvatarUrl
+                        currentUser.Id,
+                        currentUser.FullName,
+                        currentUser.AvatarUrl
                     }
                 })
                 .ToListAsync();
