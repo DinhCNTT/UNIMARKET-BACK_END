@@ -275,6 +275,7 @@ IMPORTANT:
 
         /// <summary>
         /// Ánh xạ CategoryKeyword (text) sang CategoryId (int) từ database hoặc fallback.
+        /// ✅ FIX: Tìm cả DanhMucChas (cha) và DanhMucs (con)
         /// </summary>
         private async Task MapCategoryIdAsync(AiIntentResult result, int? fallbackId)
         {
@@ -291,18 +292,38 @@ IMPORTANT:
                 if (_categoryCache == null || DateTime.UtcNow.Subtract(_categoryCacheTime).TotalMinutes > CATEGORY_CACHE_MINUTES)
                 {
                     _logger.LogInformation("[AiIntent] 🔄 Refreshing category cache (expired or first load)");
-                    var allCategories = await _context.DanhMucChas
+                    
+                    _categoryCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    
+                    // ✅ BƯỚC 1: Thêm danh mục cha (DanhMucChas)
+                    var parentCategories = await _context.DanhMucChas
                         .AsNoTracking()
                         .Select(c => new { c.MaDanhMucCha, c.TenDanhMucCha })
                         .ToListAsync();
                     
-                    _categoryCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var cat in allCategories)
+                    foreach (var cat in parentCategories)
                     {
                         _categoryCache[cat.TenDanhMucCha] = cat.MaDanhMucCha;
                     }
+                    
+                    // ✅ BƯỚC 2: Thêm danh mục con (DanhMucs) - QUAN TRỌNG!
+                    var childCategories = await _context.DanhMucs
+                        .AsNoTracking()
+                        .Select(c => new { c.MaDanhMuc, c.TenDanhMuc })
+                        .ToListAsync();
+                    
+                    foreach (var cat in childCategories)
+                    {
+                        // Nếu chưa có, thêm vào cache
+                        if (!_categoryCache.ContainsKey(cat.TenDanhMuc))
+                        {
+                            _categoryCache[cat.TenDanhMuc] = cat.MaDanhMuc;
+                        }
+                    }
+                    
                     _categoryCacheTime = DateTime.UtcNow;
-                    _logger.LogInformation("[AiIntent] ✅ Category cache loaded: {count} categories", _categoryCache.Count);
+                    _logger.LogInformation("[AiIntent] ✅ Category cache loaded: {parentCount} parent + {childCount} child = {total} total", 
+                        parentCategories.Count, childCategories.Count, _categoryCache.Count);
                 }
                 
                 // Search in cache - try exact match first
@@ -332,6 +353,8 @@ IMPORTANT:
 
                 // Last resort: direct database query
                 _logger.LogInformation("[AiIntent] 🔎 Attempting direct database query for category '{keyword}'", result.CategoryKeyword);
+                
+                // BƯỚC 1: Tìm trong danh mục cha
                 var directCategory = await _context.DanhMucChas
                     .AsNoTracking()
                     .FirstOrDefaultAsync(c => 
@@ -342,12 +365,26 @@ IMPORTANT:
                 if (directCategory != null)
                 {
                     result.CategoryId = directCategory.MaDanhMucCha;
-                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query: {catId}", result.CategoryId);
+                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query (parent): {catId}", result.CategoryId);
+                    return;
                 }
-                else
+
+                // BƯỚC 2: Nếu không tìm thấy cha, tìm trong danh mục con
+                var directChildCategory = await _context.DanhMucs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => 
+                        EF.Functions.Like(c.TenDanhMuc, $"%{result.CategoryKeyword}%") ||
+                        EF.Functions.Like(result.CategoryKeyword, $"%{c.TenDanhMuc}%")
+                    );
+                
+                if (directChildCategory != null)
                 {
-                    _logger.LogWarning("[AiIntent] ⚠️ CategoryKeyword '{keyword}' NOT FOUND in database", result.CategoryKeyword);
+                    result.CategoryId = directChildCategory.MaDanhMuc;
+                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query (child): {catId}", result.CategoryId);
+                    return;
                 }
+
+                _logger.LogWarning("[AiIntent] ⚠️ CategoryKeyword '{keyword}' NOT FOUND in database", result.CategoryKeyword);
             }
         }
 
@@ -421,14 +458,24 @@ IMPORTANT:
                     {
                         _logger.LogInformation("[AiIntent] Detected category keyword: {kw} -> Pattern: {categoryPattern}", kw, categoryPattern);
                         
-                        // Tìm danh mục cha từ DB
+                        // BƯỚC 1: Tìm danh mục cha (DanhMucChas)
                         var parentCategory = await _context.DanhMucChas
                             .FirstOrDefaultAsync(c => c.TenDanhMucCha.ToLower().Contains(categoryPattern.ToLower()));
                         
                         if (parentCategory != null)
                         {
-                            _logger.LogInformation("[AiIntent] Found category: {catName} (ID: {catId})", parentCategory.TenDanhMucCha, parentCategory.MaDanhMucCha);
+                            _logger.LogInformation("[AiIntent] Found parent category: {catName} (ID: {catId})", parentCategory.TenDanhMucCha, parentCategory.MaDanhMucCha);
                             return (new[] { parentCategory.TenDanhMucCha }, parentCategory.MaDanhMucCha);
+                        }
+
+                        // BƯỚC 2: Nếu không tìm thấy cha, tìm danh mục con (DanhMucs)
+                        var childCategory = await _context.DanhMucs
+                            .FirstOrDefaultAsync(c => c.TenDanhMuc.ToLower().Contains(categoryPattern.ToLower()));
+                        
+                        if (childCategory != null)
+                        {
+                            _logger.LogInformation("[AiIntent] Found child category: {catName} (ID: {catId})", childCategory.TenDanhMuc, childCategory.MaDanhMuc);
+                            return (new[] { childCategory.TenDanhMuc }, childCategory.MaDanhMuc);
                         }
                     }
                 }
