@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -45,8 +46,69 @@ namespace UniMarket.Services
         }
 
         /// <summary>
+        /// Build comprehensive category context for Gemini to understand all available categories
+        /// Gồm: danh mục cha, danh mục con, synonyms, variations
+        /// </summary>
+        private async Task<string> BuildCategoryContextAsync()
+        {
+            try
+            {
+                // Load all parent and child categories
+                var parentCategories = await _context.DanhMucChas
+                    .AsNoTracking()
+                    .Select(c => new { c.MaDanhMucCha, c.TenDanhMucCha })
+                    .ToListAsync();
+
+                var childCategories = await _context.DanhMucs
+                    .AsNoTracking()
+                    .Select(c => new { c.MaDanhMuc, c.TenDanhMuc, c.MaDanhMucCha })
+                    .ToListAsync();
+
+                var sb = new StringBuilder();
+                sb.AppendLine("AVAILABLE CATEGORIES IN DATABASE:");
+                sb.AppendLine("==================================");
+
+                // Add parent categories with their children
+                foreach (var parent in parentCategories)
+                {
+                    sb.AppendLine($"[PARENT] ID={parent.MaDanhMucCha}: {parent.TenDanhMucCha}");
+                    
+                    var children = childCategories
+                        .Where(c => c.MaDanhMucCha == parent.MaDanhMucCha)
+                        .ToList();
+                    
+                    if (children.Count > 0)
+                    {
+                        foreach (var child in children)
+                        {
+                            sb.AppendLine($"  └─ ID={child.MaDanhMuc}: {child.TenDanhMuc}");
+                        }
+                    }
+                }
+
+                // Add category synonyms/variations
+                sb.AppendLine("\nCOMMON CATEGORY VARIATIONS & SYNONYMS:");
+                sb.AppendLine("======================================");
+                sb.AppendLine("- Điện thoại = Điện thoại di động = Mobile = Phone = iPhone = Android");
+                sb.AppendLine("- Laptop = Máy tính = Computer = Notebook = Macbook = PC");
+                sb.AppendLine("- Tivi = TV = Television = Ti vi");
+                sb.AppendLine("- Tủ lạnh = Refrigerator = Fridge");
+                sb.AppendLine("- Máy giặt = Washer = Washing Machine");
+                sb.AppendLine("- Xe = Ô tô = Car = Auto = Automobile");
+                sb.AppendLine("- Xe máy = Motorbike = Moto = Motorcycle");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[AiIntent] Error building category context: {msg}", ex.Message);
+                return ""; // Fallback to empty, Gemini will work without context
+            }
+        }
+
+        /// <summary>
         /// Phân tích intent từ tin nhắn người dùng.
-        /// Sử dụng Gemini để phân tích, fallback về keyword extraction nếu lỗi.
+        /// Sử dụng Gemini để phân tích với full category context, fallback về keyword extraction nếu lỗi.
         /// </summary>
         public async Task<AiIntentResult> AnalyzeIntentAsync(string message, List<AiChatMessageDto>? history)
         {
@@ -76,7 +138,13 @@ namespace UniMarket.Services
                 _logger.LogInformation("[AiIntent] 🔌 CIRCUIT BREAKER: Reset (time elapsed)");
             }
 
-            // 3. Gọi Gemini API
+            // 3. Load category context from database
+            var categoryContext = await BuildCategoryContextAsync();
+            
+            // 4. CONTEXT INJECTION: Trích xuất sản phẩm từ lịch sử chat (Bước 1: Trí nhớ ngắn hạn)
+            var previousProductsContext = ExtractProductContextFromHistory(history);
+
+            // 5. Gọi Gemini API (với Context Injection)
             try
             {
                 var historyText = history != null && history.Count > 0 
@@ -100,53 +168,89 @@ namespace UniMarket.Services
                     })) 
                     : "";
 
-                var prompt = $@"ROLE: Uni.AI shopping assistant (Vietnamese).
-TASK: Analyze user message. Decide if it is SEARCH or just CHIT-CHAT.
+                var prompt = $@"ROLE: Uni.AI - Trợ lý bán hàng công nghệ chuyên nghiệp, am hiểu kỹ thuật, thân thiện.
 
-Message: ""{message}""
-History: {(string.IsNullOrEmpty(historyText) ? "None" : historyText)}
+TASK: Phân tích ý định người dùng (User Intent) để chọn hành động: DÙNG TOOL, TÌM KIẾM, hay TRẢ LỜI NGỮCẢNH.
 
-RULES:
-1. **CHIT-CHAT / GREETING**: If user says 'hi', 'hello', 'who are you', 'thank you', 'bye', 'good morning', asks about you, or general questions
-   -> Set ShouldSearch: false, reply directly with friendly Vietnamese greeting in UserReply.
-   -> Example: {{ ""ShouldSearch"": false, ""UserReply"": ""Dạ chào bác! Em là trợ lý ảo Uni.AI, bác cần tìm mua gì cứ bảo em nha."", ... }}
+CONTEXT (Dữ liệu sản phẩm user vừa xem):
+{previousProductsContext}
 
-2. **SEARCH**: If user mentions a product, category, brand, or buying intent
-   -> Set ShouldSearch: true, extract Keywords/Attributes.
-   -> Set UserReply to generic like ""Dạ để em tìm giúp bác."" (system generates specific reply later).
+CATEGORY KNOWLEDGE:
+{categoryContext}
 
-Return ONLY valid JSON (no markdown, no explanation):
-{{
-  ""ShouldSearch"": true,
-  ""UserReply"": ""Dạ em tìm giúp bác."",
-  ""Keywords"": [""keyword""],
-  ""CategoryKeyword"": ""điện thoại"",
-  ""Brand"": null,
-  ""Model"": null,
-  ""Color"": null,
-  ""Storage"": null,
-  ""Warranty"": null,
-  ""Origin"": null,
-  ""Condition"": null,
+MESSAGE: ""{message}""
+HISTORY: {(string.IsNullOrEmpty(historyText) ? "None" : historyText)}
+
+AVAILABLE TOOLS:
+- CalculateShipping: Tính phí ship. Params: location (string).
+- CheckWeather: Xem thời tiết. Params: location (string).
+- CheckExchangeRate: Xem tỷ giá USD. Params: none.
+- GetProductDetail: Lấy chi tiết kỹ thuật (màu, RAM, bảo hành) từ MongoDB. Params: productId (int).
+
+/// --- QUY TẮC XỬ LÝ (Ưu tiên từ 1 -> 5) --- ///
+
+1. **TOOL USAGE (Gọi Hàm)** - Priority 1:
+   - Hỏi phí ship -> ToolName=""CalculateShipping"", ToolArgs=""<Location>"" (VD: ""Hà Nội"")
+   - Hỏi thời tiết -> ToolName=""CheckWeather"", ToolArgs=""<Location>""
+   - Hỏi tỷ giá -> ToolName=""CheckExchangeRate""
+   - Hỏi chi tiết sản phẩm cụ thể (màu, RAM, pin, bảo hành) -> ToolName=""GetProductDetail"", ToolArgs=""<ID từ Context>"" (VD: ToolArgs=""32"" nếu hỏi sản phẩm #1 trong list)
+   -> Set ShouldSearch=false.
+
+2. **DEEP COMPARISON (So sánh)** - Priority 2:
+   - Key: ""so sánh"", ""khác nhau chỗ nào"", ""nên mua con nào"", ""con nào hơn"".
+   - Action: Đọc kỹ CONTEXT. So sánh các sản phẩm về: Giá, Chip, RAM, Camera, Pin.
+   - Output: Viết một đoạn so sánh ngắn gọn hoặc kẻ bảng so sánh trong ProductContextReply. Khuyên user nên mua con nào tùy nhu cầu.
+   -> Set IsAskingAboutProduct=true, ShouldSearch=false.
+
+3. **CONTEXT QUERY (Hỏi về list cũ)** - Priority 3:
+   - Key: ""con thứ 2"", ""cái nào đắt nhất"", ""con samsung kia"", ""màu gì"".
+   - Action: 
+     + Nếu hỏi ""đắt nhất/rẻ nhất"" trong list cũ -> Tìm trong CONTEXT và trả lời đích danh (VD: ""Dạ trong mấy con trên thì S24 Ultra đắt nhất ạ"").
+     + Nếu hỏi chi tiết (màu, pin) -> Tìm trong CONTEXT.
+       + Có thông tin -> Trả lời.
+       + KHÔNG có thông tin -> Trả lời: ""Dạ trong mô tả shop chưa ghi rõ thông số này, bác bấm vào chi tiết để chat với shop nhé!"" (TUYỆT ĐỐI KHÔNG BỊA RA MÀU/THÔNG SỐ).
+   -> Set IsAskingAboutProduct=true, ShouldSearch=false.
+
+4. **RE-SEARCH (Tìm kiếm nâng cao)** - Priority 4:
+   - Key: ""tìm cái khác"", ""đắt quá"", ""tìm màu đen"", ""giá rẻ hơn"".
+   - Action: 
+     + Giữ lại Keywords/Category từ lịch sử.
+     + Thêm điều kiện mới (SortBy, MinPrice...).
+     + Nếu user chê (tìm cái khác) -> Set NeedsShuffle=true.
+   -> Set ShouldSearch=true.
+
+5. **NEW SEARCH (Tìm mới)** - Priority 5:
+   - Action: Trích xuất Keywords, CategoryId, Attributes.
+   - Attributes: Storage (256GB...), Location (Hà Nội...), Brand.
+   -> Set ShouldSearch=true.
+
+6. **PRICE EXTRACTION (Lọc giá)** - Important:
+   - ""dưới 5 triệu"" -> MaxPrice = 5000000
+   - ""trên 10 triệu"" -> MinPrice = 10000000
+   - ""tầm 3 đến 5 triệu"" -> MinPrice = 3000000, MaxPrice = 5000000
+   - ""giá rẻ"" -> SortBy = ""price_asc""
+   - ""giá mắc"", ""đắt"" -> SortBy = ""price_desc""
+
+/// --- JSON OUTPUT FORMAT --- ///
+Return ONLY valid JSON:
+{{ 
+  ""ShouldSearch"": true, 
+  ""IsAskingAboutProduct"": false, 
+  ""NeedsShuffle"": false, 
+  ""ToolName"": null, 
+  ""ToolArgs"": null, 
+  ""UserReply"": ""Dạ em tìm giúp bác."", 
+  ""ProductContextReply"": null, 
+  ""Keywords"": [""keyword""], 
+  ""CategoryKeyword"": ""điện thoại"", 
+  ""CategoryId"": 10, 
+  ""Storage"": null, 
+  ""Location"": null, 
   ""MinPrice"": null,
   ""MaxPrice"": null,
-  ""RequireVideo"": false,
-  ""CategoryId"": null,
   ""SortBy"": ""recent"",
-  ""FilterByHot"": false,
-  ""FilterBySeller"": false,
-  ""ClarifyingQuestion"": null,
-  ""Confidence"": 0.8
+  ""Confidence"": 0.9 
 }}
-
-IMPORTANT:
-- Keep UserReply under 15 words
-- For CHIT-CHAT: Use friendly Vietnamese (Dạ chào bác, em là Uni.AI, etc.)
-- For SEARCH: Reply can be generic
-- Extract SPECIFIC attributes only if mentioned (Brand, Model, Color, Storage, Warranty, Origin)
-- Return ONLY raw JSON, no code blocks
-- Condition: only 'Moi' (new) or 'DaSuDung' (used)
-- SortBy: 'recent', 'price_asc', 'price_desc', 'views_desc'
 ";
 
                 _logger.LogInformation("[AiIntent] Calling Gemini with prompt for message: {msg}", message);
@@ -209,25 +313,70 @@ IMPORTANT:
                                 result.UserReply = "Dạ em hiểu rồi, bác cần tìm sản phẩm gì thì cứ bảo em nha.";
                             }
                             
-                            _logger.LogInformation("[AiIntent] ✅ Gemini parsed successfully: ShouldSearch={search}, Keywords={kw}, Brand={brand}, CategoryKeyword={cat}", 
+                            _logger.LogInformation("[AiIntent] ✅ Gemini parsed successfully: ShouldSearch={search}, Keywords={kw}, Brand={brand}, CategoryId={catId}, Confidence={conf}", 
                                 result.ShouldSearch, 
                                 string.Join(",", result.Keywords ?? Array.Empty<string>()), 
                                 result.Brand, 
-                                result.CategoryKeyword);
+                                result.CategoryId ?? -1,
+                                result.Confidence);
+                            
+                            // ✅ BƯỚC 1: Validate new fields (Context Injection)
+                            // NeedsShuffle and IsAskingAboutProduct are mutually exclusive
+                            if (result.NeedsShuffle && result.IsAskingAboutProduct)
+                            {
+                                _logger.LogWarning("[AiIntent] ⚠️ Both NeedsShuffle and IsAskingAboutProduct are true - resetting IsAskingAboutProduct");
+                                result.IsAskingAboutProduct = false;
+                            }
+                            
+                            // If asking about product details, don't search
+                            if (result.IsAskingAboutProduct)
+                            {
+                                result.ShouldSearch = false;
+                                _logger.LogInformation("[AiIntent] 📝 User asking about product details - IsAskingAboutProduct=true, ShouldSearch=false");
+                            }
+                            
+                            // If shuffling, keep previous criteria but randomize results
+                            if (result.NeedsShuffle)
+                            {
+                                _logger.LogInformation("[AiIntent] 🎲 Shuffle requested - will randomize results in ProductSearchService");
+                            }
+                            
+                            // --- HYBRID STRATEGY: Fill-in missing Location/Storage using Regex Fallback ---
+                            if (result.ShouldSearch)
+                            {
+                                // If AI missed Location, try Regex detection
+                                if (string.IsNullOrEmpty(result.Location))
+                                {
+                                    var detectedLocation = DetectLocationFromMessage(message);
+                                    if (!string.IsNullOrEmpty(detectedLocation))
+                                    {
+                                        result.Location = detectedLocation;
+                                        _logger.LogInformation("[AiIntent] 🔧 HYBRID: Filled Location from Regex: {location}", detectedLocation);
+                                    }
+                                }
+                                
+                                // If AI missed Storage, try Regex detection
+                                if (string.IsNullOrEmpty(result.Storage))
+                                {
+                                    var detectedStorage = DetectStorageFromMessage(message);
+                                    if (!string.IsNullOrEmpty(detectedStorage))
+                                    {
+                                        result.Storage = detectedStorage;
+                                        _logger.LogInformation("[AiIntent] 🔧 HYBRID: Filled Storage from Regex: {storage}", detectedStorage);
+                                    }
+                                }
+                            }
                             
                             // --- Map CategoryKeyword sang ID ---
                             await MapCategoryIdAsync(result, fallbackCategoryId);
                             
-                            // --- Query Expansion: Gộp từ khóa fallback nếu AI tìm quá ít ---
-                            if (result.ShouldSearch && fallbackKeywords != null && fallbackKeywords.Length > 0)
-                            {
-                                var currentKw = result.Keywords?.ToList() ?? new List<string>();
-                                if (currentKw.Count <= 1)
-                                {
-                                    result.Keywords = currentKw.Union(fallbackKeywords, StringComparer.OrdinalIgnoreCase).ToArray();
-                                    _logger.LogInformation("[AiIntent] Query Expansion: Added fallback keywords: {kw}", string.Join(",", fallbackKeywords));
-                                }
-                            }
+                            // --- Map Location (vị trí) ---
+                            await MapLocationAsync(result);
+                            
+                            // ❌ REMOVED: Query Expansion (gộp từ khóa fallback) 
+                            // Lý do: Nó khiến "Tìm điện thoại" + fallback từ khóa -> "Tìm (điện thoại VÀ iPhone VÀ Samsung)" 
+                            // -> Không sản phẩm nào thỏa mãn tất cả -> Lỗi 0 kết quả
+                            // Gemini đủ thông minh để trích xuất từ khóa chính xác, không cần gộp thêm
 
                             return result;
                         }
@@ -275,9 +424,59 @@ IMPORTANT:
 
         /// <summary>
         /// Ánh xạ CategoryKeyword (text) sang CategoryId (int) từ database hoặc fallback.
+        /// ✅ FIX: Tìm cả DanhMucChas (cha) và DanhMucs (con)
         /// </summary>
+        /// <summary>
+        /// Map Location (tên tỉnh/thành phố) sang MaTinhThanh để filter sản phẩm theo vị trí
+        /// </summary>
+        private async Task MapLocationAsync(AiIntentResult result)
+        {
+            if (string.IsNullOrEmpty(result.Location))
+            {
+                _logger.LogInformation("[AiIntent] No location specified");
+                return;
+            }
+
+            try
+            {
+                var locationLower = result.Location.ToLower().Trim();
+                
+                // Tìm tỉnh/thành phố khớp
+                var tinhThanh = await _context.TinhThanhs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => 
+                        t.TenTinhThanh.ToLower() == locationLower ||
+                        t.TenTinhThanh.ToLower().Contains(locationLower) ||
+                        locationLower.Contains(t.TenTinhThanh.ToLower())
+                    );
+                
+                if (tinhThanh != null)
+                {
+                    // Lưu MaTinhThanh vào Location field (sẽ convert sang int trong ProductSearchService)
+                    result.Location = tinhThanh.MaTinhThanh.ToString();
+                    _logger.LogInformation("[AiIntent] ✅ Mapped location '{input}' -> MaTinhThanh: {id}", result.Location, tinhThanh.MaTinhThanh);
+                }
+                else
+                {
+                    _logger.LogWarning("[AiIntent] ⚠️ Location '{location}' NOT FOUND in database", result.Location);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[AiIntent] Error mapping location: {msg}", ex.Message);
+            }
+        }
+
         private async Task MapCategoryIdAsync(AiIntentResult result, int? fallbackId)
         {
+            // ✅ NEW: If Gemini already provided CategoryId (with high confidence), trust it
+            if (result.CategoryId.HasValue && result.Confidence >= 0.7m)
+            {
+                _logger.LogInformation("[AiIntent] Using CategoryId from Gemini: {catId} (Confidence: {conf})", result.CategoryId, result.Confidence);
+                return;
+            }
+
+            // Fallback 1: Use fallback ID if available
             if (!result.CategoryId.HasValue && fallbackId.HasValue)
             {
                 result.CategoryId = fallbackId;
@@ -285,24 +484,45 @@ IMPORTANT:
                 return;
             }
 
+            // Fallback 2: Try to find via CategoryKeyword (if Gemini only gave keyword, not ID)
             if (!result.CategoryId.HasValue && !string.IsNullOrEmpty(result.CategoryKeyword))
             {
                 // ✅ TỐI ƯU: Sử dụng cache nếu available
                 if (_categoryCache == null || DateTime.UtcNow.Subtract(_categoryCacheTime).TotalMinutes > CATEGORY_CACHE_MINUTES)
                 {
                     _logger.LogInformation("[AiIntent] 🔄 Refreshing category cache (expired or first load)");
-                    var allCategories = await _context.DanhMucChas
+                    
+                    _categoryCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    
+                    // ✅ BƯỚC 1: Thêm danh mục cha (DanhMucChas)
+                    var parentCategories = await _context.DanhMucChas
                         .AsNoTracking()
                         .Select(c => new { c.MaDanhMucCha, c.TenDanhMucCha })
                         .ToListAsync();
                     
-                    _categoryCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var cat in allCategories)
+                    foreach (var cat in parentCategories)
                     {
                         _categoryCache[cat.TenDanhMucCha] = cat.MaDanhMucCha;
                     }
+                    
+                    // ✅ BƯỚC 2: Thêm danh mục con (DanhMucs) - QUAN TRỌNG!
+                    var childCategories = await _context.DanhMucs
+                        .AsNoTracking()
+                        .Select(c => new { c.MaDanhMuc, c.TenDanhMuc })
+                        .ToListAsync();
+                    
+                    foreach (var cat in childCategories)
+                    {
+                        // Nếu chưa có, thêm vào cache
+                        if (!_categoryCache.ContainsKey(cat.TenDanhMuc))
+                        {
+                            _categoryCache[cat.TenDanhMuc] = cat.MaDanhMuc;
+                        }
+                    }
+                    
                     _categoryCacheTime = DateTime.UtcNow;
-                    _logger.LogInformation("[AiIntent] ✅ Category cache loaded: {count} categories", _categoryCache.Count);
+                    _logger.LogInformation("[AiIntent] ✅ Category cache loaded: {parentCount} parent + {childCount} child = {total} total", 
+                        parentCategories.Count, childCategories.Count, _categoryCache.Count);
                 }
                 
                 // Search in cache - try exact match first
@@ -332,6 +552,8 @@ IMPORTANT:
 
                 // Last resort: direct database query
                 _logger.LogInformation("[AiIntent] 🔎 Attempting direct database query for category '{keyword}'", result.CategoryKeyword);
+                
+                // BƯỚC 1: Tìm trong danh mục cha
                 var directCategory = await _context.DanhMucChas
                     .AsNoTracking()
                     .FirstOrDefaultAsync(c => 
@@ -342,12 +564,26 @@ IMPORTANT:
                 if (directCategory != null)
                 {
                     result.CategoryId = directCategory.MaDanhMucCha;
-                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query: {catId}", result.CategoryId);
+                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query (parent): {catId}", result.CategoryId);
+                    return;
                 }
-                else
+
+                // BƯỚC 2: Nếu không tìm thấy cha, tìm trong danh mục con
+                var directChildCategory = await _context.DanhMucs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => 
+                        EF.Functions.Like(c.TenDanhMuc, $"%{result.CategoryKeyword}%") ||
+                        EF.Functions.Like(result.CategoryKeyword, $"%{c.TenDanhMuc}%")
+                    );
+                
+                if (directChildCategory != null)
                 {
-                    _logger.LogWarning("[AiIntent] ⚠️ CategoryKeyword '{keyword}' NOT FOUND in database", result.CategoryKeyword);
+                    result.CategoryId = directChildCategory.MaDanhMuc;
+                    _logger.LogInformation("[AiIntent] ✅ Mapped via direct query (child): {catId}", result.CategoryId);
+                    return;
                 }
+
+                _logger.LogWarning("[AiIntent] ⚠️ CategoryKeyword '{keyword}' NOT FOUND in database", result.CategoryKeyword);
             }
         }
 
@@ -421,14 +657,24 @@ IMPORTANT:
                     {
                         _logger.LogInformation("[AiIntent] Detected category keyword: {kw} -> Pattern: {categoryPattern}", kw, categoryPattern);
                         
-                        // Tìm danh mục cha từ DB
+                        // BƯỚC 1: Tìm danh mục cha (DanhMucChas)
                         var parentCategory = await _context.DanhMucChas
                             .FirstOrDefaultAsync(c => c.TenDanhMucCha.ToLower().Contains(categoryPattern.ToLower()));
                         
                         if (parentCategory != null)
                         {
-                            _logger.LogInformation("[AiIntent] Found category: {catName} (ID: {catId})", parentCategory.TenDanhMucCha, parentCategory.MaDanhMucCha);
+                            _logger.LogInformation("[AiIntent] Found parent category: {catName} (ID: {catId})", parentCategory.TenDanhMucCha, parentCategory.MaDanhMucCha);
                             return (new[] { parentCategory.TenDanhMucCha }, parentCategory.MaDanhMucCha);
+                        }
+
+                        // BƯỚC 2: Nếu không tìm thấy cha, tìm danh mục con (DanhMucs)
+                        var childCategory = await _context.DanhMucs
+                            .FirstOrDefaultAsync(c => c.TenDanhMuc.ToLower().Contains(categoryPattern.ToLower()));
+                        
+                        if (childCategory != null)
+                        {
+                            _logger.LogInformation("[AiIntent] Found child category: {catName} (ID: {catId})", childCategory.TenDanhMuc, childCategory.MaDanhMuc);
+                            return (new[] { childCategory.TenDanhMuc }, childCategory.MaDanhMuc);
                         }
                     }
                 }
@@ -496,5 +742,149 @@ IMPORTANT:
         }
 
         public async Task<string> TestGeminiConnection(string prompt) => await _aiClient.SendPromptAsync(prompt);
+
+        /// <summary>
+        /// Detect Storage (dung lượng bộ nhớ) từ tin nhắn người dùng
+        /// </summary>
+        private string? DetectStorageFromMessage(string message)
+        {
+            var lowerMsg = message.ToLower();
+            
+            // Pattern: "64GB", "128GB", "256GB", "512GB", "1TB"
+            var storagePatterns = new[] { 
+                @"(\d+)\s*(gb|tb|gigabyte|terabyte)", // 128GB, 256 GB, 1TB
+                @"dung\s*lượng.*?(\d+\s*(?:gb|tb))", // "dung lượng 256GB"
+                @"bộ\s*nhớ.*?(\d+\s*(?:gb|tb))", // "bộ nhớ 128GB"
+                @"(\d+\s*(?:gb|tb))" // Just "256GB"
+            };
+            
+            foreach (var pattern in storagePatterns)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(lowerMsg, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    // Extract the matched storage value (e.g., "256GB", "512 GB")
+                    var storage = match.Groups[match.Groups.Count - 1].Value.Trim().ToUpper();
+                    _logger.LogInformation("[AiIntent] Detected storage: {storage}", storage);
+                    return storage;
+                }
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Detect Location (vị trí) từ tin nhắn người dùng
+        /// </summary>
+        private string? DetectLocationFromMessage(string message)
+        {
+            var lowerMsg = message.ToLower();
+            
+            // Common Vietnamese cities/provinces
+            var locationPatterns = new Dictionary<string, string>
+            {
+                { "tphcm|hồ chí minh|sài gòn|saigon|tp hcm", "TPHCM" },
+                { "hà nội|hanoi|ha noi|thủ đô", "Hà Nội" },
+                { "đà nẵng|da nang|danang", "Đà Nẵng" },
+                { "hải phòng|hai phong|haiphong", "Hải Phòng" },
+                { "hồ chí minh|tp.hcm|tpхcm", "TPHCM" },
+                { "cần thơ|can tho|cantho", "Cần Thơ" },
+                { "quy nhơn|quynhon|quy nhơn", "Quy Nhơn" },
+                { "nha trang|nhatrang", "Nha Trang" },
+                { "hà tĩnh|ha tinh|hatinh", "Hà Tĩnh" },
+                { "nghệ an|nghe an|nghean", "Nghệ An" },
+                { "hải dương|hai duong|haiduong", "Hải Dương" },
+                { "hưng yên|hung yen|hungyen", "Hưng Yên" }
+            };
+            
+            foreach (var (pattern, cityName) in locationPatterns)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(lowerMsg, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    _logger.LogInformation("[AiIntent] Detected location: {location}", cityName);
+                    return cityName;
+                }
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// BƯỚC 1: CONTEXT INJECTION - Trích xuất sản phẩm từ lịch sử chat
+        /// Giúp AI "nhớ" danh sách sản phẩm vừa gợi ý để trả lời câu hỏi chi tiết
+        /// </summary>
+        private string ExtractProductContextFromHistory(List<AiChatMessageDto>? history)
+        {
+            try
+            {
+                if (history == null || history.Count == 0)
+                    return "";
+
+                // Tìm tin nhắn AI cuối cùng có chứa sản phẩm
+                for (int i = history.Count - 1; i >= 0; i--)
+                {
+                    var msg = history[i];
+                    if (msg.Role != "assistant")
+                        continue;
+
+                    // Kiểm tra nếu content chứa JSON (thường có suggestedProducts)
+                    if (string.IsNullOrEmpty(msg.Content))
+                        continue;
+
+                    try
+                    {
+                        // Thử parse JSON để lấy suggestedProducts
+                        if (msg.Content.StartsWith("{"))
+                        {
+                            using (var doc = JsonDocument.Parse(msg.Content))
+                            {
+                                if (doc.RootElement.TryGetProperty("suggestedProducts", out var productsElement))
+                                {
+                                    var productsJson = productsElement.GetRawText();
+                                    // Tạo context string từ danh sách sản phẩm
+                                    var productList = new List<string>();
+                                    foreach (var product in productsElement.EnumerateArray())
+                                    {
+                                        var name = product.GetProperty("ten").GetString() ?? "Unknown";
+                                        var price = product.GetProperty("gia").GetDecimal();
+                                        var id = product.GetProperty("id").GetInt32();
+                                        
+                                        // ✅ THÊM: Lấy mô tả (nếu có)
+                                        var desc = "Không có mô tả";
+                                        if (product.TryGetProperty("shortDescription", out var descEl) && descEl.ValueKind != JsonValueKind.Null)
+                                        {
+                                            desc = descEl.GetString() ?? "Không có mô tả";
+                                        }
+                                        
+                                        // ✅ GỬI KÈM MÔ TẢ VÀO CONTEXT:
+                                        productList.Add($"[ID={id}] {name} - Giá: {price:N0}đ\n   Mô tả: {desc}");
+                                    }
+
+                                    if (productList.Count > 0)
+                                    {
+                                        var context = "PREVIOUSLY_SUGGESTED_PRODUCTS (User just saw these):\n" +
+                                                     string.Join("\n", productList.Select((p, idx) => $"#{idx + 1}. {p}"));
+                                        
+                                        _logger.LogInformation("[AiIntent] 📝 Context Injection: Found {count} previous products", productList.Count);
+                                        return context;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug("[AiIntent] Could not parse product context: {msg}", ex.Message);
+                        continue;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[AiIntent] Error extracting product context: {msg}", ex.Message);
+            }
+
+            return "";
+        }
     }
 }
