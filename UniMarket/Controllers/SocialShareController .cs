@@ -290,6 +290,85 @@ namespace UniMarket.Controllers
             });
         }
 
+        [Authorize]
+        [HttpPost("start-conversation")]
+        public async Task<IActionResult> StartConversation([FromBody] string targetUserId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized(new { message = "Bạn cần đăng nhập." });
+
+            if (string.IsNullOrEmpty(targetUserId))
+                return BadRequest(new { message = "ID người nhận không hợp lệ." });
+
+            if (userId == targetUserId)
+                return BadRequest(new { message = "Không thể nhắn tin cho chính mình." });
+
+            try
+            {
+                // 1. Tìm cuộc trò chuyện riêng tư (2 người) đã tồn tại
+                var conversation = await _context.CuocTroChuyenSocials
+                    .Include(c => c.NguoiThamGias)
+                    .ThenInclude(nt => nt.User) // Include User để lấy thông tin Partner trả về
+                    .FirstOrDefaultAsync(c =>
+                        c.NguoiThamGias.Count == 2 &&
+                        c.NguoiThamGias.Any(n => n.MaNguoiDung == userId) &&
+                        c.NguoiThamGias.Any(n => n.MaNguoiDung == targetUserId));
+
+                // 2. Nếu chưa có, tạo mới
+                if (conversation == null)
+                {
+                    conversation = new CuocTroChuyenSocial
+                    {
+                        ThoiGianTao = DateTime.UtcNow,
+                        IsEmpty = true, // Mới tạo chưa có tin nhắn
+                        NgayCapNhat = DateTime.UtcNow,
+                        NguoiThamGias = new List<NguoiThamGiaSocial>
+                {
+                    new NguoiThamGiaSocial { MaNguoiDung = userId, IsMuted = false },
+                    new NguoiThamGiaSocial { MaNguoiDung = targetUserId, IsMuted = false }
+                }
+                    };
+                    _context.CuocTroChuyenSocials.Add(conversation);
+                    await _context.SaveChangesAsync();
+
+                    // Reload để lấy thông tin User (Partner) vừa insert
+                    await _context.Entry(conversation).Collection(c => c.NguoiThamGias).Query().Include(n => n.User).LoadAsync();
+                }
+                else
+                {
+                    // Nếu cuộc trò chuyện bị ẩn, cho nó hiện lại (Logic tương tự Share)
+                    var hiddenEntry = await _context.UserHiddenConversations
+                        .FirstOrDefaultAsync(h => h.UserId == userId && h.MaCuocTroChuyen == conversation.MaCuocTroChuyen);
+
+                    if (hiddenEntry != null)
+                    {
+                        hiddenEntry.HasReappeared = true;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+                // 3. Chuẩn bị dữ liệu trả về cho Frontend
+                var partner = conversation.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == targetUserId)?.User;
+
+                return Ok(new
+                {
+                    maCuocTroChuyen = conversation.MaCuocTroChuyen,
+                    partner = new
+                    {
+                        id = partner.Id,
+                        fullName = partner.FullName,
+                        avatarUrl = partner.AvatarUrl,
+                        isOnline = false // Frontend sẽ tự cập nhật qua SignalR sau
+                    },
+                    isBlocked = conversation.IsBlocked,
+                    maNguoiChan = conversation.MaNguoiChan
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi server: " + ex.Message });
+            }
+        }
 
 
 
@@ -651,21 +730,23 @@ namespace UniMarket.Controllers
         }
 
         // ============================
-        // 3) Lấy lịch sử tin nhắn (BẢN GỘP HOÀN CHỈNH)
+        // 3) Lấy lịch sử tin nhắn 
         // ============================
         [Authorize]
         [HttpGet("social/history/{maCuocTroChuyen}")]
         public async Task<IActionResult> GetSocialHistory(
-            string maCuocTroChuyen,
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 30,
-            [FromQuery] DateTime? sessionTimestamp = null)
+        string maCuocTroChuyen,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 30,
+        [FromQuery] DateTime? sessionTimestamp = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null)
                 return Unauthorized(new { message = "Phiên đăng nhập không hợp lệ." });
 
-            // ==================== 1️⃣ XÁC ĐỊNH THỜI GIAN LỌC ====================
+            // =========================================================================
+            // 1️⃣ XÁC ĐỊNH THỜI GIAN LỌC (LOGIC CŨ)
+            // =========================================================================
             DateTime? filterTime = null;
             if (sessionTimestamp.HasValue)
             {
@@ -679,7 +760,9 @@ namespace UniMarket.Controllers
                 filterTime = hiddenInfo?.ThoiGianAn;
             }
 
-            // ==================== 2️⃣ TRUY VẤN TIN NHẮN ====================
+            // =========================================================================
+            // 2️⃣ TRUY VẤN TIN NHẮN & PHÂN TRANG (LOGIC CŨ)
+            // =========================================================================
             var query = _context.TinNhanSocials
                 .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
                 // Bỏ qua tin nhắn user đã xóa riêng cho mình
@@ -701,10 +784,12 @@ namespace UniMarket.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            // Đảo ngược để hiển thị theo thời gian tăng dần
+            // Đảo ngược để hiển thị theo thời gian tăng dần (cũ nhất -> mới nhất)
             messages.Reverse();
 
-            // ==================== 3️⃣ XỬ LÝ SHARE LINK ====================
+            // =========================================================================
+            // 3️⃣ XỬ LÝ SHARE LINK VỚI REGEX (LOGIC CŨ)
+            // =========================================================================
 
             // --- Lấy ShareId từ tin nhắn chính ---
             var mainShareIds = messages
@@ -731,7 +816,9 @@ namespace UniMarket.Controllers
                     .ToDictionaryAsync(s => s.ShareId);
             }
 
-            // ==================== 4️⃣ XÂY DỰNG RESPONSE ====================
+            // =========================================================================
+            // 4️⃣ XÂY DỰNG MESSAGE DTO (LOGIC CŨ)
+            // =========================================================================
             var resultMessages = messages.Select(t =>
             {
                 // ===== Tin nhắn chính =====
@@ -745,7 +832,7 @@ namespace UniMarket.Controllers
                 }
 
                 // ===== Tin nhắn cha (nếu có) =====
-                Share parentShareInfo = null; // Logic này giữ nguyên
+                Share parentShareInfo = null;
                 if (t.ParentMessage != null)
                 {
                     var parentMatch = Regex.Match(t.ParentMessage.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
@@ -755,7 +842,6 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // ==================== 4️⃣ XÂY DỰNG RESPONSE ====================
                 return new
                 {
                     MaTinNhan = t.MaTinNhan,
@@ -787,7 +873,7 @@ namespace UniMarket.Controllers
                         SenderFullName = t.ParentMessage.Sender?.FullName,
                         IsRecalled = t.ParentMessage.IsRecalled,
 
-                        // ✅ Đính kèm Share của tin nhắn cha (Đã an toàn)
+                        // Share của tin nhắn cha
                         Share = parentShareInfo == null ? null : new
                         {
                             parentShareInfo.ShareId,
@@ -796,13 +882,11 @@ namespace UniMarket.Controllers
                             parentShareInfo.PreviewVideo,
                             parentShareInfo.ShareLink,
                             TargetType = (int)parentShareInfo.TargetType,
-                            TinDangId = parentShareInfo.TinDangId // <-- Dòng bạn thêm
+                            TinDangId = parentShareInfo.TinDangId
                         }
                     },
 
-                    // ======================================================
-                    // ✅ [SỬA LỖI] ĐÍNH KÈM SHARE CỦA TIN NHẮN CHÍNH
-                    // ======================================================
+                    // ===== Share của tin nhắn chính =====
                     Share = mainShareId != -1 && sharesInfo.TryGetValue(mainShareId, out var mainShareInfo) && mainShareInfo != null
                         ? new
                         {
@@ -812,14 +896,63 @@ namespace UniMarket.Controllers
                             mainShareInfo.PreviewVideo,
                             mainShareInfo.ShareLink,
                             TargetType = (int)mainShareInfo.TargetType,
-                            TinDangId = mainShareInfo.TinDangId // <-- Dòng bạn thêm
+                            TinDangId = mainShareInfo.TinDangId
                         }
                         : null
-                    // ======================================================
                 };
             }).ToList();
 
-            // ==================== 5️⃣ PHÂN TRANG + TRẢ VỀ ====================
+            // =========================================================================
+            // 5️⃣ ✨ [MỚI & CẬP NHẬT] CHECK QUYỀN VÀ MỐI QUAN HỆ FOLLOW
+            // =========================================================================
+            bool canChat = true;
+            string restrictionReason = "";
+            bool isFollowedByPartner = false; 
+            bool isFollowingPartner = false;  
+
+            // 1. Lấy thông tin cuộc trò chuyện và người tham gia để tìm Partner
+            var conversation = await _context.CuocTroChuyenSocials
+                .Include(c => c.NguoiThamGias)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+
+            if (conversation != null)
+            {
+                var partnerId = conversation.NguoiThamGias
+                    .FirstOrDefault(n => n.MaNguoiDung != userId)?.MaNguoiDung;
+
+                if (!string.IsNullOrEmpty(partnerId))
+                {
+                    // 2. ✨ Kiểm tra mối quan hệ 2 chiều
+                    isFollowedByPartner = await _context.Follows
+                        .AnyAsync(f => f.FollowerId == partnerId && f.FollowingId == userId);
+
+                    isFollowingPartner = await _context.Follows
+                        .AnyAsync(f => f.FollowerId == userId && f.FollowingId == partnerId);
+
+                    if (!isFollowedByPartner)
+                    {
+                        // Lấy 3 tin nhắn mới nhất trong DB (bao gồm cả tin nhắn ĐÃ THU HỒI - anti-spam trick)
+                        var last3Messages = await _context.TinNhanSocials
+                            .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen) // ⚠️ Không lọc IsRecalled
+                            .OrderByDescending(t => t.ThoiGianGui)
+                            .Take(3)
+                            .Select(t => t.MaNguoiGui)
+                            .ToListAsync();
+
+                        // Nếu có đủ 3 tin và TẤT CẢ đều là do MÌNH gửi => Chặn
+                        if (last3Messages.Count >= 3 && last3Messages.All(sender => sender == userId))
+                        {
+                            canChat = false;
+                            restrictionReason = "Đã đạt giới hạn tin nhắn chờ.";
+                        }
+                    }
+                }
+            }
+
+            // =========================================================================
+            // 6️⃣ TRẢ VỀ RESPONSE (KẾT HỢP DỮ LIỆU)
+            // =========================================================================
             var response = new
             {
                 Messages = resultMessages,
@@ -827,13 +960,92 @@ namespace UniMarket.Controllers
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalPages = (int)Math.Ceiling(totalMessages / (double)pageSize),
-                SessionTimestamp = filterTime
+                SessionTimestamp = filterTime,
+                CanChat = canChat,
+                RestrictionReason = restrictionReason,
+                IsFollowedByPartner = isFollowedByPartner, 
+                IsFollowingPartner = isFollowingPartner   
             };
 
             return Ok(response);
         }
 
+        [Authorize]
+        [HttpPost("conversation/{maCuocTroChuyen}/accept")]
+        public async Task<IActionResult> AcceptMessageRequest(string maCuocTroChuyen)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
 
+            // 1. Lấy thông tin cuộc trò chuyện
+            var conversation = await _context.CuocTroChuyenSocials
+                .Include(c => c.NguoiThamGias)
+                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
+
+            if (conversation == null) return NotFound();
+
+            // 2. Tìm người gửi (Partner)
+            var partnerId = conversation.NguoiThamGias
+                .FirstOrDefault(n => n.MaNguoiDung != userId)?.MaNguoiDung;
+
+            if (string.IsNullOrEmpty(partnerId)) return BadRequest("Không tìm thấy đối phương.");
+
+            // 3. ✨ LƯU DB: Tạo Follow
+            var existingFollow = await _context.Follows
+                .FirstOrDefaultAsync(f => f.FollowerId == userId && f.FollowingId == partnerId);
+
+            if (existingFollow == null)
+            {
+                _context.Follows.Add(new Follow
+                {
+                    FollowerId = userId,
+                    FollowingId = partnerId,
+                    FollowedAt = DateTime.UtcNow // ✅ Sửa thành FollowedAt cho đúng Model
+                });
+                await _context.SaveChangesAsync();
+            }
+
+            // 4. ✨ TẠO TIN NHẮN HỆ THỐNG
+            var systemMessage = new TinNhanSocial
+            {
+                MaCuocTroChuyen = maCuocTroChuyen,
+                MaNguoiGui = userId,
+                NoiDung = "Đã chấp nhận lời mời bắt đầu cuộc trò chuyện.",
+                ThoiGianGui = DateTime.UtcNow,
+                DaXem = false,
+                MediaUrl = null
+            };
+            _context.TinNhanSocials.Add(systemMessage);
+            await _context.SaveChangesAsync();
+
+            // 5. Lấy thông tin người chấp nhận
+            var senderInfo = await _context.Users
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.Id, u.FullName, u.AvatarUrl })
+                .FirstOrDefaultAsync();
+
+            var messageDto = new
+            {
+                MaTinNhan = systemMessage.MaTinNhan,
+                MaCuocTroChuyen = systemMessage.MaCuocTroChuyen,
+                MaNguoiGui = systemMessage.MaNguoiGui,
+                NoiDung = systemMessage.NoiDung,
+                ThoiGianGui = systemMessage.ThoiGianGui,
+                Sender = senderInfo,
+                IsSystemMessage = true
+            };
+
+            // 6. ✨ GỬI REALTIME
+            await _socialHubContext.Clients.Group(maCuocTroChuyen).SendAsync("ReceiveMessage", messageDto);
+
+            await _socialHubContext.Clients.User(partnerId).SendAsync("ConversationAccepted", new
+            {
+                maCuocTroChuyen,
+                acceptedBy = userId
+            });
+
+            return Ok(new { message = "Đã chấp nhận cuộc trò chuyện." });
+        }
 
         // ============================
         // [MỚI] 4) Lấy trạng thái hoạt động của user

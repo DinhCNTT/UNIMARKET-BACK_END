@@ -18,11 +18,20 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly PhotoService _photoService;
 
-        public UserProfileController(UserManager<ApplicationUser> userManager, ApplicationDbContext context, PhotoService photoService)
+        // 1. KHAI BÁO THÊM SIGNIN MANAGER
+        private readonly SignInManager<ApplicationUser> _signInManager;
+
+        // 2. INJECT VÀO CONSTRUCTOR
+        public UserProfileController(
+            UserManager<ApplicationUser> userManager,
+            ApplicationDbContext context,
+            PhotoService photoService,
+            SignInManager<ApplicationUser> signInManager) // <--- Thêm tham số này
         {
             _userManager = userManager;
             _context = context;
             _photoService = photoService;
+            _signInManager = signInManager; // <--- Gán giá trị
         }
 
         // =========================================================================
@@ -55,6 +64,9 @@ namespace UniMarket.Controllers
             public string PhoneNumber { get; set; }
             public int FollowersCount { get; set; }
             public int FollowingCount { get; set; }
+            public bool IsPrivateAccount { get; set; }
+            public bool IsFollowing { get; set; }
+            public int TotalLikes { get; set; }
         }
 
         // ✅ DTO MỚI CHO POST
@@ -101,6 +113,218 @@ namespace UniMarket.Controllers
             public string? CurrentPassword { get; set; }
             public string NewPassword { get; set; } = string.Empty;
             public string ConfirmNewPassword { get; set; } = string.Empty;
+        }
+        public class SocialLinkDto
+        {
+            public string Provider { get; set; }
+            public bool IsLinked { get; set; }
+            public string? LinkedDate { get; set; }
+            public string? ProfileUrl { get; set; } // 👈 Thêm trường này để trả về Link cho Frontend
+        }
+
+        public class LinkSocialModel
+        {
+            public string Provider { get; set; }
+            public string? Url { get; set; } 
+        }
+        public class PrivacyUpdateModel
+        {
+            public bool IsPrivateAccount { get; set; }
+        }
+        // 1. Lấy trạng thái riêng tư hiện tại
+        [HttpGet("privacy")]
+        public async Task<IActionResult> GetPrivacy()
+        {
+            // Lấy ID user từ Token
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
+
+            // Trả về trạng thái hiện tại
+            return Ok(new { isPrivateAccount = user.IsPrivateAccount });
+        }
+
+        // 2. Cập nhật trạng thái riêng tư (Bật/Tắt)
+        [HttpPut("privacy")]
+        public async Task<IActionResult> UpdatePrivacy([FromBody] PrivacyUpdateModel model)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
+
+            // Cập nhật giá trị
+            user.IsPrivateAccount = model.IsPrivateAccount;
+
+            // Lưu thay đổi vào DB thông qua UserManager
+            var result = await _userManager.UpdateAsync(user);
+
+            if (!result.Succeeded)
+                return BadRequest(new { message = "Cập nhật thất bại.", errors = result.Errors });
+
+            return Ok(new
+            {
+                message = model.IsPrivateAccount ? "Đã chuyển sang tài khoản riêng tư." : "Đã chuyển sang tài khoản công khai.",
+                isPrivateAccount = user.IsPrivateAccount
+            });
+        }
+
+        // =========================================================================
+        // API QUẢN LÝ THIẾT BỊ (DEVICES)
+        // =========================================================================
+        [HttpGet("devices")]
+        public async Task<IActionResult> GetUserDevices()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // Sắp xếp: Thiết bị hiện tại lên đầu, sau đó đến ngày đăng nhập gần nhất
+            var devices = await _context.UserDevices
+                .Where(d => d.UserId == userId)
+                .OrderByDescending(d => d.IsCurrent)
+                .ThenByDescending(d => d.LastLogin)
+                .Select(d => new
+                {
+                    d.Id,
+                    d.DeviceName,
+                    d.Location,
+                    d.LastLogin,
+                    d.IsCurrent // True nếu là thiết bị đang dùng request này
+                })
+                .ToListAsync();
+
+            return Ok(devices);
+        }
+
+        // 3. Xóa (Đăng xuất) thiết bị theo ID
+        [HttpDelete("devices/{id}")]
+        public async Task<IActionResult> DeleteDevice(int id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            // Tìm thiết bị trong DB
+            // QUAN TRỌNG: Phải kiểm tra UserId để đảm bảo user chỉ xóa được thiết bị của chính mình
+            var device = await _context.UserDevices
+                                       .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+
+            if (device == null)
+            {
+                return NotFound(new { message = "Thiết bị không tồn tại hoặc không thuộc về bạn." });
+            }
+
+            // Xóa khỏi DB
+            _context.UserDevices.Remove(device);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Đã đăng xuất thiết bị thành công." });
+        }
+        // --- API 1: LẤY DANH SÁCH LIÊN KẾT ---
+        [HttpGet("social-links")]
+        public async Task<IActionResult> GetSocialLinks()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // 1. Lấy danh sách các link user đã lưu trong DB
+            var userLinks = await _context.UserSocialLinks
+                                          .Where(x => x.UserId == userId)
+                                          .ToListAsync();
+
+            // 2. Định nghĩa danh sách các mạng xã hội hệ thống hỗ trợ
+            var supportedProviders = new List<string> { "Facebook", "Google", "Instagram", "TikTok" };
+
+            // 3. Map dữ liệu để trả về (Kết hợp danh sách hỗ trợ + dữ liệu DB)
+            // Trong method GetSocialLinks:
+            var result = supportedProviders.Select(provider => {
+                var link = userLinks.FirstOrDefault(x => x.Provider == provider);
+                return new SocialLinkDto
+                {
+                    Provider = provider,
+                    IsLinked = link != null,
+                    LinkedDate = link?.LinkedAt.ToString("dd/MM/yyyy"),
+                    ProfileUrl = link?.ProfileUrl // 👈 Map dữ liệu từ DB ra
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+
+        // --- API 2: LẤY DANH SÁCH LIÊN KẾT CÔNG KHAI (Cho người khác xem) ---
+        [HttpGet("public-social-links/{targetUserId}")]
+        public async Task<IActionResult> GetPublicSocialLinks(string targetUserId)
+        {
+            if (string.IsNullOrEmpty(targetUserId))
+            {
+                return BadRequest("Vui lòng cung cấp User ID.");
+            }
+
+            // 1. Lấy danh sách các link user mục tiêu đã lưu trong DB
+            var userLinks = await _context.UserSocialLinks
+                                          .Where(x => x.UserId == targetUserId)
+                                          .ToListAsync();
+
+            // 2. Chỉ trả về những tài khoản ĐÃ LIÊN KẾT
+            // (Khác với API trên: không cần trả về danh sách false/chưa liên kết)
+            var result = userLinks.Select(link => new SocialLinkDto
+            {
+                Provider = link.Provider,
+                IsLinked = true,
+                LinkedDate = link.LinkedAt.ToString("dd/MM/yyyy"),
+                ProfileUrl = link.ProfileUrl
+            }).ToList();
+
+            return Ok(result);
+        }
+
+        // --- API 2: LIÊN KẾT / HỦY LIÊN KẾT (TOGGLE) ---
+        [HttpPost("toggle-social")]
+        public async Task<IActionResult> ToggleSocialLink([FromBody] LinkSocialModel model)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var existingLink = await _context.UserSocialLinks
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.Provider == model.Provider);
+
+            // TRƯỜNG HỢP 1: NẾU ĐÃ CÓ LINK -> CẬP NHẬT URL MỚI HOẶC XÓA (Tùy logic, ở đây mình làm Cập nhật/Thêm mới)
+            // Nếu bạn muốn nút này vừa là thêm, vừa là cập nhật:
+
+            if (existingLink != null)
+            {
+                // Nếu user gửi chuỗi rỗng lên thì coi như là HỦY LIÊN KẾT
+                if (string.IsNullOrEmpty(model.Url))
+                {
+                    _context.UserSocialLinks.Remove(existingLink);
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = $"Đã hủy liên kết {model.Provider}", isLinked = false });
+                }
+                else
+                {
+                    // Cập nhật lại Link mới
+                    existingLink.ProfileUrl = model.Url;
+                    existingLink.LinkedAt = DateTime.UtcNow; // Cập nhật lại ngày nếu muốn
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = $"Đã cập nhật liên kết {model.Provider}!", isLinked = true });
+                }
+            }
+            else
+            {
+                // TRƯỜNG HỢP 2: CHƯA CÓ -> THÊM MỚI
+                if (string.IsNullOrEmpty(model.Url)) return BadRequest(new { message = "Vui lòng nhập đường dẫn liên kết." });
+
+                var newLink = new UserSocialLink
+                {
+                    UserId = userId,
+                    Provider = model.Provider,
+                    LinkedAt = DateTime.UtcNow,
+                    ExternalUserId = "manual-add",
+                    ProfileUrl = model.Url // 👈 Lưu Url user nhập vào DB
+                };
+
+                _context.UserSocialLinks.Add(newLink);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = $"Đã liên kết {model.Provider} thành công!", isLinked = true });
+            }
         }
 
         // =========================================================================
@@ -239,23 +463,120 @@ namespace UniMarket.Controllers
             return Ok(new { hasPassword });
         }
 
+        // =========================================================================
+        // API XÓA TÀI KHOẢN (SOFT DELETE + ANONYMIZATION)
+        // =========================================================================
         [HttpDelete("delete")]
+        [Authorize]
         public async Task<IActionResult> DeleteAccount()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-                return Unauthorized(new { message = "User is not authenticated." });
+            if (string.IsNullOrEmpty(userId)) return Unauthorized(new { message = "Bạn chưa đăng nhập." });
 
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
-                return NotFound(new { message = "User not found." });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
-            var result = await _userManager.DeleteAsync(user);
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            if (!result.Succeeded)
-                return BadRequest(new { message = "Không thể xóa tài khoản.", errors = result.Errors });
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using (var transaction = await _context.Database.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        // 1.1. Xóa Token, Thiết bị, Social Link
+                        var userTokens = _context.UserTokens.Where(ut => ut.UserId == userId);
+                        _context.UserTokens.RemoveRange(userTokens);
 
-            return Ok(new { message = "Tài khoản đã được xóa thành công." });
+                        var devices = _context.UserDevices.Where(d => d.UserId == userId);
+                        _context.UserDevices.RemoveRange(devices);
+
+                        var socialLinks = _context.UserSocialLinks.Where(sl => sl.UserId == userId);
+                        _context.UserSocialLinks.RemoveRange(socialLinks);
+
+                        // 1.2. Xóa Lịch sử tìm kiếm & Thông báo
+                        var history = _context.SearchHistories.Where(h => h.UserId == userId);
+                        _context.SearchHistories.RemoveRange(history);
+
+                        // --- SỬA LỖI TẠI ĐÂY: Dùng ReceiverId thay vì UserId ---
+                        var notis = _context.UserNotifications.Where(n => n.ReceiverId == userId);
+                        _context.UserNotifications.RemoveRange(notis);
+
+                        // 1.3. Xóa Follow
+                        var follows = _context.Follows.Where(f => f.FollowerId == userId || f.FollowingId == userId);
+                        _context.Follows.RemoveRange(follows);
+
+                        // 1.4. Xóa Bookmark
+                        var saves = _context.VideoTinDangSaves.Where(s => s.MaNguoiDung == userId);
+                        _context.VideoTinDangSaves.RemoveRange(saves);
+
+                        // 1.5. Xóa Chặn (Dùng đúng tên cột BlockerId/BlockedId như đã sửa ở turn trước)
+                        var blocks = _context.BlockedUsers.Where(b => b.BlockerId == userId || b.BlockedId == userId);
+                        _context.BlockedUsers.RemoveRange(blocks);
+
+                        // 2. SOFT DELETE TinDang
+                        var myPosts = await _context.TinDangs
+                                            .Where(t => t.MaNguoiBan == userId && !t.IsDeleted)
+                                            .ToListAsync();
+
+                        foreach (var post in myPosts)
+                        {
+                            post.IsDeleted = true;
+                            // post.DeletedAt = DateTime.UtcNow; // Nếu model TinDang có cột này
+                        }
+
+                        // 3. ANONYMIZATION USER
+                        /* if (!string.IsNullOrEmpty(user.AvatarUrl))
+                        {
+                            try { await _photoService.DeleteMediaByUrlAsync(user.AvatarUrl); } catch { }
+                        } */
+
+                        string deletedToken = $"deleted_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+                        user.UserName = deletedToken;
+                        user.NormalizedUserName = deletedToken.ToUpper();
+                        user.Email = $"{deletedToken}@deleted.unimarket";
+                        user.NormalizedEmail = user.Email.ToUpper();
+                        user.FullName = "Người dùng đã xóa";
+                        user.AvatarUrl = "https://your-domain.com/default-avatar.png";
+                        user.Address = null;
+                        user.Age = null;
+                        user.PhoneNumber = null;
+                        user.PasswordHash = null;
+                        user.SecurityStamp = Guid.NewGuid().ToString();
+                        user.IsOnline = false;
+                        user.LastOnlineTime = null;
+                        user.IsDeleted = true;
+                        user.DeletedAt = DateTime.UtcNow;
+
+                        // 4. LƯU DB & LOGOUT
+                        var updateResult = await _userManager.UpdateAsync(user);
+                        if (!updateResult.Succeeded)
+                        {
+                            await transaction.RollbackAsync();
+                            return BadRequest(new { message = "Lỗi cập nhật trạng thái xóa.", errors = updateResult.Errors });
+                        }
+
+                        var roles = await _userManager.GetRolesAsync(user);
+                        if (roles.Count > 0)
+                        {
+                            await _userManager.RemoveFromRolesAsync(user, roles);
+                        }
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        // --- ĐÃ CÓ BIẾN NÀY ĐỂ DÙNG ---
+                        await _signInManager.SignOutAsync();
+
+                        return Ok(new { message = "Tài khoản đã được xóa thành công." });
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        return StatusCode(500, new { message = "Lỗi hệ thống.", error = ex.Message });
+                    }
+                }
+            });
         }
 
         [HttpPut("update-avatar")]
@@ -334,45 +655,86 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetUserPosts(string userId)
         {
-            var posts = await _context.TinDangs
-                .AsNoTracking() // Tối ưu hiệu suất
-                .Where(t => t.MaNguoiBan == userId && t.TrangThai == TrangThaiTinDang.DaDuyet)
-                .Include(t => t.AnhTinDangs) // ✅ Join lấy ảnh
-                .Include(t => t.TinhThanh)   // ✅ Join lấy tên Tỉnh
-                .Include(t => t.QuanHuyen)   // ✅ Join lấy tên Huyện
-                .OrderByDescending(t => t.NgayDang)
-                .Select(t => new UserPostDto
+            var targetUser = await _userManager.FindByIdAsync(userId);
+            if (targetUser == null) return NotFound(new { message = "Không tìm thấy người dùng." });
+
+            string? currentUserId = null;
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                currentUserId = _userManager.GetUserId(User);
+            }
+
+            // =========================================================================
+            // 🔥 SỬA LẠI LOGIC RIÊNG TƯ: Check thêm bảng Follows
+            // =========================================================================
+            bool isAllowedToView = true;
+
+            // Nếu là chính chủ -> Được xem
+            if (currentUserId == userId)
+            {
+                isAllowedToView = true;
+            }
+            // Nếu là tài khoản công khai -> Được xem
+            else if (!targetUser.IsPrivateAccount)
+            {
+                isAllowedToView = true;
+            }
+            // Nếu là tài khoản riêng tư -> Phải check xem đã Follow và được Accept chưa
+            else
+            {
+                if (currentUserId == null) // Chưa đăng nhập mà đòi xem riêng tư -> Chặn
                 {
-                    MaTinDang = t.MaTinDang,
-                    TieuDe = t.TieuDe,
+                    isAllowedToView = false;
+                }
+                else
+                {
+                    // Check trong Database
+                    var isFollowing = await _context.Follows
+                        .AnyAsync(f => f.FollowerId == currentUserId
+                                    && f.FollowingId == userId
+                                    && f.Status == FollowStatus.Accepted); // Quan trọng là Accepted
 
-                    // ✅ [FIX LỖI TẠI ĐÂY] Ép kiểu từ decimal sang double
-                    Gia = (double)t.Gia,
+                    isAllowedToView = isFollowing;
+                }
+            }
 
-                    MoTa = t.MoTa,
+            // Nếu không được phép xem -> Trả về rỗng
+            if (!isAllowedToView)
+            {
+                return Ok(new List<UserPostDto>());
+            }
+            // =========================================================================
 
-                    // ✅ Map VideoUrl sang VideoDuongDan
-                    VideoDuongDan = t.VideoUrl,
-
-                    // ✅ Xử lý địa chỉ
-                    KhuVuc = (t.QuanHuyen != null ? t.QuanHuyen.TenQuanHuyen : "") +
-                             (t.QuanHuyen != null && t.TinhThanh != null ? ", " : "") +
-                             (t.TinhThanh != null ? t.TinhThanh.TenTinhThanh : ""),
-
-                    NgayDang = t.NgayDang,
-                    TinhTrang = t.TinhTrang,
-
-                    // ✅ Xử lý ảnh
-                    AnhDuongDans = t.AnhTinDangs
-                        .OrderBy(a => a.Order)
-                        .Select(a => a.DuongDan.StartsWith("http")
-                            ? a.DuongDan
-                            : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}"))
-                        .ToList(),
-
-                    SoLuongTym = t.TinDangYeuThichs.Count()
-                })
-                .ToListAsync();
+            // ... (Code query dữ liệu giữ nguyên như cũ)
+            var posts = await _context.TinDangs
+                  .AsNoTracking()
+                  .Where(t => t.MaNguoiBan == userId && t.TrangThai == TrangThaiTinDang.DaDuyet)
+                  .Include(t => t.AnhTinDangs)
+                  .Include(t => t.TinhThanh)
+                  .Include(t => t.QuanHuyen)
+                  .Include(t => t.TinDangYeuThichs)
+                  .OrderByDescending(t => t.NgayDang)
+                  .Select(t => new UserPostDto
+                  {
+                      MaTinDang = t.MaTinDang,
+                      TieuDe = t.TieuDe,
+                      Gia = (double)t.Gia,
+                      MoTa = t.MoTa,
+                      VideoDuongDan = t.VideoUrl,
+                      KhuVuc = (t.QuanHuyen != null ? t.QuanHuyen.TenQuanHuyen : "") +
+                               (t.QuanHuyen != null && t.TinhThanh != null ? ", " : "") +
+                               (t.TinhThanh != null ? t.TinhThanh.TenTinhThanh : ""),
+                      NgayDang = t.NgayDang,
+                      TinhTrang = t.TinhTrang,
+                      AnhDuongDans = t.AnhTinDangs
+                          .OrderBy(a => a.Order)
+                          .Select(a => a.DuongDan.StartsWith("http")
+                              ? a.DuongDan
+                              : (a.DuongDan.StartsWith("/") ? a.DuongDan : $"/images/Posts/{a.DuongDan}"))
+                          .ToList(),
+                      SoLuongTym = t.TinDangYeuThichs.Count()
+                  })
+                  .ToListAsync();
 
             return Ok(posts);
         }
@@ -382,30 +744,57 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetUserVideos(string userId)
         {
+            var targetUser = await _userManager.FindByIdAsync(userId);
+            if (targetUser == null) return NotFound(new { message = "Không tìm thấy người dùng." });
+
             string? currentUserId = null;
             if (User.Identity?.IsAuthenticated == true)
             {
                 currentUserId = _userManager.GetUserId(User);
             }
 
+            // =========================================================================
+            // 🔥 SỬA LẠI LOGIC RIÊNG TƯ
+            // =========================================================================
+            bool isAllowedToView = true;
+
+            if (currentUserId == userId) isAllowedToView = true;
+            else if (!targetUser.IsPrivateAccount) isAllowedToView = true;
+            else
+            {
+                if (currentUserId == null) isAllowedToView = false;
+                else
+                {
+                    isAllowedToView = await _context.Follows
+                        .AnyAsync(f => f.FollowerId == currentUserId
+                                    && f.FollowingId == userId
+                                    && f.Status == FollowStatus.Accepted);
+                }
+            }
+
+            if (!isAllowedToView)
+            {
+                return Ok(new List<UserVideoDto>());
+            }
+            // =========================================================================
+
+            // ... (Code query dữ liệu giữ nguyên)
             var videos = await _context.TinDangs
                 .AsNoTracking()
-                .Where(t => t.MaNguoiBan == userId && t.VideoUrl != null && t.TrangThai == TrangThaiTinDang.DaDuyet)
+                .Where(t => t.MaNguoiBan == userId
+                            && t.VideoUrl != null
+                            && t.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Select(t => new UserVideoDto
                 {
                     MaTinDang = t.MaTinDang,
                     TieuDe = t.TieuDe,
                     VideoDuongDan = t.VideoUrl,
                     AnhBia = t.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault(),
-
-                    // 👇 SỬA LẠI DÒNG NÀY: Truy vấn trực tiếp từ bảng VideoLikes
                     SoLuongTym = _context.VideoLikes.Count(v => v.MaTinDang == t.MaTinDang),
-
                     Views = t.SoLuotXem,
                     CreatedAt = t.NgayDang,
-
-                    // 👇 SỬA LẠI DÒNG NÀY: Truy vấn trực tiếp từ bảng VideoLikes
-                    DaTym = currentUserId != null && _context.VideoLikes.Any(v => v.MaTinDang == t.MaTinDang && v.UserId == currentUserId)
+                    DaTym = currentUserId != null
+                            && _context.VideoLikes.Any(v => v.MaTinDang == t.MaTinDang && v.UserId == currentUserId)
                 })
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync();
@@ -418,12 +807,43 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetUserInfo(string userId)
         {
+            // 1. Tìm User
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return NotFound();
 
-            var followersCount = await _context.Follows.CountAsync(f => f.FollowingId == userId);
-            var followingCount = await _context.Follows.CountAsync(f => f.FollowerId == userId);
+            // 2. Đếm follow (QUAN TRỌNG: Chỉ đếm trạng thái Accepted)
+            // Code cũ của bạn bị thiếu điều kiện Status == Accepted nên nó đếm cả Pending
+            var followersCount = await _context.Follows
+                .CountAsync(f => f.FollowingId == userId && f.Status == FollowStatus.Accepted);
 
+            var followingCount = await _context.Follows
+                .CountAsync(f => f.FollowerId == userId && f.Status == FollowStatus.Accepted);
+
+            // 3. Logic tính Likes (Giữ nguyên)
+            var totalLikes = await _context.VideoLikes
+                .Include(v => v.TinDang)
+                .Where(v => v.TinDang.MaNguoiBan == userId)
+                .CountAsync();
+
+            // 4. Check trạng thái Follow giữa người xem và profile hiện tại
+            bool isFollowing = false;
+            bool isPending = false; // Biến này giúp frontend hiển thị nút "Đã gửi yêu cầu"
+
+            var currentViewerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentViewerId))
+            {
+                var followRecord = await _context.Follows
+                    .FirstOrDefaultAsync(f => f.FollowingId == userId && f.FollowerId == currentViewerId);
+
+                if (followRecord != null)
+                {
+                    isFollowing = (followRecord.Status == FollowStatus.Accepted);
+                    isPending = (followRecord.Status == FollowStatus.Pending);
+                }
+            }
+
+            // 5. Trả về kết quả
+            // Lưu ý: DTO của bạn cần có thêm trường IsPending để frontend xử lý chính xác hơn (nếu chưa có thì thêm vào class UserInfoDto)
             var result = new UserInfoDto
             {
                 Id = user.Id,
@@ -433,7 +853,12 @@ namespace UniMarket.Controllers
                 DaXacMinhEmail = user.EmailConfirmed,
                 PhoneNumber = user.PhoneNumber,
                 FollowersCount = followersCount,
-                FollowingCount = followingCount
+                FollowingCount = followingCount,
+                IsPrivateAccount = user.IsPrivateAccount,
+                IsFollowing = isFollowing,
+                // Nếu DTO chưa có IsPending, bạn có thể tạm thời không trả về hoặc thêm property này vào DTO
+                // IsPending = isPending, 
+                TotalLikes = totalLikes
             };
 
             return Ok(result);

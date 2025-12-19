@@ -34,213 +34,327 @@ namespace UniMarket.Controllers
         }
 
         // =========================================================================================
-        // 1. API TOGGLE FOLLOW (Logic: Follow/Unfollow & Thông báo)
+        // 0. HÀM PHỤ TRỢ (HELPER) - KIỂM TRA QUYỀN XEM NỘI DUNG
+        // =========================================================================================
+
+        /// <summary>
+        /// Logic: True nếu là chính mình HOẶC tài khoản công khai HOẶC đã follow và được CHẤP NHẬN.
+        /// </summary>
+        private async Task<bool> CanViewContent(string currentUserId, string targetUserId)
+        {
+            // 1. Nếu xem của chính mình -> Luôn được phép
+            if (currentUserId == targetUserId) return true;
+
+            // 2. Kiểm tra user đích có tồn tại không
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null) return false;
+
+            // 3. Nếu tài khoản KHÔNG riêng tư (Công khai) -> Ai cũng xem được
+            if (!targetUser.IsPrivateAccount) return true;
+
+            // 4. Nếu là tài khoản riêng tư -> Phải đang follow VÀ trạng thái là ACCEPTED
+            var isAcceptedFollower = await _context.Follows
+                .AnyAsync(f => f.FollowingId == targetUserId
+                            && f.FollowerId == currentUserId
+                            && f.Status == FollowStatus.Accepted);
+
+            return isAcceptedFollower;
+        }
+
+        // =========================================================================================
+        // 1. API TOGGLE FOLLOW (XỬ LÝ LOGIC RIÊNG TƯ / CÔNG KHAI)
         // =========================================================================================
         [HttpPost("toggle")]
         public async Task<IActionResult> ToggleFollow([FromQuery] string targetUserId)
         {
-            // Lấy UserID hiện tại
             var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId)) return Unauthorized("Vui lòng đăng nhập.");
+            if (currentUserId == targetUserId) return BadRequest("Không thể follow chính mình.");
 
-            if (string.IsNullOrEmpty(currentUserId))
-                return Unauthorized("Vui lòng đăng nhập để thực hiện chức năng này.");
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null) return NotFound("Người dùng không tồn tại.");
 
-            if (currentUserId == targetUserId)
-                return BadRequest("Không thể follow chính mình.");
-
-            // Kiểm tra xem user đích có tồn tại không
-            var targetUserExists = await _context.Users.AnyAsync(u => u.Id == targetUserId);
-            if (!targetUserExists)
-                return NotFound("Người dùng không tồn tại.");
-
-            // Kiểm tra trạng thái follow hiện tại
+            // Kiểm tra follow hiện tại
             var existingFollow = await _context.Follows
                 .FirstOrDefaultAsync(f => f.FollowerId == currentUserId && f.FollowingId == targetUserId);
 
-            bool isFollowedNow;
+            bool isFollowedNow = false;
+            bool isPending = false;
+            int spamCooldownMinutes = 10; // Chống spam noti
 
             if (existingFollow != null)
             {
-                // --- TRƯỜNG HỢP 1: ĐANG FOLLOW -> HỦY FOLLOW (UNFOLLOW) ---
+                // --- TRƯỜNG HỢP UNFOLLOW / HỦY YÊU CẦU ---
                 _context.Follows.Remove(existingFollow);
-                isFollowedNow = false;
 
-                // Xóa thông báo cũ khi Unfollow để dọn dẹp Database
-                try
+                // Logic xóa thông báo nếu chưa quá hạn spam
+                bool isSpamAction = existingFollow.FollowedAt > DateTime.UtcNow.AddMinutes(-spamCooldownMinutes);
+                if (!isSpamAction)
                 {
-                    var oldNoti = await _context.UserNotifications
-                        .FirstOrDefaultAsync(n => n.Type == NotificationType.Follow
-                                               && n.SenderId == currentUserId
-                                               && n.ReceiverId == targetUserId);
-                    if (oldNoti != null)
+                    var typeToDelete = (existingFollow.Status == FollowStatus.Pending)
+                                        ? NotificationType.FollowRequest
+                                        : NotificationType.Follow;
+                    try
                     {
-                        _context.UserNotifications.Remove(oldNoti);
+                        var oldNoti = await _context.UserNotifications
+                            .FirstOrDefaultAsync(n => n.Type == typeToDelete
+                                                    && n.SenderId == currentUserId
+                                                    && n.ReceiverId == targetUserId);
+                        if (oldNoti != null) _context.UserNotifications.Remove(oldNoti);
                     }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Lỗi xóa thông báo cũ: {ex.Message}");
+                    catch { /* Ignore */ }
                 }
             }
             else
             {
-                // --- TRƯỜNG HỢP 2: CHƯA FOLLOW -> THỰC HIỆN FOLLOW ---
+                // --- TRƯỜNG HỢP FOLLOW MỚI ---
                 var newFollow = new Follow
                 {
                     FollowerId = currentUserId,
                     FollowingId = targetUserId,
                     FollowedAt = DateTime.UtcNow
                 };
-                _context.Follows.Add(newFollow);
-                isFollowedNow = true;
 
-                // Gửi thông báo (Tránh Spam)
-                try
+                NotificationType notiType;
+                string notiContent;
+
+                if (targetUser.IsPrivateAccount)
                 {
-                    // 1. Tìm thông báo trùng
-                    var duplicateNoti = await _context.UserNotifications
-                        .FirstOrDefaultAsync(n => n.Type == NotificationType.Follow
-                                               && n.SenderId == currentUserId
-                                               && n.ReceiverId == targetUserId);
+                    // Nếu riêng tư -> Pending
+                    newFollow.Status = FollowStatus.Pending;
+                    isPending = true;
+                    isFollowedNow = false; // Chưa được gọi là follow chính thức
+                    notiType = NotificationType.FollowRequest;
+                    notiContent = "đã gửi yêu cầu theo dõi bạn.";
+                }
+                else
+                {
+                    // Nếu công khai -> Accepted
+                    newFollow.Status = FollowStatus.Accepted;
+                    isFollowedNow = true;
+                    isPending = false;
+                    notiType = NotificationType.Follow;
+                    notiContent = "đã bắt đầu follow bạn.";
+                }
 
-                    // 2. Nếu có rồi -> Xóa nó đi trước khi tạo cái mới
-                    if (duplicateNoti != null)
-                    {
-                        _context.UserNotifications.Remove(duplicateNoti);
-                        await _context.SaveChangesAsync();
-                    }
+                _context.Follows.Add(newFollow);
 
-                    // 3. Tạo thông báo mới
+                // Kiểm tra spam noti trước khi tạo
+                var existingNoti = await _context.UserNotifications
+                    .AnyAsync(n => n.SenderId == currentUserId
+                                && n.ReceiverId == targetUserId
+                                && n.Type == notiType);
+
+                if (!existingNoti)
+                {
                     await _notiService.CreateNotification(
                         senderId: currentUserId,
                         receiverId: targetUserId,
-                        type: NotificationType.Follow,
+                        type: notiType,
                         refId: null,
-                        content: "đã bắt đầu follow bạn"
+                        content: notiContent
                     );
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Lỗi xử lý thông báo follow: {ex.Message}");
                 }
             }
 
-            // Lưu tất cả thay đổi (Follow/Unfollow) vào DB
             await _context.SaveChangesAsync();
 
-            // Đếm lại tổng số follower
-            var newFollowerCount = await _context.Follows.CountAsync(f => f.FollowingId == targetUserId);
+            // --- QUAN TRỌNG: ĐẾM LẠI ---
+            // Chỉ đếm những người có Status == Accepted
+            // Nếu vừa gửi yêu cầu (Pending), count sẽ KHÔNG tăng -> Đúng logic
+            var newFollowerCount = await _context.Follows
+                .CountAsync(f => f.FollowingId == targetUserId && f.Status == FollowStatus.Accepted);
 
             return Ok(new
             {
                 success = true,
                 isFollowed = isFollowedNow,
+                isPending = isPending,
                 newFollowerCount = newFollowerCount
             });
         }
 
         // =========================================================================================
-        // 2. API LẤY DANH SÁCH (ĐÃ SỬA: Hỗ trợ xem của người khác bằng targetUserId)
+        // 2. API XỬ LÝ YÊU CẦU THEO DÕI (DÀNH CHO CHỦ TÀI KHOẢN RIÊNG TƯ)
         // =========================================================================================
 
-        // ✅ Lấy danh sách mình/người khác đang follow (Following)
+        // Chấp nhận yêu cầu (Accept)
+        [HttpPost("accept-request")]
+        public async Task<IActionResult> AcceptRequest([FromQuery] string requesterId)
+        {
+            var currentUserId = GetUserId(); // Tôi (người được follow)
+
+            var followRequest = await _context.Follows
+                .FirstOrDefaultAsync(f => f.FollowerId == requesterId
+                                       && f.FollowingId == currentUserId
+                                       && f.Status == FollowStatus.Pending);
+
+            if (followRequest == null)
+                return NotFound("Yêu cầu không tồn tại hoặc đã được xử lý.");
+
+            // 1. Cập nhật trạng thái thành Accepted
+            followRequest.Status = FollowStatus.Accepted;
+            followRequest.FollowedAt = DateTime.UtcNow;
+
+            // 2. Gửi thông báo cho người yêu cầu biết
+            await _notiService.CreateNotification(
+                senderId: currentUserId,
+                receiverId: requesterId,
+                type: NotificationType.FollowAccepted,
+                refId: null,
+                content: "đã chấp nhận yêu cầu theo dõi của bạn."
+            );
+
+            // 3. Đánh dấu thông báo "Yêu cầu theo dõi" cũ là đã đọc (hoặc xử lý)
+            var requestNoti = await _context.UserNotifications
+                .FirstOrDefaultAsync(n => n.SenderId == requesterId
+                                       && n.ReceiverId == currentUserId
+                                       && n.Type == NotificationType.FollowRequest);
+            if (requestNoti != null)
+            {
+                requestNoti.IsRead = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = "Đã chấp nhận yêu cầu." });
+        }
+
+        // Từ chối yêu cầu (Decline)
+        [HttpPost("decline-request")]
+        public async Task<IActionResult> DeclineRequest([FromQuery] string requesterId)
+        {
+            var currentUserId = GetUserId();
+
+            var followRequest = await _context.Follows
+                .FirstOrDefaultAsync(f => f.FollowerId == requesterId
+                                       && f.FollowingId == currentUserId
+                                       && f.Status == FollowStatus.Pending);
+
+            if (followRequest != null)
+            {
+                _context.Follows.Remove(followRequest);
+
+                // Xóa thông báo yêu cầu cho sạch
+                var noti = await _context.UserNotifications
+                    .FirstOrDefaultAsync(n => n.SenderId == requesterId
+                                           && n.ReceiverId == currentUserId
+                                           && n.Type == NotificationType.FollowRequest);
+                if (noti != null) _context.UserNotifications.Remove(noti);
+
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new { success = true, message = "Đã xóa yêu cầu." });
+        }
+
+        // =========================================================================================
+        // 3. API LẤY DANH SÁCH (CÓ CHECK QUYỀN + LỌC TRẠNG THÁI ACCEPTED)
+        // =========================================================================================
+
+        // ✅ Lấy danh sách Following (Những người user này đang theo dõi và ĐÃ ĐƯỢC CHẤP NHẬN)
         [HttpGet("following")]
         public async Task<IActionResult> GetFollowing([FromQuery] string? targetUserId)
         {
-            var currentUserId = GetUserId(); // Người đang thực hiện hành động xem (VD: Bạn)
+            var currentUserId = GetUserId();
             if (currentUserId == null) return Unauthorized();
 
-            // Người mà chúng ta đang xem danh sách của họ
             var idToCheck = string.IsNullOrEmpty(targetUserId) ? currentUserId : targetUserId;
 
+            // --- KIỂM TRA QUYỀN RIÊNG TƯ ---
+            var canView = await CanViewContent(currentUserId, idToCheck);
+            if (!canView)
+            {
+                return StatusCode(403, "Tài khoản này là riêng tư. Bạn cần Follow để xem danh sách.");
+            }
+
             var following = await _context.Follows
-                .Where(f => f.FollowerId == idToCheck)
+                .Where(f => f.FollowerId == idToCheck && f.Status == FollowStatus.Accepted) // CHỈ LẤY ACCEPTED
                 .Include(f => f.Following)
                 .Select(f => new
                 {
                     f.FollowingId,
+                    Id = f.Following.Id,
                     f.Following.FullName,
                     f.Following.AvatarUrl,
                     f.Following.UserName,
                     f.FollowedAt,
-                    // LOGIC MỚI: Kiểm tra xem 'currentUserId' (Bạn) có đang follow người này (f.FollowingId) không?
-                    IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId && x.FollowingId == f.FollowingId)
+                    // Kiểm tra xem currentUserId có đang follow người trong list này không (Accepted)
+                    IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId
+                                                        && x.FollowingId == f.FollowingId
+                                                        && x.Status == FollowStatus.Accepted)
                 })
                 .ToListAsync();
 
             return Ok(following);
         }
 
-        // ✅ Lấy danh sách ai đang follow mình/người khác (Followers)
+        // ✅ Lấy danh sách Followers (Những người đang theo dõi user này và ĐÃ ĐƯỢC CHẤP NHẬN)
         [HttpGet("followers")]
         public async Task<IActionResult> GetFollowers([FromQuery] string? targetUserId)
         {
-            var currentUserId = GetUserId(); // Người đang thực hiện hành động xem (VD: Bạn)
+            var currentUserId = GetUserId();
             if (currentUserId == null) return Unauthorized();
 
             var idToCheck = string.IsNullOrEmpty(targetUserId) ? currentUserId : targetUserId;
 
+            // --- KIỂM TRA QUYỀN RIÊNG TƯ ---
+            var canView = await CanViewContent(currentUserId, idToCheck);
+            if (!canView)
+            {
+                return StatusCode(403, "Tài khoản này là riêng tư. Bạn cần Follow để xem danh sách.");
+            }
+
             var followers = await _context.Follows
-                .Where(f => f.FollowingId == idToCheck)
+                .Where(f => f.FollowingId == idToCheck && f.Status == FollowStatus.Accepted) // CHỈ LẤY ACCEPTED
                 .Include(f => f.Follower)
                 .Select(f => new
                 {
                     f.FollowerId,
+                    Id = f.Follower.Id,
                     f.Follower.FullName,
                     f.Follower.AvatarUrl,
                     f.Follower.UserName,
                     f.FollowedAt,
-                    // LOGIC MỚI: Kiểm tra xem 'currentUserId' (Bạn) có đang follow người này (f.FollowerId) không?
-                    IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId && x.FollowingId == f.FollowerId)
+                    // Kiểm tra xem currentUserId có đang follow người trong list này không (Accepted)
+                    IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId
+                                                        && x.FollowingId == f.FollowerId
+                                                        && x.Status == FollowStatus.Accepted)
                 })
                 .ToListAsync();
 
             return Ok(followers);
         }
 
-        // ✅ API Đề xuất (Suggested) - Hỗ trợ ngữ cảnh Profile
+        // =========================================================================================
+        // 4. API ĐỀ XUẤT & TIỆN ÍCH KHÁC
+        // =========================================================================================
+
+        // ✅ API Đề xuất (Suggested)
         [HttpGet("suggested")]
         public async Task<IActionResult> GetSuggestedUsers([FromQuery] string? targetUserId)
         {
             var currentUserId = GetUserId();
             if (currentUserId == null) return Unauthorized();
 
-            // 1. Xác định xem đang lấy đề xuất dựa trên ID nào
-            // (Nếu xem profile người khác thì lấy đề xuất liên quan người đó, nếu xem chính mình thì lấy cho mình)
             var idToAnalyze = string.IsNullOrEmpty(targetUserId) ? currentUserId : targetUserId;
 
             try
             {
-                // 2. Lấy danh sách thô từ Service
                 var suggestions = await _recommendationService.GetSuggestedUsersAsync(idToAnalyze);
 
-                // =================================================================================
-                // ✅ BƯỚC QUAN TRỌNG: CHECK LẠI TRẠNG THÁI FOLLOW CỦA "TÔI" (CurrentUserId)
-                // =================================================================================
-
-                // Lấy danh sách những người mà TÔI đang follow
-                var myFollowingIds = await _context.Follows
+                // Lấy danh sách những người tôi đang có quan hệ (Kể cả Pending hay Accepted đều không nên gợi ý lại)
+                var myRelationshipIds = await _context.Follows
                     .AsNoTracking()
                     .Where(f => f.FollowerId == currentUserId)
                     .Select(f => f.FollowingId)
                     .ToListAsync();
 
-                // Duyệt qua danh sách đề xuất và cập nhật trạng thái IsFollowed
                 foreach (var user in suggestions)
                 {
-                    // Nếu ID của user đề xuất nằm trong danh sách tôi đang follow -> IsFollowed = true
-                    if (myFollowingIds.Contains(user.Id))
-                    {
-                        user.IsFollowed = true;
-                    }
-                    else
-                    {
-                        user.IsFollowed = false;
-                    }
+                    // Nếu đã có trong bảng Follow (dù Pending hay Accepted) thì đánh dấu IsFollowed = true
+                    // Để Frontend biết mà hiển thị (hoặc ẩn đi)
+                    user.IsFollowed = myRelationshipIds.Contains(user.Id);
                 }
-
-                // (Tùy chọn) Nếu bạn muốn ẩn luôn những người đã Follow khỏi mục đề xuất:
-                // suggestions = suggestions.Where(u => !u.IsFollowed).ToList();
 
                 return Ok(suggestions);
             }
@@ -250,37 +364,46 @@ namespace UniMarket.Controllers
             }
         }
 
-        // =========================================================================================
-        // 3. CÁC API KHÁC (Legacy / Utility)
-        // =========================================================================================
-
-        // ✅ Kiểm tra trạng thái follow cụ thể (cho trang Profile để hiện nút Follow/Following)
+        // ✅ Kiểm tra trạng thái follow cụ thể (Trả về chi tiết: Pending/Following)
         [HttpGet("is-following/{targetUserId}")]
         public async Task<IActionResult> IsFollowing(string targetUserId)
         {
             var userId = GetUserId();
-            if (userId == null) return Ok(new { isFollowing = false });
+            if (userId == null) return Ok(new { isFollowing = false, isPending = false });
 
-            var isFollowing = await _context.Follows
-                .AnyAsync(f => f.FollowerId == userId && f.FollowingId == targetUserId);
+            var followRecord = await _context.Follows
+                .FirstOrDefaultAsync(f => f.FollowerId == userId && f.FollowingId == targetUserId);
 
-            return Ok(new { isFollowing });
+            if (followRecord == null)
+            {
+                return Ok(new { isFollowing = false, isPending = false });
+            }
+
+            return Ok(new
+            {
+                isFollowing = followRecord.Status == FollowStatus.Accepted, // True chỉ khi đã Accepted
+                isPending = followRecord.Status == FollowStatus.Pending     // True nếu đang chờ duyệt
+            });
         }
 
-        // ✅ Lấy danh sách bạn bè (Mutual Follow - 2 người follow nhau - Của bản thân)
+        // ✅ Lấy danh sách bạn bè (Mutual Follow - 2 người đã ACCEPTED lẫn nhau)
         [HttpGet("mutual")]
         public async Task<IActionResult> GetMutualFollows()
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
 
+            // Lấy danh sách mình đang follow (Accepted)
             var myFollowingIds = await _context.Follows
-                .Where(f => f.FollowerId == userId)
+                .Where(f => f.FollowerId == userId && f.Status == FollowStatus.Accepted)
                 .Select(f => f.FollowingId)
                 .ToListAsync();
 
+            // Tìm những người follow mình (Accepted) VÀ nằm trong danh sách mình đang follow
             var mutualFriends = await _context.Follows
-                .Where(f => f.FollowingId == userId && myFollowingIds.Contains(f.FollowerId))
+                .Where(f => f.FollowingId == userId
+                         && f.Status == FollowStatus.Accepted
+                         && myFollowingIds.Contains(f.FollowerId))
                 .Include(f => f.Follower)
                 .Select(f => new
                 {
@@ -293,54 +416,22 @@ namespace UniMarket.Controllers
             return Ok(mutualFriends);
         }
 
-        // ✅ API Follow User (Legacy - Dùng cho các nút đơn lẻ cũ nếu còn)
+        // =========================================================================================
+        // 5. API LEGACY (Giữ lại để tương thích ngược nếu cần, nhưng đã update logic Accepted)
+        // =========================================================================================
+
         [HttpPost("follow")]
         public async Task<IActionResult> FollowUser([FromQuery] string followingId)
         {
-            var followerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (string.IsNullOrEmpty(followerId)) return Unauthorized();
-            if (followerId == followingId) return BadRequest("Không thể tự follow.");
-
-            var exists = await _context.Follows.AnyAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
-            if (exists) return BadRequest("Đã follow rồi.");
-
-            _context.Follows.Add(new Follow { FollowerId = followerId, FollowingId = followingId, FollowedAt = DateTime.UtcNow });
-
-            try
-            {
-                await _notiService.CreateNotification(
-                    senderId: followerId,
-                    receiverId: followingId,
-                    type: NotificationType.Follow,
-                    refId: null,
-                    content: "đã bắt đầu follow bạn"
-                );
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Lỗi gửi thông báo (Legacy API): {ex.Message}");
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Follow thành công" });
+            // Tốt nhất nên gọi lại logic của ToggleFollow để đồng bộ, nhưng đây là code độc lập
+            return await ToggleFollow(followingId);
         }
 
-        // ✅ API Unfollow User (Legacy)
         [HttpPost("unfollow")]
         public async Task<IActionResult> UnfollowUser([FromQuery] string followingId)
         {
-            var followerId = GetUserId();
-            if (followerId == null) return Unauthorized();
-
-            var follow = await _context.Follows.FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
-            if (follow == null) return NotFound("Chưa follow người này.");
-
-            _context.Follows.Remove(follow);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Unfollow thành công" });
+            // Tốt nhất nên gọi lại logic của ToggleFollow để đồng bộ
+            return await ToggleFollow(followingId);
         }
     }
 }

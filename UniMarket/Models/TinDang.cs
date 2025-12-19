@@ -18,6 +18,7 @@ namespace UniMarket.Models
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int MaTinDang { get; set; }
 
+        // --- Thông tin cơ bản ---
         [Required]
         [DisplayName("Mã người bán")]
         public string MaNguoiBan { get; set; }
@@ -47,6 +48,7 @@ namespace UniMarket.Models
         [DisplayName("Tình trạng")]
         public string TinhTrang { get; set; }
 
+        // --- Địa điểm ---
         [Required(ErrorMessage = "Địa chỉ không được để trống.")]
         [StringLength(255, ErrorMessage = "Địa chỉ không được vượt quá 255 ký tự.")]
         [DisplayName("Địa chỉ liên hệ")]
@@ -58,6 +60,7 @@ namespace UniMarket.Models
         [DisplayName("Mã quận/huyện")]
         public int? MaQuanHuyen { get; set; }
 
+        // --- Thời gian & Trạng thái hiển thị ---
         [DisplayName("Ngày đăng")]
         public DateTime NgayDang { get; set; } = DateTime.Now;
 
@@ -66,11 +69,12 @@ namespace UniMarket.Models
 
         [Required]
         [DisplayName("Trạng thái tin")]
-        public TrangThaiTinDang TrangThai { get; set; } = TrangThaiTinDang.ChoDuyet; // Mặc định là Chờ duyệt
+        public TrangThaiTinDang TrangThai { get; set; } = TrangThaiTinDang.ChoDuyet;
 
         [DisplayName("Ngày hẹn xóa")]
         public DateTime? NgayHenXoa { get; set; }
 
+        // --- Media & Thống kê ---
         [DisplayName("Đường dẫn video")]
         [StringLength(500, ErrorMessage = "Đường dẫn video không được vượt quá 500 ký tự.")]
         public string? VideoUrl { get; set; }
@@ -79,17 +83,23 @@ namespace UniMarket.Models
         public int SoLuotXem { get; set; } = 0;
 
         // ==========================================
+        // QUẢN LÝ XÓA MỀM (SOFT DELETE) - MỚI
+        // ==========================================
+        [DefaultValue(false)]
+        public bool IsDeleted { get; set; } = false; // True: Đã xóa, False: Còn hiển thị
+
+        public DateTime? DeletedAt { get; set; } // Thời điểm xóa
+
+        // ==========================================
         // KHU VỰC XỬ LÝ MONGODB (QUAN TRỌNG)
         // ==========================================
 
         // 1. Trường cũ: Đánh dấu NotMapped để SQL Server bỏ qua (Dữ liệu này giờ nằm bên Mongo)
-        // Giữ lại property này để hứng dữ liệu string nếu cần, nhưng không lưu vào DB SQL
         [NotMapped]
         [DisplayName("Thông tin chi tiết (JSON)")]
         public string? ThongTinChiTiet { get; set; }
 
         // 2. Trường mới: Dùng để chứa Object từ MongoDB khi trả về cho Frontend
-        // Frontend sẽ đọc dữ liệu từ property này
         [NotMapped]
         public object? ChiTietObj { get; set; }
 

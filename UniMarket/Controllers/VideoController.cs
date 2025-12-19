@@ -411,22 +411,50 @@ namespace UniMarket.Controllers
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null) return Unauthorized();
 
-            // Logic xác định ID mục tiêu tương tự
             var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
 
+            // =========================================================================
+            // 🔥 SỬA LẠI LOGIC RIÊNG TƯ
+            // =========================================================================
+            if (targetId != currentUser.Id)
+            {
+                var targetUser = await _userManager.FindByIdAsync(targetId);
+                if (targetUser == null) return NotFound(new { message = "Không tìm thấy người dùng." });
+
+                // Nếu riêng tư -> Check Follow
+                if (targetUser.IsPrivateAccount)
+                {
+                    // Kiểm tra xem "currentUser" (người xem) có đang follow "targetUser" (chủ profile) không
+                    var isAcceptedFollower = await _context.Follows
+                        .AnyAsync(f => f.FollowerId == currentUser.Id
+                                    && f.FollowingId == targetId
+                                    && f.Status == FollowStatus.Accepted);
+
+                    // Nếu KHÔNG follow -> Chặn
+                    if (!isAcceptedFollower)
+                    {
+                        return Ok(new List<object>());
+                    }
+                }
+            }
+            // =========================================================================
+
+            // ... (Code query dữ liệu giữ nguyên)
             var likedVideos = await _context.VideoLikes
-                .Where(v => v.UserId == targetId) // Lọc theo ID mục tiêu
+                .AsNoTracking()
+                .Where(v => v.UserId == targetId)
                 .OrderByDescending(v => v.CreatedAt)
                 .Select(v => new
                 {
                     v.MaTinDang,
                     v.TinDang.TieuDe,
                     v.TinDang.VideoUrl,
+                    AnhBia = v.TinDang.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault(),
                     Views = _context.VideoViews.Count(x => x.MaTinDang == v.MaTinDang),
                     v.TinDang.Gia,
-                    v.TinDang.DiaChi,
-                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
-                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+                    DiaChi = (v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : "") +
+                             (v.TinDang.QuanHuyen != null && v.TinDang.TinhThanh != null ? ", " : "") +
+                             (v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : ""),
                     SoTym = _context.VideoLikes.Count(x => x.MaTinDang == v.MaTinDang),
                     SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
                     NguoiDang = new
@@ -446,6 +474,7 @@ namespace UniMarket.Controllers
 
             return Ok(likedVideos);
         }
+
         [Authorize]
         [HttpPost("{maTinDang}/like")]
         public async Task<IActionResult> LikeOrUnlikeVideo(int maTinDang)

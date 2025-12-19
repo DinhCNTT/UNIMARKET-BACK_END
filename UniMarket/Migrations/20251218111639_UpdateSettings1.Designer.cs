@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UniMarket.DataAccess;
 
@@ -11,9 +12,11 @@ using UniMarket.DataAccess;
 namespace UniMarket.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251218111639_UpdateSettings1")]
+    partial class UpdateSettings1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -233,9 +236,6 @@ namespace UniMarket.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -249,9 +249,6 @@ namespace UniMarket.Migrations
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
 
                     b.Property<bool>("IsOnline")
                         .HasColumnType("bit");
@@ -486,9 +483,6 @@ namespace UniMarket.Migrations
                     b.Property<string>("FollowingId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -784,9 +778,6 @@ namespace UniMarket.Migrations
                     b.Property<bool>("CoTheThoaThuan")
                         .HasColumnType("bit");
 
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<string>("DiaChi")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -794,9 +785,6 @@ namespace UniMarket.Migrations
 
                     b.Property<decimal>("Gia")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
 
                     b.Property<int>("MaDanhMuc")
                         .HasColumnType("int");
@@ -1179,38 +1167,6 @@ namespace UniMarket.Migrations
                     b.HasIndex("SenderId");
 
                     b.ToTable("UserNotifications");
-                });
-
-            modelBuilder.Entity("UniMarket.Models.UserSocialLink", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ExternalUserId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("LinkedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ProfileUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserSocialLinks");
                 });
 
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>
@@ -1721,17 +1677,6 @@ namespace UniMarket.Migrations
                     b.Navigation("Receiver");
 
                     b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("UniMarket.Models.UserSocialLink", b =>
-                {
-                    b.HasOne("UniMarket.Models.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("UniMarket.Models.VideoTinDangSave", b =>

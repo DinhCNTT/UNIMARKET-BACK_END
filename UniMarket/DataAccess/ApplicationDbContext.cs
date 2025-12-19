@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion; // Cần thiết cho DateTimeOffsetConverter
 using UniMarket.Models;
 
 namespace UniMarket.DataAccess
@@ -55,10 +56,12 @@ namespace UniMarket.DataAccess
 
         // 🗨️ Chat state, Follow, Share, Hidden Chat
         public DbSet<UserChatState> UserChatStates { get; set; }
+        public DbSet<UserSocialLink> UserSocialLinks { get; set; }
         public DbSet<Share> Shares { get; set; }
         public DbSet<Follow> Follows { get; set; }
         public DbSet<UserHiddenConversation> UserHiddenConversations { get; set; }
         public DbSet<QuickMessage> QuickMessages { get; set; }
+        public DbSet<UserDevice> UserDevices { get; set; }
 
         // ==========================================================
         // 🔧 CONFIGURATION
@@ -66,6 +69,20 @@ namespace UniMarket.DataAccess
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // =================================================================
+            // 🛑 CẤU HÌNH GLOBAL QUERY FILTER (SOFT DELETE) - MỚI THÊM
+            // =================================================================
+
+            // 1. Tự động ẩn User đã xóa (IsDeleted = true) khỏi mọi câu truy vấn
+            modelBuilder.Entity<ApplicationUser>().HasQueryFilter(u => !u.IsDeleted);
+
+            // 2. Tự động ẩn Tin Đăng đã xóa (IsDeleted = true) khỏi mọi câu truy vấn
+            modelBuilder.Entity<TinDang>().HasQueryFilter(t => !t.IsDeleted);
+
+            // =================================================================
+            // ⚙️ CẤU HÌNH QUAN HỆ & KHÓA CHÍNH (LOGIC CŨ)
+            // =================================================================
 
             modelBuilder.Entity<UserHiddenConversation>(entity =>
             {
@@ -82,8 +99,7 @@ namespace UniMarket.DataAccess
                 entity.HasOne(d => d.TinNhanSocial)
                       .WithMany(t => t.DeletedForUsers)
                       .HasForeignKey(d => d.TinNhanSocialId)
-                      .OnDelete(DeleteBehavior.Restrict); // <-- THAY ĐỔI QUAN TRỌNG NHẤT
-                                                          // Ngăn chặn xóa dây chuyền từ TinNhanSocial
+                      .OnDelete(DeleteBehavior.Restrict); // <-- QUAN TRỌNG: Ngăn chặn xóa dây chuyền
 
                 // Quan hệ với User (giữ nguyên Cascade)
                 entity.HasOne(d => d.User)
@@ -100,7 +116,7 @@ namespace UniMarket.DataAccess
                 .OnDelete(DeleteBehavior.ClientSetNull); // Tránh xóa cascade vòng lặp
 
             // =================================================================
-            // CẤU HÌNH CHUYỂN ĐỔI MÚI GIỜ (DateTime -> DateTimeOffset)
+            // 🕒 CẤU HÌNH CHUYỂN ĐỔI MÚI GIỜ (DateTime -> DateTimeOffset)
             // =================================================================
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
@@ -116,7 +132,7 @@ namespace UniMarket.DataAccess
             }
 
             // =================================================================
-            // CÁC QUAN HỆ KHÁC (GIỮ NGUYÊN)
+            // 🔗 CÁC QUAN HỆ KHÁC (GIỮ NGUYÊN)
             // =================================================================
             modelBuilder.Entity<VideoLike>()
                 .HasOne(v => v.TinDang)
@@ -218,6 +234,7 @@ namespace UniMarket.DataAccess
                 entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
                 entity.Property(e => e.ChatId).IsRequired();
             });
+
             // Cấu hình cho các trường decimal
             modelBuilder.Entity<CuocTroChuyen>()
                 .Property(c => c.GiaTinDang)

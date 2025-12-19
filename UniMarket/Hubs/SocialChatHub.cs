@@ -188,13 +188,13 @@ public class SocialChatHub : Hub
         var userId = GetUserId();
         if (string.IsNullOrEmpty(userId)) return;
 
-        // ======================= LẤY NGƯỜI GỬI =======================
+        // ======================= 1. LẤY NGƯỜI GỬI =======================
         var sender = await _context.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId);
         if (sender == null) return;
 
-        // ======================= LẤY CUỘC TRÒ CHUYỆN =======================
+        // ======================= 2. LẤY CUỘC TRÒ CHUYỆN =======================
         var convo = await _context.CuocTroChuyenSocials
             .Include(c => c.NguoiThamGias).ThenInclude(n => n.User)
             .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
@@ -202,7 +202,7 @@ public class SocialChatHub : Hub
         if (convo == null) return;
 
         // ============================================================
-        // 🚫 KIỂM TRA TRẠNG THÁI CHẶN
+        // 🚫 3. KIỂM TRA TRẠNG THÁI CHẶN (BLOCK)
         // ============================================================
         if (convo.IsBlocked)
         {
@@ -215,7 +215,37 @@ public class SocialChatHub : Hub
         }
 
         // ============================================================
-        // ✨ TẠO TIN NHẮN MỚI
+        // 🚫 4. KIỂM TRA GIỚI HẠN SPAM (ANTI-SPAM CHECK)
+        // ============================================================
+        var partner = convo.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != userId);
+        if (partner != null)
+        {
+            // 4.1. Kiểm tra xem đối phương có follow mình không
+            var isFollowedBack = await _context.Follows
+                .AnyAsync(f => f.FollowerId == partner.MaNguoiDung && f.FollowingId == userId);
+
+            if (!isFollowedBack)
+            {
+                // 4.2. Lấy 3 tin nhắn gần nhất
+                // ⚠️ QUAN TRỌNG: KHÔNG check !IsRecalled. Tin thu hồi vẫn tính là 1 lần gửi.
+                var last3Messages = await _context.TinNhanSocials
+                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
+                    .OrderByDescending(t => t.ThoiGianGui)
+                    .Take(3)
+                    .Select(t => t.MaNguoiGui)
+                    .ToListAsync();
+
+                // 4.3. Nếu gửi quá 3 tin liên tiếp mà chưa được rep
+                if (last3Messages.Count >= 3 && last3Messages.All(senderId => senderId == userId))
+                {
+                    await Clients.Caller.SendAsync("ReceiveError", "Bạn đã đạt giới hạn tin nhắn. Việc xóa/thu hồi tin nhắn không giúp bạn gửi thêm được.");
+                    return; // ⛔ DỪNG LẠI NGAY
+                }
+            }
+        }
+
+        // ============================================================
+        // ✨ 5. TẠO TIN NHẮN MỚI (DB)
         // ============================================================
         var msg = new TinNhanSocial
         {
@@ -233,24 +263,25 @@ public class SocialChatHub : Hub
         convo.NgayCapNhat = DateTime.UtcNow;
 
         // ============================================================
-        // 🔄 CẬP NHẬT TRẠNG THÁI ẨN/HIỆN CHAT
+        // 🔄 6. CẬP NHẬT TRẠNG THÁI ẨN/HIỆN CHAT
         // ============================================================
+        // Hiện lại cho người gửi (nếu đang ẩn)
         var senderHidden = await _context.UserHiddenConversations
             .FirstOrDefaultAsync(h => h.UserId == userId && h.MaCuocTroChuyen == maCuocTroChuyen);
         if (senderHidden != null) senderHidden.HasReappeared = true;
 
-        var receiver = convo.NguoiThamGias.FirstOrDefault(p => p.MaNguoiDung != userId);
-        if (receiver != null)
+        // Hiện lại cho người nhận (nếu đang ẩn)
+        if (partner != null)
         {
             var receiverHidden = await _context.UserHiddenConversations
-                .FirstOrDefaultAsync(h => h.UserId == receiver.MaNguoiDung && h.MaCuocTroChuyen == maCuocTroChuyen);
+                .FirstOrDefaultAsync(h => h.UserId == partner.MaNguoiDung && h.MaCuocTroChuyen == maCuocTroChuyen);
             if (receiverHidden != null) receiverHidden.HasReappeared = true;
         }
 
-        await _context.SaveChangesAsync(); // lấy MaTinNhan
+        await _context.SaveChangesAsync(); // Lưu để lấy MaTinNhan
 
         // ============================================================
-        // 🔁 LẤY TIN NHẮN CHA (NẾU REPLY)
+        // 🔁 7. LẤY TIN NHẮN CHA (NẾU REPLY)
         // ============================================================
         TinNhanSocial? parentMessage = null;
         if (!string.IsNullOrEmpty(parentMessageId))
@@ -262,7 +293,7 @@ public class SocialChatHub : Hub
         }
 
         // ============================================================
-        // 🧩 SHARE TRONG TIN CHA (REPLY)
+        // 🧩 8. XỬ LÝ SHARE TRONG TIN CHA (REPLY) - REGEX
         // ============================================================
         object parentShareInfo = null;
         if (parentMessage != null && !parentMessage.IsRecalled)
@@ -290,7 +321,7 @@ public class SocialChatHub : Hub
         }
 
         // ============================================================
-        // 🧩 SHARE TRONG TIN CHÍNH
+        // 🧩 9. XỬ LÝ SHARE TRONG TIN CHÍNH - REGEX
         // ============================================================
         object mainShareInfo = null;
         var mainMatch = Regex.Match(msg.NoiDung ?? "", @"\[ShareId:(\d+):?.*?\]");
@@ -315,7 +346,7 @@ public class SocialChatHub : Hub
         }
 
         // ============================================================
-        // 📤 CHUẨN BỊ DỮ LIỆU GỬI REALTIME
+        // 📤 10. GỬI REALTIME MESSAGE (ReceiveMessage)
         // ============================================================
         var messageType = DetermineMessageType(msg.NoiDung, msg.MediaUrl);
 
@@ -349,12 +380,13 @@ public class SocialChatHub : Hub
             }
         };
 
-        // 🚀 Gửi realtime message cho nhóm hội thoại
+        // 🚀 Gửi cho những người đang online trong group chat này
         await Clients.Group(maCuocTroChuyen).SendAsync("ReceiveMessage", messageDto);
 
         // ============================================================
-        // 🔄 GỬI CẬP NHẬT CUỘC TRÒ CHUYỆN CHO CẢ HAI BÊN
+        // 🔄 11. GỬI CẬP NHẬT LIST HỘI THOẠI (CapNhatCuocTroChuyen)
         // ============================================================
+        // Lấy thông tin partner để gửi kèm trong DTO (dành cho người nhận hiển thị)
         var partnerParticipant = convo.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != userId);
         var partnerDto = partnerParticipant != null
             ? new
@@ -365,7 +397,7 @@ public class SocialChatHub : Hub
             }
             : null;
 
-        // ✅ Chuẩn bị payload cập nhật conversation
+        // Payload chung
         var payload = new
         {
             MaCuocTroChuyen = convo.MaCuocTroChuyen,
@@ -380,7 +412,7 @@ public class SocialChatHub : Hub
             Partner = partnerDto
         };
 
-        // ✅ Gửi cập nhật conversation cho tất cả người tham gia (2 bên)
+        // Gửi sự kiện cập nhật cho từng người tham gia (để cập nhật thanh bên trái)
         var sendTasks = convo.NguoiThamGias.Select(async participant =>
         {
             try
@@ -388,7 +420,7 @@ public class SocialChatHub : Hub
                 await Clients.User(participant.MaNguoiDung)
                     .SendAsync("CapNhatCuocTroChuyen", payload);
             }
-            catch { /* Bỏ qua nếu offline */ }
+            catch { /* Bỏ qua nếu user offline hoặc lỗi kết nối */ }
         });
 
         await Task.WhenAll(sendTasks);

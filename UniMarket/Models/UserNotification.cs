@@ -7,14 +7,15 @@ namespace UniMarket.Models
     // Enum định nghĩa các loại thông báo
     public enum NotificationType
     {
-        Like = 1,       // Ai đó thích bài/video
-        Comment = 2,    // Ai đó bình luận
-        Reply = 3,      // Ai đó trả lời bình luận
-        Follow = 4,     // Ai đó follow
-        System = 5,     // Hệ thống
-        Mention = 6     // Tag tên (@)
+        Like = 1,
+        Comment = 2,
+        Reply = 3,
+        Follow = 4,         
+        System = 5,
+        Mention = 6,
+        FollowRequest = 7,   
+        FollowAccepted = 8   
     }
-
     public class UserNotification
     {
         [Key]

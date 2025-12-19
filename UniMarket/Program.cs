@@ -45,16 +45,19 @@ builder.Services.AddSingleton(provider =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS ---
-var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+// --- CORS Configuration (Đã kết hợp Code 2) ---
+// Định nghĩa tên Policy
+var AllowReactAppPolicy = "AllowReactApp";
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(MyAllowSpecificOrigins, policy =>
+    options.AddPolicy(AllowReactAppPolicy, policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        // Cho phép cả port 3000 (React) và 5173 (Vite/Vue) để linh hoạt
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials(); // Quan trọng cho SignalR và Cookies
     });
 });
 
@@ -170,6 +173,7 @@ builder.Services.AddSwaggerGen(c =>
             new string[] { }
         }
     });
+    // Lưu ý: Đảm bảo class FileUploadOperationFilter tồn tại trong project của bạn
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
@@ -189,7 +193,7 @@ builder.Services.AddHostedService<AITrainingWorker>();
 
 // Logic AI Recommendation
 builder.Services.AddScoped<UserBehaviorService>();
-builder.Services.AddScoped<UserRecommendationService>(); // Từ code 2
+builder.Services.AddScoped<UserRecommendationService>();
 builder.Services.AddScoped<VideoRecommendationService>();
 builder.Services.AddSingleton<RecommendationEngine>();
 
@@ -268,7 +272,9 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseWebSockets();
 app.UseRouting();
-app.UseCors(MyAllowSpecificOrigins);
+
+// --- Kích hoạt CORS (Đặt trước Auth & Authorization) ---
+app.UseCors(AllowReactAppPolicy);
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

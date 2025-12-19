@@ -22,7 +22,7 @@ namespace UniMarket.Services
             _hubContext = hubContext;
         }
 
-        // 🔥 ĐÃ SỬA: Thêm tham số "int? entityId = null" vào cuối hàm để khớp với Interface và sửa lỗi "entityId does not exist"
+        // 🔥 CẬP NHẬT 1: Giữ nguyên fix thêm tham số "int? entityId = null"
         public async Task CreateNotification(string senderId, string receiverId, NotificationType type, int? refId, string content, int? entityId = null)
         {
             if (senderId == receiverId) return;
@@ -34,7 +34,7 @@ namespace UniMarket.Services
                 ReceiverId = receiverId,
                 Type = type,
                 ReferenceId = refId,
-                EntityId = entityId, // Bây giờ biến entityId đã hợp lệ
+                EntityId = entityId, // Lưu entityId (ví dụ: CommentId)
                 Content = content,
                 CreatedAt = DateTime.UtcNow,
                 IsRead = false
@@ -79,7 +79,7 @@ namespace UniMarket.Services
                 Type = type.ToString(),
                 Content = content,
                 ReferenceId = refId,
-                EntityId = entityId, // Gửi ID Comment xuống Client
+                EntityId = entityId, // Gửi ID Comment/Entity xuống Client
                 PostThumbnailUrl = postThumbnail,
                 IsRead = false,
                 CreatedAt = noti.CreatedAt,
@@ -102,9 +102,14 @@ namespace UniMarket.Services
                 case "comments":
                     query = query.Where(n => n.Type == NotificationType.Comment || n.Type == NotificationType.Reply);
                     break;
+
+                // 🔥 CẬP NHẬT 2: Bổ sung logic lọc cho Followers (bao gồm Request và Accepted)
                 case "followers":
-                    query = query.Where(n => n.Type == NotificationType.Follow);
+                    query = query.Where(n => n.Type == NotificationType.Follow
+                                          || n.Type == NotificationType.FollowRequest
+                                          || n.Type == NotificationType.FollowAccepted);
                     break;
+
                 case "mentions":
                     query = query.Where(n => n.Type == NotificationType.Mention);
                     break;
