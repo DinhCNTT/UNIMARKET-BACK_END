@@ -4,13 +4,11 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using System.Text;
 using UniMarket.DataAccess;
 using UniMarket.Hubs;
@@ -19,7 +17,6 @@ using UniMarket.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
 using UniMarket.Services.Recommendation; // Namespace chứa AI Services
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ====================================================
@@ -186,6 +183,9 @@ builder.Services.AddScoped<UniMarket.Services.PriceAnalysis.PriceAnalysisService
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 // ✅ MỚI THÊM: Đăng ký UserNotificationService
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
+
+// ✅ [QUAN TRỌNG] View History Service (MongoDB)
+builder.Services.AddScoped<ViewHistoryMongoService>();
 
 // ✅ [QUAN TRỌNG] Đăng ký AI Services (refactored)
 builder.Services.AddScoped<AiIntentService>();          // Phân tích intent
