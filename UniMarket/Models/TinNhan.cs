@@ -7,7 +7,8 @@ namespace UniMarket.Models
     {
         Text,
         Image,
-        Video
+        Video,
+        Location
     }
 
     public class TinNhan

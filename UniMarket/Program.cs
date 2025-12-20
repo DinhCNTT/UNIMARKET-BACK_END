@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System.Text;
@@ -76,7 +77,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // --- MongoDB Service ---
 builder.Services.AddSingleton<TinDangDetailService>();
-
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("MongoDbConnection");
+    return new MongoDB.Driver.MongoClient(connectionString);
+});
 // --- Tăng giới hạn upload file (150MB) ---
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -187,9 +192,13 @@ builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<AiClient>();
 builder.Services.AddScoped<AiIntentService>();
 builder.Services.AddScoped<ProductSearchService>();
+builder.Services.AddScoped<ExternalToolService>();      // Công cụ ngoài (ship, thời tiết...)
 builder.Services.AddScoped<ChatPersistenceService>();
 builder.Services.AddScoped<AiService>();
 builder.Services.AddHostedService<AITrainingWorker>();
+
+// ✅ [LINH HOẠT] Đăng ký SearchFallbackConfig từ appsettings.json
+builder.Services.Configure<SearchFallbackConfig>(builder.Configuration.GetSection("SearchFallback"));
 
 // Logic AI Recommendation
 builder.Services.AddScoped<UserBehaviorService>();
