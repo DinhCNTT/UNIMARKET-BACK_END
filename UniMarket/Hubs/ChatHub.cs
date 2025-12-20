@@ -199,7 +199,7 @@ namespace UniMarket.Hubs
                     MaNguoiGui = maNguoiGui,
                     ThoiGianGui = DateTime.UtcNow,
                     Loai = loai,
-                    NoiDung = loai == LoaiTinNhan.Text ? noiDung : "",
+                    NoiDung = (loai == LoaiTinNhan.Text || loai == LoaiTinNhan.Location) ? noiDung : "",
                     MediaUrl = (loai == LoaiTinNhan.Image || loai == LoaiTinNhan.Video) ? noiDung : null
                 };
 
@@ -311,7 +311,7 @@ namespace UniMarket.Hubs
                     maTinNhan = tinNhanMoi.MaTinNhan,
                     maCuocTroChuyen,
                     maNguoiGui,
-                    noiDung = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+                    noiDung = (loai == LoaiTinNhan.Text || loai == LoaiTinNhan.Location) ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                     loaiTinNhan = loai.ToString().ToLower(),
                     thoiGianGui = tinNhanMoi.ThoiGianGui,
                     daXem = false
@@ -347,9 +347,11 @@ namespace UniMarket.Hubs
                     await _context.SaveChangesAsync();
 
                     var tinNhanCuoi = chuaXem.Last();
+                    var idNguoiGui = tinNhanCuoi.MaNguoiGui; // 🔥 LẤY ID NGƯỜI GỬI (Người cần nhận thông báo "Đã xem")
 
-                    _logger.LogInformation($"[SignalR] User '{maNguoiXem}' marked messages as seen in conversation '{maCuocTroChuyen}'");
+                    _logger.LogInformation($"[SignalR] User '{maNguoiXem}' marked messages as seen. Notifying sender '{idNguoiGui}'");
 
+                    // 1. Gửi vào group chat chung (Giữ nguyên cái cũ của bạn)
                     await Clients.Group(maCuocTroChuyen).SendAsync("DaXemTinNhan", new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -357,6 +359,16 @@ namespace UniMarket.Hubs
                         NguoiXem = maNguoiXem
                     });
 
+                    // 🔥 2. THÊM ĐOẠN NÀY: Gửi đích danh vào Group User của người gửi
+                    // Đây là cái giúp người gửi thấy chữ "Đã xem" ngay lập tức kể cả khi họ đang ở ngoài list chat
+                    await Clients.Group($"user-{idNguoiGui}").SendAsync("DaXemTinNhan", new
+                    {
+                        MaCuocTroChuyen = maCuocTroChuyen,
+                        MaTinNhanCuoi = tinNhanCuoi.MaTinNhan,
+                        NguoiXem = maNguoiXem
+                    });
+
+                    // 3. Cập nhật cho người xem (Giữ nguyên cái cũ của bạn)
                     await Clients.Group($"user-{maNguoiXem}").SendAsync("CapNhatTrangThaiTinNhan", new
                     {
                         MaCuocTroChuyen = maCuocTroChuyen,
@@ -372,25 +384,28 @@ namespace UniMarket.Hubs
 
         public async Task ThuHoiTinNhan(int maTinNhan, string maNguoiGui)
         {
-            _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall text message {maTinNhan}");
+            _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall message {maTinNhan}");
 
             try
             {
                 var tinNhan = await _context.TinNhans
                     .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
 
+                // 1. Kiểm tra tồn tại
                 if (tinNhan == null)
                 {
                     _logger.LogWarning($"Message {maTinNhan} not found for recall by user '{maNguoiGui}'");
                     throw new HubException("Tin nhắn không tồn tại.");
                 }
 
+                // 2. Kiểm tra quyền chủ sở hữu
                 if (tinNhan.MaNguoiGui != maNguoiGui)
                 {
                     _logger.LogWarning($"User '{maNguoiGui}' tried to recall message {maTinNhan} without permission");
                     throw new HubException("Bạn không có quyền thu hồi tin nhắn này.");
                 }
 
+                // 3. Kiểm tra thời gian (5 phút)
                 var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
                 if (timeDifference.TotalMinutes > 5)
                 {
@@ -398,38 +413,48 @@ namespace UniMarket.Hubs
                     throw new HubException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
                 }
 
-                if (tinNhan.Loai != LoaiTinNhan.Text)
+                // 4. Xử lý phân loại tin nhắn
+                // Nếu là Ảnh hoặc Video -> Gọi hàm chuyên dụng để xóa file trên Cloud
+                if (tinNhan.Loai == LoaiTinNhan.Image || tinNhan.Loai == LoaiTinNhan.Video)
                 {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall non-text message {maTinNhan}");
-                    throw new HubException("Chỉ có thể thu hồi tin nhắn văn bản bằng phương thức này.");
+                    await ThuHoiAnhVideo(maTinNhan, maNguoiGui);
+                    return; // Kết thúc hàm này tại đây
+                }
+
+                // Nếu KHÔNG phải Text VÀ KHÔNG phải Location -> Báo lỗi
+                if (tinNhan.Loai != LoaiTinNhan.Text && tinNhan.Loai != LoaiTinNhan.Location)
+                {
+                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall unsupported message type {maTinNhan}");
+                    throw new HubException("Loại tin nhắn này không hỗ trợ thu hồi.");
                 }
 
                 var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
 
-                // ✅ THAY ĐỔI: Đánh dấu thu hồi thay vì xóa
+                // 5. Thực hiện thu hồi (Soft delete)
                 tinNhan.IsRecalled = true;
                 tinNhan.ThoiGianThuHoi = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"[SignalR] Text message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
+                _logger.LogInformation($"[SignalR] Message {maTinNhan} ({tinNhan.Loai}) recalled successfully by user '{maNguoiGui}'");
 
-                // ✅ Broadcast event thu hồi
+                // 6. Gửi thông báo cho mọi người trong phòng
                 await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
                 {
                     maTinNhan = maTinNhan,
                     maCuocTroChuyen = maCuocTroChuyen,
                     maNguoiThuHoi = maNguoiGui,
-                    loaiTinNhan = "text",
-                    isRecalled = true  // Flag mới
+                    // Trả về đúng loại ("text" hoặc "location") để UI hiển thị đúng icon
+                    loaiTinNhan = tinNhan.Loai.ToString().ToLower(),
+                    isRecalled = true
                 });
 
-                // ✅ Cập nhật preview trong ChatList
+                // 7. Cập nhật dòng tin nhắn xem trước bên sidebar (ChatList)
                 await UpdateChatPreviewAfterRecall(maCuocTroChuyen);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error recalling text message {maTinNhan} by user '{maNguoiGui}'");
+                _logger.LogError(ex, $"Error recalling message {maTinNhan} by user '{maNguoiGui}'");
                 throw;
             }
         }
