@@ -46,19 +46,17 @@ builder.Services.AddSingleton(provider =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS Configuration (Đã kết hợp Code 2) ---
-// Định nghĩa tên Policy
+// --- CORS Configuration (SỬA LẠI - CÁCH MẠNH MẼ HƠN) ---
 var AllowReactAppPolicy = "AllowReactApp";
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AllowReactAppPolicy, policy =>
     {
-        // Cho phép cả port 3000 (React) và 5173 (Vite/Vue) để linh hoạt
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+        policy.SetIsOriginAllowed(origin => true) // 👈 QUAN TRỌNG: Cho phép mọi nguồn gốc (dễ tính hơn)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Quan trọng cho SignalR và Cookies
+              .AllowCredentials(); // Bắt buộc giữ cái này cho SignalR
     });
 });
 
@@ -187,9 +185,6 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<PriceAnalysisService>();
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
-
-// ✅ [QUAN TRỌNG] View History Service (MongoDB)
-builder.Services.AddScoped<ViewHistoryMongoService>();
 
 // Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();

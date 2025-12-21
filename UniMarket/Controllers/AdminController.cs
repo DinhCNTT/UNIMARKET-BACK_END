@@ -20,7 +20,7 @@ namespace UniMarket.Controllers
 {
     [Route("api/admin")]
     [ApiController]
-    [EnableCors("_myAllowSpecificOrigins")]
+    
     public class AdminController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;

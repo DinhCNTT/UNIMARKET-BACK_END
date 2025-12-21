@@ -80,8 +80,8 @@ namespace UniMarket.Services.Recommendation
         // =================================================================================
         // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID BÀI ĐĂNG ĐỀ XUẤT (VIDEO HOẶC TIN THƯỜNG)
         // =================================================================================
-        public async Task<List<int>> GetRecommendedPostIds(string? userId, List<int> clientExcludedIds, int count = 10, bool isVideoOnly = true)
-        {
+        public async Task<List<int>> GetRecommendedPostIds(string? userId, List<int> clientExcludedIds, int count = 10, bool isVideoOnly = true, string? categoryGroup = null)
+         {
             var finalExcludedIds = new List<int>(clientExcludedIds);
             var userProfile = new UserProfileDto();
             var followingIds = new List<string>();
@@ -125,8 +125,19 @@ namespace UniMarket.Services.Recommendation
             // BƯỚC 2: TẠO TẬP ỨNG VIÊN (CANDIDATE GENERATION)
             // -----------------------------------------------------
             var query = _context.TinDangs.AsNoTracking()
+                .Include(t => t.DanhMuc).ThenInclude(dm => dm.DanhMucCha)
                 .Where(t => t.TrangThai == TrangThaiTinDang.DaDuyet) // ✅ Chỉ lấy tin đã duyệt
                 .Where(t => !finalExcludedIds.Contains(t.MaTinDang));
+
+            if (!string.IsNullOrEmpty(categoryGroup))
+            {
+                var keyword = categoryGroup.ToLower().Trim();
+                // Lọc tin mà Danh Mục Cha của nó có tên chứa từ khóa
+                query = query.Where(t =>
+                    t.DanhMuc.DanhMucCha != null &&
+                    t.DanhMuc.DanhMucCha.TenDanhMucCha.ToLower().Contains(keyword)
+                );
+            }
 
             // ✅ PHÂN LUỒNG: Video Feed vs General Feed
             if (isVideoOnly)
