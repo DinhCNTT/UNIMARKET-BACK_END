@@ -26,14 +26,17 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IHubContext<SocialChatHub> _socialHubContext;
         private readonly IHubContext<VideoHub> _videoHubContext;
+        private readonly IUserAffinityService _affinityService;
 
         public SocialShareController(ApplicationDbContext context,
                                      IHubContext<SocialChatHub> socialHubContext,
-                                     IHubContext<VideoHub> videoHubContext)
+                                     IHubContext<VideoHub> videoHubContext,
+                                     IUserAffinityService affinityService)
         {
             _context = context;
             _socialHubContext = socialHubContext;
             _videoHubContext = videoHubContext;
+            _affinityService = affinityService;
         }
 
         // File: UniMarket/Controllers/SocialShareController.cs
@@ -42,10 +45,12 @@ namespace UniMarket.Controllers
         [HttpPost("share-to-friends")]
         public async Task<IActionResult> ShareToFriends([FromBody] ShareToFriendsRequest req)
         {
+            // 1. Kiểm tra xác thực
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null)
                 return Unauthorized(new { message = "Bạn cần đăng nhập." });
 
+            // 2. Validate dữ liệu đầu vào
             if (req.TargetUserIds == null || !req.TargetUserIds.Any())
                 return BadRequest(new { message = "Vui lòng chọn ít nhất một người nhận." });
 
@@ -55,6 +60,7 @@ namespace UniMarket.Controllers
             var createdResults = new List<object>();
             var skippedResults = new List<string>(); // ✨ Theo dõi người bị chặn hoặc lỗi
 
+            // 3. Lấy thông tin người gửi để dùng cho Notification/SignalR
             var senderInfo = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Id == userId)
@@ -65,7 +71,7 @@ namespace UniMarket.Controllers
                 return Unauthorized(new { message = "Không tìm thấy thông tin người gửi." });
 
             // ==========================================================
-            // Duyệt qua từng người nhận
+            // 4. Duyệt qua từng người nhận
             // ==========================================================
             foreach (var targetId in req.TargetUserIds.Distinct())
             {
@@ -73,7 +79,7 @@ namespace UniMarket.Controllers
 
                 try
                 {
-                    // 1️⃣ Tìm hoặc tạo cuộc trò chuyện
+                    // 4.1. Tìm hoặc tạo cuộc trò chuyện
                     var conversation = await _context.CuocTroChuyenSocials
                         .Include(c => c.NguoiThamGias)
                         .FirstOrDefaultAsync(c =>
@@ -102,9 +108,7 @@ namespace UniMarket.Controllers
                         conversation.IsEmpty = false;
                     }
 
-                    // ==========================================================
-                    // 2️⃣ Kiểm tra trạng thái CHẶN
-                    // ==========================================================
+                    // 4.2. Kiểm tra trạng thái CHẶN
                     if (conversation.IsBlocked)
                     {
                         Console.WriteLine($"⚠️ Bỏ qua share tới {targetId}: cuộc trò chuyện {conversation.MaCuocTroChuyen} đang bị chặn.");
@@ -112,9 +116,7 @@ namespace UniMarket.Controllers
                         continue;
                     }
 
-                    // ==========================================================
-                    // 3️⃣ Cập nhật hội thoại bị ẩn (HasReappeared)
-                    // ==========================================================
+                    // 4.3. Cập nhật hội thoại bị ẩn (HasReappeared)
                     var allHiddenEntries = await _context.UserHiddenConversations
                         .Where(h => h.MaCuocTroChuyen == conversation.MaCuocTroChuyen)
                         .ToListAsync();
@@ -122,10 +124,9 @@ namespace UniMarket.Controllers
                     foreach (var entry in allHiddenEntries)
                         entry.HasReappeared = true;
 
-                    // ==========================================================
-                    // 4️⃣ Tạo bản ghi Share
-                    // ==========================================================
+                    // 4.4. Tạo bản ghi Share
                     var previewImage = req.PreviewImage;
+                    // Logic lấy thumbnail từ video Cloudinary nếu không có ảnh
                     if (string.IsNullOrEmpty(previewImage)
                         && !string.IsNullOrEmpty(req.PreviewVideo)
                         && req.PreviewVideo.Contains("cloudinary"))
@@ -154,11 +155,9 @@ namespace UniMarket.Controllers
                         PreviewVideo = req.PreviewVideo
                     };
                     _context.Shares.Add(share);
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(); // Lưu Share trước để lấy ID
 
-                    // ==========================================================
-                    // 5️⃣ Tạo tin nhắn chứa Share
-                    // ==========================================================
+                    // 4.5. Tạo tin nhắn chứa Share
                     var tin = new TinNhanSocial
                     {
                         MaCuocTroChuyen = conversation.MaCuocTroChuyen,
@@ -169,11 +168,22 @@ namespace UniMarket.Controllers
                         DaXem = false
                     };
                     _context.TinNhanSocials.Add(tin);
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(); // Lưu Tin nhắn
 
-                    // ==========================================================
-                    // 6️⃣ Gửi realtime tới cả hai phía
-                    // ==========================================================
+                    // ✅✅ [CODE 2 INTEGRATION] TÍNH ĐIỂM THÂN THIẾT (AFFINITY)
+                    // Cộng điểm vì User A đã share nội dung cho User B (InteractionType.Share thường có điểm cao)
+                    // Lưu ý: Đặt trong try-catch này để nếu lỗi tính điểm thì không ảnh hưởng luồng chính
+                    try
+                    {
+                        await _affinityService.TrackInteractionAsync(userId, targetId, InteractionType.Share);
+                    }
+                    catch (Exception exAffinity)
+                    {
+                        Console.WriteLine($"⚠️ Lỗi tính điểm Affinity: {exAffinity.Message}");
+                    }
+                    // ✅✅ END INTEGRATION
+
+                    // 4.6. Gửi realtime tới Group Chat (để hiển thị tin nhắn mới ngay lập tức)
                     var messageDto = new
                     {
                         MaTinNhan = tin.MaTinNhan,
@@ -198,6 +208,7 @@ namespace UniMarket.Controllers
                     await _socialHubContext.Clients.Group(conversation.MaCuocTroChuyen)
                         .SendAsync("ReceiveMessage", messageDto);
 
+                    // 4.7. Cập nhật danh sách chat bên ngoài (Sidebar) cho cả 2 người
                     var receiverInfo = await _context.Users
                         .AsNoTracking()
                         .Where(u => u.Id == targetId)
@@ -210,7 +221,7 @@ namespace UniMarket.Controllers
                         TinNhanCuoi = tin.NoiDung,
                         ThoiGianCapNhat = tin.ThoiGianGui,
                         NguoiGuiId = userId,
-                        MessageType = "video",
+                        MessageType = "video", // Đánh dấu là tin nhắn video/share
                         Partner = senderInfo,
                         HasUnreadMessages = true
                     };
@@ -245,7 +256,7 @@ namespace UniMarket.Controllers
                 }
             }
 
-            // ✅✅ BƯỚC 4: THÊM LOGIC GỬI REAL-TIME (ĐẶT BÊN NGOÀI VÒNG LOOP)
+            // 5. Cập nhật số lượng Share Realtime (cho trang xem Video/Tin đăng)
             if (req.TinDangId.HasValue && createdResults.Count > 0)
             {
                 var tinDangId = req.TinDangId.Value;
@@ -254,16 +265,15 @@ namespace UniMarket.Controllers
                 var totalShares = await _context.Shares
                     .CountAsync(s => s.TinDangId == tinDangId);
 
-                // Gửi cập nhật real-time
+                // Gửi cập nhật real-time tới những người đang xem tin này
                 await _videoHubContext.Clients.Group(tinDangId.ToString())
                     .SendAsync("UpdateShareCount", tinDangId, totalShares);
             }
 
-            // ==========================================================
-            // 7️⃣ Trả về kết quả
-            // ==========================================================
+            // 6. Xử lý kết quả trả về
             var totalAttempted = req.TargetUserIds.Distinct().Count();
 
+            // Nếu không gửi được cho ai cả (do lỗi hoặc do bị block hết)
             if (createdResults.Count == 0 && totalAttempted > 0)
             {
                 if (skippedResults.Count == totalAttempted)
@@ -282,11 +292,12 @@ namespace UniMarket.Controllers
                 }
             }
 
+            // Trả về thành công (có thể một số người bị skip nhưng vẫn coi là thành công 200)
             return Ok(new
             {
                 success = true,
                 created = createdResults,
-                skipped = skippedResults // ✨ thêm danh sách bị bỏ qua
+                skipped = skippedResults
             });
         }
 

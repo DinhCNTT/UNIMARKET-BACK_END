@@ -19,6 +19,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
 using UniMarket.Services.Recommendation;
 using UniMarket.Services.PriceAnalysis;
+using UniMarket.Services.Interfaces;
+using UniMarket.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,10 +47,8 @@ builder.Services.AddSingleton(provider =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS Configuration (Đã kết hợp Code 2) ---
-// Định nghĩa tên Policy
+// --- CORS Configuration ---
 var AllowReactAppPolicy = "AllowReactApp";
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AllowReactAppPolicy, policy =>
@@ -75,6 +75,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     ));
 
 // --- MongoDB Service ---
+// [MỚI THÊM] Đăng ký MongoDbContext cho tính năng Search & Log
+builder.Services.AddSingleton<MongoDbContext>();
+
+// Service cũ của bạn (Giữ nguyên)
 builder.Services.AddSingleton<TinDangDetailService>();
 
 // --- Tăng giới hạn upload file (150MB) ---
@@ -82,6 +86,10 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 157286400;
 });
+
+// --- Caching ---
+// Đã có sẵn trong code cũ của bạn, giữ nguyên
+builder.Services.AddMemoryCache();
 
 // --- Identity ---
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
@@ -149,6 +157,9 @@ builder.Services.AddSingleton<ConnectionMapping<string>>();
 builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
 
+// (MỚI THÊM) Job chạy ngầm để giảm điểm tương tác cũ theo thời gian
+builder.Services.AddHostedService<ScoreDecayJob>();
+
 // --- Swagger API Docs ---
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -183,6 +194,9 @@ builder.Services.AddScoped<PriceAnalysisService>();
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 
+// [MỚI THÊM] Service Tìm kiếm thông minh (Hybrid Search)
+builder.Services.AddScoped<ISearchService, SearchService>();
+
 // Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();
 builder.Services.AddScoped<AiIntentService>();
@@ -196,6 +210,9 @@ builder.Services.AddScoped<UserBehaviorService>();
 builder.Services.AddScoped<UserRecommendationService>();
 builder.Services.AddScoped<VideoRecommendationService>();
 builder.Services.AddSingleton<RecommendationEngine>();
+
+// (MỚI THÊM) Service tính điểm tương tác người dùng
+builder.Services.AddScoped<IUserAffinityService, UserAffinityService>();
 
 // --- Controllers & JSON Serialization ---
 builder.Services.AddControllers()

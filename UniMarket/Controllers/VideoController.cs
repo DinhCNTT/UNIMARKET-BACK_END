@@ -8,10 +8,12 @@ using UniMarket.DTO;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using UniMarket.Hubs;
-using UniMarket.Services.Recommendation; // ✅ Namespace quan trọng
+using UniMarket.Services.Recommendation;
 using UniMarket.Helpers;
 using UniMarket.Extensions;
 using UniMarket.Services;
+using UniMarket.Services.Interfaces;
+
 namespace UniMarket.Controllers
 {
     [Route("api/[controller]")]
@@ -22,11 +24,9 @@ namespace UniMarket.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IHubContext<VideoHub> _hubContext;
         private readonly IUserNotificationService _notiService;
-        // ✅ 1. Inject AI Engine (ML.NET - Collaborative Filtering)
         private readonly RecommendationEngine _aiEngine;
-
-        // ✅ 2. Inject Behavior Service (Content-Based Filtering & Realtime Profiling)
         private readonly UserBehaviorService _behaviorService;
+        private readonly ISearchService _searchService;
 
         public VideoController(
             ApplicationDbContext context,
@@ -34,14 +34,16 @@ namespace UniMarket.Controllers
             IHubContext<VideoHub> hubContext,
             RecommendationEngine aiEngine,
             IUserNotificationService notiService,
-            UserBehaviorService behaviorService) // ✅ Inject thêm ở đây
+            UserBehaviorService behaviorService,
+            ISearchService searchService)
         {
             _context = context;
             _userManager = userManager;
             _hubContext = hubContext;
             _aiEngine = aiEngine;
             _notiService = notiService;
-            _behaviorService = behaviorService; // ✅ Gán biến
+            _behaviorService = behaviorService;
+            _searchService = searchService;
         }
 
         // =================================================================================
@@ -854,37 +856,50 @@ namespace UniMarket.Controllers
             _context.VideoComments.Remove(comment);
         }
 
-        // tìm kiếm video
         [HttpGet("search")]
         [AllowAnonymous]
         public async Task<IActionResult> SearchVideos([FromQuery] string keyword, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
+            // 1. VALIDATION
             if (string.IsNullOrWhiteSpace(keyword))
                 return BadRequest("Từ khóa tìm kiếm không được để trống.");
 
-            var userId = User.Identity != null && User.Identity.IsAuthenticated
-                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                : null;
+            keyword = keyword.Trim();
 
-            if (!string.IsNullOrEmpty(userId))
+            // ==========================================================
+            // 2. LẤY USER ID TỪ TOKEN (Dành cho người đã đăng nhập)
+            // ==========================================================
+            string? userId = null;
+            if (User.Identity?.IsAuthenticated == true)
             {
-                var searchHistory = new SearchHistory
-                {
-                    UserId = userId,
-                    Keyword = keyword,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.SearchHistories.Add(searchHistory);
-                await _context.SaveChangesAsync();
+                // Lấy ID theo các chuẩn phổ biến (NameIdentifier, id, sub)
+                userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                         ?? User.FindFirst("id")?.Value
+                         ?? User.FindFirst("sub")?.Value;
             }
 
-            keyword = keyword.ToLower();
+            // ==========================================================
+            // 3. LẤY SESSION ID TỪ HEADER (Dành cho cả khách vãng lai)
+            // ==========================================================
+            // Frontend sẽ gửi mã này qua header "X-Session-ID"
+            string? sessionId = Request.Headers["X-Session-ID"].FirstOrDefault();
 
-            // 1. Lấy toàn bộ video phù hợp (chưa phân trang)
-            var tinDangsRaw = await _context.TinDangs
+            // ==========================================================
+            // 4. LOGIC TÌM KIẾM SQL (Core Feature)
+            // ==========================================================
+
+            // 4.1 Tạo Query tìm kiếm
+            var tinDangsQuery = _context.TinDangs
+                .AsNoTracking()
                 .Where(td => td.VideoUrl != null &&
                              td.TrangThai == TrangThaiTinDang.DaDuyet &&
-                             EF.Functions.Like(td.TieuDe.ToLower(), $"%{keyword}%"))
+                             EF.Functions.Like(td.TieuDe, $"%{keyword}%"));
+
+            // 4.2 Đếm tổng số kết quả (để log và phân trang)
+            int totalMatchCount = await tinDangsQuery.CountAsync();
+
+            // 4.3 Load dữ liệu chi tiết
+            var tinDangsRaw = await tinDangsQuery
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
                 .Include(td => td.QuanHuyen)
@@ -892,7 +907,7 @@ namespace UniMarket.Controllers
 
             var maTinDangList = tinDangsRaw.Select(td => td.MaTinDang).ToList();
 
-            // 2. Lấy số tym và số bình luận
+            // 4.4 Lấy số lượng Tym và Comment để tính độ hot
             var tymCounts = await _context.VideoLikes
                 .Where(v => maTinDangList.Contains(v.MaTinDang))
                 .GroupBy(v => v.MaTinDang)
@@ -903,17 +918,18 @@ namespace UniMarket.Controllers
                 .GroupBy(c => c.MaTinDang)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
 
-            // 3. Sắp xếp lại theo (tym + bình luận) giảm dần
+            // 4.5 Sắp xếp: Ưu tiên video có tương tác cao (Tym + Comment)
             var tinDangsSorted = tinDangsRaw
                 .OrderByDescending(td => tymCounts.GetValueOrDefault(td.MaTinDang, 0) + binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0))
                 .ToList();
 
-            // 4. Phân trang
+            // 4.6 Phân trang (Pagination)
             var pagedTinDangs = tinDangsSorted
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
 
+            // 4.7 Kiểm tra User hiện tại đã Like video chưa
             var likedVideoIds = !string.IsNullOrEmpty(userId)
                 ? await _context.VideoLikes
                     .Where(v => v.UserId == userId && maTinDangList.Contains(v.MaTinDang))
@@ -921,7 +937,8 @@ namespace UniMarket.Controllers
                     .ToListAsync()
                 : new List<int>();
 
-            var result = pagedTinDangs.Select(td => new VideoSearchResultDto
+            // 4.8 Map sang DTO trả về Client
+            var resultItems = pagedTinDangs.Select(td => new VideoSearchResultDto
             {
                 MaTinDang = td.MaTinDang,
                 TieuDe = td.TieuDe,
@@ -939,16 +956,78 @@ namespace UniMarket.Controllers
                     AvatarUrl = td.NguoiBan.AvatarUrl
                 },
                 IsLiked = likedVideoIds.Contains(td.MaTinDang),
-                ThoiGianHienThi = CalculateTimeAgo(td.NgayDang)
-            });
+                ThoiGianHienThi = CalculateTimeAgo(td.NgayDang) // Hàm helper
+            }).ToList();
 
+            // ==========================================================
+            // 5. GHI LOG VÀO MONGO (Đã update thêm SessionId)
+            // ==========================================================
+
+            // Chỉ log khi user search trang đầu tiên (tránh spam log khi cuộn trang)
+            if (page == 1)
+            {
+                // Fire-and-forget: Chạy luồng phụ, truyền cả userId và sessionId
+                _ = Task.Run(() => _searchService.LogSearchAsync(keyword, userId, sessionId, totalMatchCount));
+            }
+
+            // 6. Lấy Related Keywords (Người khác cũng tìm)
+            List<string> relatedKeywords = new List<string>();
+            if (page == 1)
+            {
+                try
+                {
+                    relatedKeywords = await _searchService.GetRelatedKeywordsAsync(keyword);
+                }
+                catch { /* Bỏ qua lỗi phụ */ }
+            }
+
+            // 7. Trả kết quả
             return Ok(new
             {
-                TotalItems = tinDangsSorted.Count,
+                TotalItems = totalMatchCount,
                 Page = page,
                 PageSize = pageSize,
-                Items = result
+                Items = resultItems,
+                RelatedKeywords = relatedKeywords
             });
+        }
+
+        [HttpGet("suggest-smart")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SuggestKeywordsSmart([FromQuery] string keyword)
+        {
+            var userId = User.Identity?.IsAuthenticated == true
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+
+            var suggestions = await _searchService.GetSmartSuggestionsAsync(keyword, userId);
+            return Ok(suggestions);
+        }
+
+        // ==========================================
+        // API 3: TỪ KHÓA NỔI BẬT (TRENDING)
+        // ==========================================
+        [HttpGet("trending")]
+        [AllowAnonymous] // Cho phép cả khách chưa đăng nhập cũng xem được trend
+        public async Task<IActionResult> GetTrendingKeywords()
+        {
+            // 1. Lấy UserId từ Token hiện tại (nếu user đã đăng nhập)
+            string? userId = null;
+
+            // Kiểm tra xem request này có kèm Token hợp lệ không
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                // Lấy ID từ Claim (Thử lấy theo chuẩn NameIdentifier trước, nếu không có thì lấy theo key "id")
+                userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                         ?? User.FindFirst("id")?.Value;
+            }
+
+            // 2. Truyền userId vào hàm
+            // Nếu chưa đăng nhập -> userId = null -> Service sẽ trả về Trend cộng đồng (Global)
+            // Nếu đã đăng nhập -> userId = "abc..." -> Service sẽ trộn thêm Trend cá nhân
+            var trends = await _searchService.GetTrendingKeywordsAsync(userId);
+
+            return Ok(trends);
         }
         // hàm gợi ý tìm kiếm từ khóa 
         [HttpGet("suggest-keywords")]
@@ -1600,18 +1679,24 @@ namespace UniMarket.Controllers
             public int RewatchCount { get; set; } = 0;
             public bool SkipViewCount { get; set; } = false;
         }
-        private string CalculateTimeAgo(DateTime date)
+        private string CalculateTimeAgo(DateTime dateTime)
         {
-            var diff = DateTime.UtcNow - date;
+            var timeSpan = DateTime.Now - dateTime;
 
-            if (diff.TotalSeconds < 60)
+            if (timeSpan.TotalMinutes < 1)
                 return "Vừa xong";
-            if (diff.TotalMinutes < 60)
-                return $"{Math.Floor(diff.TotalMinutes)} phút trước";
-            if (diff.TotalHours < 24)
-                return $"{Math.Floor(diff.TotalHours)} giờ trước";
+            if (timeSpan.TotalMinutes < 60)
+                return $"{(int)timeSpan.TotalMinutes} phút trước";
+            if (timeSpan.TotalHours < 24)
+                return $"{(int)timeSpan.TotalHours} giờ trước";
+            if (timeSpan.TotalDays < 7)
+                return $"{(int)timeSpan.TotalDays} ngày trước";
+            if (timeSpan.TotalDays < 30)
+                return $"{(int)(timeSpan.TotalDays / 7)} tuần trước";
+            if (timeSpan.TotalDays < 365)
+                return $"{(int)(timeSpan.TotalDays / 30)} tháng trước";
 
-            return $"{Math.Floor(diff.TotalDays)} ngày trước";
+            return $"{(int)(timeSpan.TotalDays / 365)} năm trước";
         }
     }
 }

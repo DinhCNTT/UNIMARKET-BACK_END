@@ -17,15 +17,20 @@ namespace UniMarket.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IUserNotificationService _notiService;
         private readonly UserRecommendationService _recommendationService;
+        
+        // 1. KHAI BÁO SERVICE MỚI (UserAffinityService)
+        private readonly IUserAffinityService _affinityService;
 
         public FollowController(
             ApplicationDbContext context,
             IUserNotificationService notiService,
-            UserRecommendationService recommendationService)
+            UserRecommendationService recommendationService,
+            IUserAffinityService affinityService) // 2. INJECT VÀO CONSTRUCTOR
         {
             _context = context;
             _notiService = notiService;
             _recommendationService = recommendationService;
+            _affinityService = affinityService;
         }
 
         private string? GetUserId()
@@ -42,17 +47,13 @@ namespace UniMarket.Controllers
         /// </summary>
         private async Task<bool> CanViewContent(string currentUserId, string targetUserId)
         {
-            // 1. Nếu xem của chính mình -> Luôn được phép
             if (currentUserId == targetUserId) return true;
 
-            // 2. Kiểm tra user đích có tồn tại không
             var targetUser = await _context.Users.FindAsync(targetUserId);
             if (targetUser == null) return false;
 
-            // 3. Nếu tài khoản KHÔNG riêng tư (Công khai) -> Ai cũng xem được
             if (!targetUser.IsPrivateAccount) return true;
 
-            // 4. Nếu là tài khoản riêng tư -> Phải đang follow VÀ trạng thái là ACCEPTED
             var isAcceptedFollower = await _context.Follows
                 .AnyAsync(f => f.FollowingId == targetUserId
                             && f.FollowerId == currentUserId
@@ -62,12 +63,41 @@ namespace UniMarket.Controllers
         }
 
         // =========================================================================================
+        // *** NEW ***: API DANH SÁCH BẠN BÈ THÔNG MINH (SMART LIST)
+        // =========================================================================================
+
+        // API lấy danh sách bạn bè đã sắp xếp (Online > Điểm cao > Mới follow)
+        // Thay thế cho API GetFollowing cũ ở màn hình chat/trang chủ
+        [HttpGet("following-smart")]
+        public async Task<IActionResult> GetSmartFollowingList([FromQuery] int page = 1, [FromQuery] int pageSize = 4) // Mặc định là 4 như yêu cầu
+        {
+            var currentUserId = GetUserId(); // Hàm lấy ID từ Token của bạn
+            if (currentUserId == null) return Unauthorized();
+
+            // Gọi Service thông minh bạn đã viết
+            var result = await _affinityService.GetSmartSortedFollowingAsync(currentUserId, page, pageSize);
+
+            return Ok(result);
+        }
+
+        // API Ghi nhận tương tác (để thuật toán học dần)
+        [HttpPost("interact")]
+        public async Task<IActionResult> Interact([FromBody] InteractRequest request)
+        {
+            var currentUserId = GetUserId();
+            if (currentUserId == null) return Unauthorized();
+
+            await _affinityService.TrackInteractionAsync(currentUserId, request.TargetUserId, request.Type);
+            return Ok();
+        }
+
+        // =========================================================================================
         // 1. API TOGGLE FOLLOW (XỬ LÝ LOGIC RIÊNG TƯ / CÔNG KHAI)
         // =========================================================================================
         [HttpPost("toggle")]
         public async Task<IActionResult> ToggleFollow([FromQuery] string targetUserId)
         {
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetUserId();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized("Vui lòng đăng nhập.");
             if (currentUserId == targetUserId) return BadRequest("Không thể follow chính mình.");
 
@@ -92,8 +122,8 @@ namespace UniMarket.Controllers
                 if (!isSpamAction)
                 {
                     var typeToDelete = (existingFollow.Status == FollowStatus.Pending)
-                                        ? NotificationType.FollowRequest
-                                        : NotificationType.Follow;
+                                            ? NotificationType.FollowRequest
+                                            : NotificationType.Follow;
                     try
                     {
                         var oldNoti = await _context.UserNotifications
@@ -120,16 +150,14 @@ namespace UniMarket.Controllers
 
                 if (targetUser.IsPrivateAccount)
                 {
-                    // Nếu riêng tư -> Pending
                     newFollow.Status = FollowStatus.Pending;
                     isPending = true;
-                    isFollowedNow = false; // Chưa được gọi là follow chính thức
+                    isFollowedNow = false;
                     notiType = NotificationType.FollowRequest;
                     notiContent = "đã gửi yêu cầu theo dõi bạn.";
                 }
                 else
                 {
-                    // Nếu công khai -> Accepted
                     newFollow.Status = FollowStatus.Accepted;
                     isFollowedNow = true;
                     isPending = false;
@@ -160,8 +188,6 @@ namespace UniMarket.Controllers
             await _context.SaveChangesAsync();
 
             // --- QUAN TRỌNG: ĐẾM LẠI ---
-            // Chỉ đếm những người có Status == Accepted
-            // Nếu vừa gửi yêu cầu (Pending), count sẽ KHÔNG tăng -> Đúng logic
             var newFollowerCount = await _context.Follows
                 .CountAsync(f => f.FollowingId == targetUserId && f.Status == FollowStatus.Accepted);
 
@@ -186,8 +212,8 @@ namespace UniMarket.Controllers
 
             var followRequest = await _context.Follows
                 .FirstOrDefaultAsync(f => f.FollowerId == requesterId
-                                       && f.FollowingId == currentUserId
-                                       && f.Status == FollowStatus.Pending);
+                                    && f.FollowingId == currentUserId
+                                    && f.Status == FollowStatus.Pending);
 
             if (followRequest == null)
                 return NotFound("Yêu cầu không tồn tại hoặc đã được xử lý.");
@@ -205,11 +231,11 @@ namespace UniMarket.Controllers
                 content: "đã chấp nhận yêu cầu theo dõi của bạn."
             );
 
-            // 3. Đánh dấu thông báo "Yêu cầu theo dõi" cũ là đã đọc (hoặc xử lý)
+            // 3. Đánh dấu thông báo cũ là đã đọc
             var requestNoti = await _context.UserNotifications
                 .FirstOrDefaultAsync(n => n.SenderId == requesterId
-                                       && n.ReceiverId == currentUserId
-                                       && n.Type == NotificationType.FollowRequest);
+                                    && n.ReceiverId == currentUserId
+                                    && n.Type == NotificationType.FollowRequest);
             if (requestNoti != null)
             {
                 requestNoti.IsRead = true;
@@ -227,14 +253,13 @@ namespace UniMarket.Controllers
 
             var followRequest = await _context.Follows
                 .FirstOrDefaultAsync(f => f.FollowerId == requesterId
-                                       && f.FollowingId == currentUserId
-                                       && f.Status == FollowStatus.Pending);
+                                    && f.FollowingId == currentUserId
+                                    && f.Status == FollowStatus.Pending);
 
             if (followRequest != null)
             {
                 _context.Follows.Remove(followRequest);
 
-                // Xóa thông báo yêu cầu cho sạch
                 var noti = await _context.UserNotifications
                     .FirstOrDefaultAsync(n => n.SenderId == requesterId
                                            && n.ReceiverId == currentUserId
@@ -251,7 +276,6 @@ namespace UniMarket.Controllers
         // 3. API LẤY DANH SÁCH (CÓ CHECK QUYỀN + LỌC TRẠNG THÁI ACCEPTED)
         // =========================================================================================
 
-        // ✅ Lấy danh sách Following (Những người user này đang theo dõi và ĐÃ ĐƯỢC CHẤP NHẬN)
         [HttpGet("following")]
         public async Task<IActionResult> GetFollowing([FromQuery] string? targetUserId)
         {
@@ -260,7 +284,6 @@ namespace UniMarket.Controllers
 
             var idToCheck = string.IsNullOrEmpty(targetUserId) ? currentUserId : targetUserId;
 
-            // --- KIỂM TRA QUYỀN RIÊNG TƯ ---
             var canView = await CanViewContent(currentUserId, idToCheck);
             if (!canView)
             {
@@ -268,7 +291,7 @@ namespace UniMarket.Controllers
             }
 
             var following = await _context.Follows
-                .Where(f => f.FollowerId == idToCheck && f.Status == FollowStatus.Accepted) // CHỈ LẤY ACCEPTED
+                .Where(f => f.FollowerId == idToCheck && f.Status == FollowStatus.Accepted)
                 .Include(f => f.Following)
                 .Select(f => new
                 {
@@ -278,7 +301,6 @@ namespace UniMarket.Controllers
                     f.Following.AvatarUrl,
                     f.Following.UserName,
                     f.FollowedAt,
-                    // Kiểm tra xem currentUserId có đang follow người trong list này không (Accepted)
                     IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId
                                                         && x.FollowingId == f.FollowingId
                                                         && x.Status == FollowStatus.Accepted)
@@ -288,7 +310,6 @@ namespace UniMarket.Controllers
             return Ok(following);
         }
 
-        // ✅ Lấy danh sách Followers (Những người đang theo dõi user này và ĐÃ ĐƯỢC CHẤP NHẬN)
         [HttpGet("followers")]
         public async Task<IActionResult> GetFollowers([FromQuery] string? targetUserId)
         {
@@ -297,7 +318,6 @@ namespace UniMarket.Controllers
 
             var idToCheck = string.IsNullOrEmpty(targetUserId) ? currentUserId : targetUserId;
 
-            // --- KIỂM TRA QUYỀN RIÊNG TƯ ---
             var canView = await CanViewContent(currentUserId, idToCheck);
             if (!canView)
             {
@@ -305,7 +325,7 @@ namespace UniMarket.Controllers
             }
 
             var followers = await _context.Follows
-                .Where(f => f.FollowingId == idToCheck && f.Status == FollowStatus.Accepted) // CHỈ LẤY ACCEPTED
+                .Where(f => f.FollowingId == idToCheck && f.Status == FollowStatus.Accepted)
                 .Include(f => f.Follower)
                 .Select(f => new
                 {
@@ -315,7 +335,6 @@ namespace UniMarket.Controllers
                     f.Follower.AvatarUrl,
                     f.Follower.UserName,
                     f.FollowedAt,
-                    // Kiểm tra xem currentUserId có đang follow người trong list này không (Accepted)
                     IsFollowed = _context.Follows.Any(x => x.FollowerId == currentUserId
                                                         && x.FollowingId == f.FollowerId
                                                         && x.Status == FollowStatus.Accepted)
@@ -329,7 +348,6 @@ namespace UniMarket.Controllers
         // 4. API ĐỀ XUẤT & TIỆN ÍCH KHÁC
         // =========================================================================================
 
-        // ✅ API Đề xuất (Suggested)
         [HttpGet("suggested")]
         public async Task<IActionResult> GetSuggestedUsers([FromQuery] string? targetUserId)
         {
@@ -342,7 +360,6 @@ namespace UniMarket.Controllers
             {
                 var suggestions = await _recommendationService.GetSuggestedUsersAsync(idToAnalyze);
 
-                // Lấy danh sách những người tôi đang có quan hệ (Kể cả Pending hay Accepted đều không nên gợi ý lại)
                 var myRelationshipIds = await _context.Follows
                     .AsNoTracking()
                     .Where(f => f.FollowerId == currentUserId)
@@ -351,8 +368,6 @@ namespace UniMarket.Controllers
 
                 foreach (var user in suggestions)
                 {
-                    // Nếu đã có trong bảng Follow (dù Pending hay Accepted) thì đánh dấu IsFollowed = true
-                    // Để Frontend biết mà hiển thị (hoặc ẩn đi)
                     user.IsFollowed = myRelationshipIds.Contains(user.Id);
                 }
 
@@ -364,7 +379,6 @@ namespace UniMarket.Controllers
             }
         }
 
-        // ✅ Kiểm tra trạng thái follow cụ thể (Trả về chi tiết: Pending/Following)
         [HttpGet("is-following/{targetUserId}")]
         public async Task<IActionResult> IsFollowing(string targetUserId)
         {
@@ -381,25 +395,22 @@ namespace UniMarket.Controllers
 
             return Ok(new
             {
-                isFollowing = followRecord.Status == FollowStatus.Accepted, // True chỉ khi đã Accepted
-                isPending = followRecord.Status == FollowStatus.Pending     // True nếu đang chờ duyệt
+                isFollowing = followRecord.Status == FollowStatus.Accepted,
+                isPending = followRecord.Status == FollowStatus.Pending
             });
         }
 
-        // ✅ Lấy danh sách bạn bè (Mutual Follow - 2 người đã ACCEPTED lẫn nhau)
         [HttpGet("mutual")]
         public async Task<IActionResult> GetMutualFollows()
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Lấy danh sách mình đang follow (Accepted)
             var myFollowingIds = await _context.Follows
                 .Where(f => f.FollowerId == userId && f.Status == FollowStatus.Accepted)
                 .Select(f => f.FollowingId)
                 .ToListAsync();
 
-            // Tìm những người follow mình (Accepted) VÀ nằm trong danh sách mình đang follow
             var mutualFriends = await _context.Follows
                 .Where(f => f.FollowingId == userId
                          && f.Status == FollowStatus.Accepted
@@ -417,21 +428,26 @@ namespace UniMarket.Controllers
         }
 
         // =========================================================================================
-        // 5. API LEGACY (Giữ lại để tương thích ngược nếu cần, nhưng đã update logic Accepted)
+        // 5. API LEGACY
         // =========================================================================================
 
         [HttpPost("follow")]
         public async Task<IActionResult> FollowUser([FromQuery] string followingId)
         {
-            // Tốt nhất nên gọi lại logic của ToggleFollow để đồng bộ, nhưng đây là code độc lập
             return await ToggleFollow(followingId);
         }
 
         [HttpPost("unfollow")]
         public async Task<IActionResult> UnfollowUser([FromQuery] string followingId)
         {
-            // Tốt nhất nên gọi lại logic của ToggleFollow để đồng bộ
             return await ToggleFollow(followingId);
         }
+    }
+
+    // Class Request Body cho API Interact
+    public class InteractRequest
+    {
+        public string TargetUserId { get; set; }
+        public InteractionType Type { get; set; }
     }
 }

@@ -17,6 +17,7 @@ namespace UniMarket.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ApplicationDbContext _context;
         private readonly PhotoService _photoService;
+        private readonly IUserAffinityService _affinityService;
 
         // 1. KHAI BÁO THÊM SIGNIN MANAGER
         private readonly SignInManager<ApplicationUser> _signInManager;
@@ -26,12 +27,14 @@ namespace UniMarket.Controllers
             UserManager<ApplicationUser> userManager,
             ApplicationDbContext context,
             PhotoService photoService,
-            SignInManager<ApplicationUser> signInManager) // <--- Thêm tham số này
+            SignInManager<ApplicationUser> signInManager,
+            IUserAffinityService affinityService) // <--- Thêm tham số này
         {
             _userManager = userManager;
             _context = context;
             _photoService = photoService;
-            _signInManager = signInManager; // <--- Gán giá trị
+            _signInManager = signInManager;
+            _affinityService = affinityService;// <--- Gán giá trị
         }
 
         // =========================================================================
@@ -67,6 +70,7 @@ namespace UniMarket.Controllers
             public bool IsPrivateAccount { get; set; }
             public bool IsFollowing { get; set; }
             public int TotalLikes { get; set; }
+            public bool IsPending { get; set; }
         }
 
         // ✅ DTO MỚI CHO POST
@@ -807,29 +811,46 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetUserInfo(string userId)
         {
-            // 1. Tìm User
+            // 1. Tìm User mục tiêu
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return NotFound();
+            if (user == null) 
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
-            // 2. Đếm follow (QUAN TRỌNG: Chỉ đếm trạng thái Accepted)
-            // Code cũ của bạn bị thiếu điều kiện Status == Accepted nên nó đếm cả Pending
+            // 2. Xác định người đang xem (Viewer)
+            var currentViewerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // =================================================================
+            // ✅ [INTEGRATION CODE 2] TRACKING AFFINITY (Ghi nhận hành vi xem)
+            // =================================================================
+            // Nếu người xem đã đăng nhập và không phải là chính chủ đang tự xem profile mình
+            if (!string.IsNullOrEmpty(currentViewerId) && currentViewerId != userId)
+            {
+                // Gọi service tính điểm chạy ngầm (Fire and forget)
+                // ViewProfile = 1 điểm
+                _ = _affinityService.TrackInteractionAsync(currentViewerId, userId, InteractionType.ViewProfile);
+            }
+
+            // =================================================================
+            // ✅ [INTEGRATION CODE 1] LOGIC TÍNH TOÁN & FOLLOW STATUS
+            // =================================================================
+
+            // 3. Đếm follow (QUAN TRỌNG: Chỉ đếm trạng thái Accepted)
             var followersCount = await _context.Follows
                 .CountAsync(f => f.FollowingId == userId && f.Status == FollowStatus.Accepted);
 
             var followingCount = await _context.Follows
                 .CountAsync(f => f.FollowerId == userId && f.Status == FollowStatus.Accepted);
 
-            // 3. Logic tính Likes (Giữ nguyên)
+            // 4. Logic tính tổng số Likes của các bài đăng thuộc User này
             var totalLikes = await _context.VideoLikes
                 .Include(v => v.TinDang)
                 .Where(v => v.TinDang.MaNguoiBan == userId)
                 .CountAsync();
 
-            // 4. Check trạng thái Follow giữa người xem và profile hiện tại
+            // 5. Check trạng thái quan hệ giữa người xem và profile này
             bool isFollowing = false;
-            bool isPending = false; // Biến này giúp frontend hiển thị nút "Đã gửi yêu cầu"
+            bool isPending = false; // Biến này quan trọng để frontend hiện nút "Đã yêu cầu" hay "Follow"
 
-            var currentViewerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!string.IsNullOrEmpty(currentViewerId))
             {
                 var followRecord = await _context.Follows
@@ -842,8 +863,7 @@ namespace UniMarket.Controllers
                 }
             }
 
-            // 5. Trả về kết quả
-            // Lưu ý: DTO của bạn cần có thêm trường IsPending để frontend xử lý chính xác hơn (nếu chưa có thì thêm vào class UserInfoDto)
+            // 6. Trả về kết quả
             var result = new UserInfoDto
             {
                 Id = user.Id,
@@ -854,11 +874,10 @@ namespace UniMarket.Controllers
                 PhoneNumber = user.PhoneNumber,
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
+                TotalLikes = totalLikes,
                 IsPrivateAccount = user.IsPrivateAccount,
                 IsFollowing = isFollowing,
-                // Nếu DTO chưa có IsPending, bạn có thể tạm thời không trả về hoặc thêm property này vào DTO
-                // IsPending = isPending, 
-                TotalLikes = totalLikes
+                IsPending = isPending 
             };
 
             return Ok(result);

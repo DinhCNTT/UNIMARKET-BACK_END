@@ -15,10 +15,12 @@ using System.Text.RegularExpressions;
 public class SocialChatHub : Hub
 {
     private readonly ApplicationDbContext _context;
+    private readonly IUserAffinityService _affinityService;
 
-    public SocialChatHub(ApplicationDbContext context)
+    public SocialChatHub(ApplicationDbContext context, IUserAffinityService affinityService)
     {
         _context = context;
+        _affinityService = affinityService;
     }
 
     private string? GetUserId()
@@ -279,6 +281,14 @@ public class SocialChatHub : Hub
         }
 
         await _context.SaveChangesAsync(); // Lưu để lấy MaTinNhan
+        foreach (var participant in convo.NguoiThamGias)
+        {
+            if (participant.MaNguoiDung != userId)
+            {
+                // Gọi Service để cộng điểm: Gửi tin nhắn = 10 điểm
+                await _affinityService.TrackInteractionAsync(userId, participant.MaNguoiDung, InteractionType.SendMessage);
+            }
+        }
 
         // ============================================================
         // 🔁 7. LẤY TIN NHẮN CHA (NẾU REPLY)
