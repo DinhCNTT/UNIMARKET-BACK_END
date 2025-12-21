@@ -147,7 +147,7 @@ namespace UniMarket.Hubs
 
                 if (chat == null)
                 {
-                    // If this is an AI-generated chat id, create a placeholder conversation so messages can be saved
+                    // Nếu là chat AI (ID bắt đầu bằng ai-assistant-), tạo cuộc trò chuyện placeholder nếu chưa có
                     if (!string.IsNullOrEmpty(maCuocTroChuyen) && maCuocTroChuyen.StartsWith("ai-assistant-"))
                     {
                         var placeholder = new CuocTroChuyen
@@ -177,6 +177,7 @@ namespace UniMarket.Hubs
                     }
                 }
 
+                // Kiểm tra chặn (Block)
                 var otherUser = chat.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
                 if (otherUser != null)
                 {
@@ -199,6 +200,7 @@ namespace UniMarket.Hubs
                     MaNguoiGui = maNguoiGui,
                     ThoiGianGui = DateTime.UtcNow,
                     Loai = loai,
+                    // Location được lưu vào NoiDung giống như Text
                     NoiDung = (loai == LoaiTinNhan.Text || loai == LoaiTinNhan.Location) ? noiDung : "",
                     MediaUrl = (loai == LoaiTinNhan.Image || loai == LoaiTinNhan.Video) ? noiDung : null
                 };
@@ -206,6 +208,7 @@ namespace UniMarket.Hubs
                 _context.TinNhans.Add(tinNhanMoi);
                 await _context.SaveChangesAsync();
 
+                // Cập nhật trạng thái cuộc trò chuyện (IsDeleted, IsHidden, IsEmpty)
                 var cuocTroChuyen = await _context.CuocTroChuyens
                     .Include(c => c.NguoiThamGias)
                         .ThenInclude(ntg => ntg.NguoiDung)
@@ -223,42 +226,47 @@ namespace UniMarket.Hubs
                     var otherUserInfo = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != maNguoiGui);
                     var senderUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung == maNguoiGui);
 
-                    // Lấy trạng thái chat của người gửi
+                    // Lấy trạng thái chat
                     var senderChatState = await _context.UserChatStates
                         .FirstOrDefaultAsync(ucs => ucs.UserId == maNguoiGui && ucs.ChatId == maCuocTroChuyen);
 
-                    // Lấy trạng thái chat của người nhận
                     var receiverChatState = otherUserInfo != null ? await _context.UserChatStates
                         .FirstOrDefaultAsync(ucs => ucs.UserId == otherUserInfo.MaNguoiDung && ucs.ChatId == maCuocTroChuyen) : null;
 
-                    // ✅ FIX: CHỈ reset trạng thái XÓA cho người gửi, GIỮ NGUYÊN TRẠNG THÁI ẨN
+                    // Nếu người gửi từng xóa chat, khôi phục lại (nhưng giữ nguyên trạng thái ẩn nếu có)
                     if (senderChatState != null && senderChatState.IsDeleted)
                     {
                         senderChatState.IsDeleted = false;
-                        // ❌ KHÔNG reset IsHidden cho người gửi
                     }
 
-                    // ✅ FIX: CHỈ reset trạng thái XÓA cho người nhận, GIỮ NGUYÊN TRẠNG THÁI ẨN
+                    // Nếu người nhận từng xóa chat, khôi phục lại để hiện tin nhắn mới
                     if (receiverChatState != null && receiverChatState.IsDeleted)
                     {
                         receiverChatState.IsDeleted = false;
-                        // ❌ KHÔNG reset IsHidden cho người nhận
                     }
-                    // ✅ MIMIC Social: nếu có entry trong UserHiddenConversations -> đánh dấu HasReappeared = true
+
+                    // Đánh dấu HasReappeared (cho logic ẩn chat giống Messenger)
                     var senderHidden = await _context.UserHiddenConversations
                         .FirstOrDefaultAsync(h => h.UserId == maNguoiGui && h.MaCuocTroChuyen == maCuocTroChuyen);
-                    if (senderHidden != null)
-                        senderHidden.HasReappeared = true;
+                    if (senderHidden != null) senderHidden.HasReappeared = true;
 
                     if (otherUserInfo != null)
                     {
                         var receiverHidden = await _context.UserHiddenConversations
                             .FirstOrDefaultAsync(h => h.UserId == otherUserInfo.MaNguoiDung && h.MaCuocTroChuyen == maCuocTroChuyen);
-                        if (receiverHidden != null)
-                            receiverHidden.HasReappeared = true;
+                        if (receiverHidden != null) receiverHidden.HasReappeared = true;
                     }
 
                     await _context.SaveChangesAsync();
+
+                    // ====================================================================================
+                    // 🛠️ PHẦN SỬA LỖI QUAN TRỌNG: Logic TinNhanCuoi cho Preview
+                    // ====================================================================================
+
+                    // Nếu là Location hoặc Text -> Lấy NoiDung. Nếu là Image/Video -> Lấy MediaUrl
+                    var lastMessageContent = (loai == LoaiTinNhan.Text || loai == LoaiTinNhan.Location)
+                                             ? tinNhanMoi.NoiDung
+                                             : tinNhanMoi.MediaUrl;
 
                     // Build object gửi cho người gửi
                     var chatForSender = new
@@ -270,10 +278,13 @@ namespace UniMarket.Hubs
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
                         MaNguoiConLai = otherUserInfo?.MaNguoiDung,
                         TenNguoiConLai = otherUserInfo?.NguoiDung?.FullName,
-                        TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+
+                        // ✅ Đã sửa: dùng biến lastMessageContent đã xử lý đúng logic ở trên
+                        TinNhanCuoi = lastMessageContent,
+
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
-                        ThoiGianCapNhat = DateTime.UtcNow, // ✅ Thêm timestamp
+                        ThoiGianCapNhat = DateTime.UtcNow,
                         HasUnreadMessages = false,
                         IsHidden = senderChatState?.IsHidden ?? false,
                         IsDeleted = senderChatState?.IsDeleted ?? false
@@ -289,28 +300,31 @@ namespace UniMarket.Hubs
                         GiaTinDang = cuocTroChuyen.GiaTinDang,
                         MaNguoiConLai = senderUser?.MaNguoiDung,
                         TenNguoiConLai = senderUser?.NguoiDung?.FullName,
-                        TinNhanCuoi = loai == LoaiTinNhan.Text ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
+
+                        // ✅ Đã sửa: dùng biến lastMessageContent
+                        TinNhanCuoi = lastMessageContent,
+
                         MaNguoiGui = tinNhanMoi.MaNguoiGui,
                         LoaiTinNhan = loai.ToString().ToLower(),
-                        ThoiGianCapNhat = DateTime.UtcNow, // ✅ Thêm timestamp
-                                                           // ✅ FIX: Chỉ set unread = true nếu chat KHÔNG BỊ ẨN
+                        ThoiGianCapNhat = DateTime.UtcNow,
                         HasUnreadMessages = !(receiverChatState?.IsHidden ?? false),
                         IsHidden = receiverChatState?.IsHidden ?? false,
                         IsDeleted = receiverChatState?.IsDeleted ?? false
                     };
 
-                    // Gửi cập nhật cho cả 2 phía
+                    // Gửi cập nhật Sidebar (Chat List) cho cả 2 phía
                     await Clients.Group($"user-{maNguoiGui}").SendAsync("CapNhatCuocTroChuyen", chatForSender);
                     if (otherUserInfo != null)
                         await Clients.Group($"user-{otherUserInfo.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", chatForReceiver);
                 }
 
-                // Gửi tin nhắn thực tế
+                // Gửi tin nhắn thực tế vào khung chat (Chat Box)
                 await Clients.Group(maCuocTroChuyen).SendAsync("NhanTinNhan", new
                 {
                     maTinNhan = tinNhanMoi.MaTinNhan,
                     maCuocTroChuyen,
                     maNguoiGui,
+                    // Logic hiển thị nội dung tin nhắn realtime
                     noiDung = (loai == LoaiTinNhan.Text || loai == LoaiTinNhan.Location) ? tinNhanMoi.NoiDung : tinNhanMoi.MediaUrl,
                     loaiTinNhan = loai.ToString().ToLower(),
                     thoiGianGui = tinNhanMoi.ThoiGianGui,
