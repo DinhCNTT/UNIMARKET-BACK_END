@@ -26,6 +26,7 @@ namespace UniMarket.Controllers
         /// <summary>
         /// Lấy danh sách từ khóa phổ biến (16 items: 4 cột × 4 dòng)
         /// Sorted by time: giờ, ngày, tháng, năm (mới nhất trước)
+        /// Chỉ tính 1 lần mỗi user cho mỗi keyword (tránh spam)
         /// </summary>
         [HttpGet("trending")]
         public async Task<IActionResult> GetTrendingKeywords()
@@ -35,16 +36,24 @@ namespace UniMarket.Controllers
                 var now = DateTimeOffset.UtcNow;
 
                 // Nhóm từ khóa theo khoảng thời gian: Hôm nay, Hôm qua, Tuần này, Tháng này, Năm nay, Cũ hơn
+                // Chỉ tính mỗi user một lần cho mỗi keyword
                 var keywords = await _context.SearchHistories
                     .AsNoTracking()
-                    .GroupBy(s => s.Keyword)
+                    .GroupBy(s => new { s.Keyword, s.UserId })  // Nhóm theo keyword + userId
+                    .Select(g => new
+                    {
+                        g.Key.Keyword,
+                        g.Key.UserId,
+                        LatestSearchAt = g.Max(s => s.CreatedAt)
+                    })
+                    .GroupBy(k => k.Keyword)  // Nhóm lại theo keyword
                     .Select(g => new
                     {
                         Keyword = g.Key,
-                        Count = g.Count(),
-                        LatestSearchAt = g.Max(s => s.CreatedAt)
+                        Count = g.Count(),  // Số lượng user duy nhất tìm kiếm keyword này
+                        LatestSearchAt = g.Max(s => s.LatestSearchAt)
                     })
-                    .OrderByDescending(k => k.Count)              // Sắp xếp theo số lần tìm (phổ biến nhất)
+                    .OrderByDescending(k => k.Count)              // Sắp xếp theo số user tìm (phổ biến nhất)
                     .ThenByDescending(k => k.LatestSearchAt)      // Rồi theo thời gian mới nhất
                     .Take(16) // 4 cột × 4 dòng
                     .ToListAsync();
@@ -104,6 +113,7 @@ namespace UniMarket.Controllers
         /// Lấy từ khóa phổ biến dạng danh sách đơn giản (16 items)
         /// Dùng cho layout 4 cột × 4 dòng
         /// Chỉ lấy dữ liệu từ 7 ngày qua để trends luôn tươi mới
+        /// Chỉ tính 1 lần mỗi user cho mỗi keyword (tránh spam)
         /// </summary>
         [HttpGet("trending-simple")]
         public async Task<IActionResult> GetTrendingKeywordsSimple()
@@ -113,17 +123,25 @@ namespace UniMarket.Controllers
                 // Lọc dữ liệu 7 ngày gần đây để trend luôn tươi mới
                 var sevenDaysAgo = DateTimeOffset.UtcNow.AddDays(-7);
 
+                // Chỉ tính mỗi user một lần cho mỗi keyword
                 var keywords = await _context.SearchHistories
                     .AsNoTracking()
                     .Where(s => s.CreatedAt >= sevenDaysAgo)  // Chỉ lấy 7 ngày gần đây
-                    .GroupBy(s => s.Keyword)
+                    .GroupBy(s => new { s.Keyword, s.UserId })  // Nhóm theo keyword + userId
+                    .Select(g => new
+                    {
+                        g.Key.Keyword,
+                        g.Key.UserId,
+                        LatestSearchAt = g.Max(s => s.CreatedAt)
+                    })
+                    .GroupBy(k => k.Keyword)  // Nhóm lại theo keyword
                     .Select(g => new
                     {
                         Keyword = g.Key,
-                        Count = g.Count(),
-                        LatestSearchAt = g.Max(s => s.CreatedAt)
+                        Count = g.Count(),  // Số lượng user duy nhất tìm kiếm keyword này
+                        LatestSearchAt = g.Max(s => s.LatestSearchAt)
                     })
-                    .OrderByDescending(k => k.Count)  // Sắp xếp theo số lần tìm kiếm (phổ biến nhất trước)
+                    .OrderByDescending(k => k.Count)  // Sắp xếp theo số user tìm kiếm (phổ biến nhất trước)
                     .ThenByDescending(k => k.LatestSearchAt)  // Sau đó là thời gian mới nhất
                     .Take(16)
                     .Select(k => new
@@ -175,7 +193,7 @@ namespace UniMarket.Controllers
                 var trimmedKeyword = request.Keyword.Trim();
                 var lowerKeyword = trimmedKeyword.ToLower();
 
-                // Check if exists (case-insensitive) and update if found
+                // Check if exists (case-insensitive) - chỉ tính 1 lần mỗi user cho mỗi keyword
                 var existing = await _context.SearchHistories
                     .Where(sh => sh.UserId == userId && sh.Keyword.ToLower() == lowerKeyword)
                     .FirstOrDefaultAsync();
@@ -183,9 +201,32 @@ namespace UniMarket.Controllers
                 SearchHistory searchHistory;
                 if (existing != null)
                 {
-                    // Update timestamp but keep original case
-                    existing.CreatedAt = DateTimeOffset.UtcNow;
-                    _context.SearchHistories.Update(existing);
+                    // Anti-spam: Chỉ cho phép cập nhật nếu đã quá 1 ngày kể từ lần tìm kiếm cuối cùng
+                    var lastSearchTime = existing.CreatedAt;
+                    var timeSinceLastSearch = DateTimeOffset.UtcNow - lastSearchTime;
+                    
+                    if (timeSinceLastSearch.TotalDays >= 1)
+                    {
+                        // Update timestamp để đánh dấu user tìm kiếm keyword này lại
+                        existing.CreatedAt = DateTimeOffset.UtcNow;
+                        _context.SearchHistories.Update(existing);
+                        await _context.SaveChangesAsync();
+                    }
+                    else
+                    {
+                        // User đã tìm kiếm keyword này trong 24h qua, không tính lại để tránh spam
+                        return Ok(new
+                        {
+                            success = true,
+                            message = "Search already counted within 24 hours",
+                            data = new
+                            {
+                                keyword = existing.Keyword,
+                                lastCountedAt = existing.CreatedAt,
+                                note = "Each user is counted only once per keyword per 24 hours"
+                            }
+                        });
+                    }
                     searchHistory = existing;
                 }
                 else
@@ -200,8 +241,8 @@ namespace UniMarket.Controllers
                         IpAddress = request.IpAddress
                     };
                     _context.SearchHistories.Add(searchHistory);
+                    await _context.SaveChangesAsync();
                 }
-                await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
