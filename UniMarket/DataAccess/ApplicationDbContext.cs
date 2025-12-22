@@ -63,6 +63,9 @@ namespace UniMarket.DataAccess
         public DbSet<QuickMessage> QuickMessages { get; set; }
         public DbSet<UserDevice> UserDevices { get; set; }
 
+        // 🆕 Recommendation System (MỚI THÊM)
+        public DbSet<UserAffinity> UserAffinities { get; set; }
+
         // ==========================================================
         // 🔧 CONFIGURATION
         // ==========================================================
@@ -71,7 +74,7 @@ namespace UniMarket.DataAccess
             base.OnModelCreating(modelBuilder);
 
             // =================================================================
-            // 🛑 CẤU HÌNH GLOBAL QUERY FILTER (SOFT DELETE) - MỚI THÊM
+            // 🛑 CẤU HÌNH GLOBAL QUERY FILTER (SOFT DELETE)
             // =================================================================
 
             // 1. Tự động ẩn User đã xóa (IsDeleted = true) khỏi mọi câu truy vấn
@@ -81,7 +84,33 @@ namespace UniMarket.DataAccess
             modelBuilder.Entity<TinDang>().HasQueryFilter(t => !t.IsDeleted);
 
             // =================================================================
-            // ⚙️ CẤU HÌNH QUAN HỆ & KHÓA CHÍNH (LOGIC CŨ)
+            // 🆕 CẤU HÌNH USER AFFINITY (HỆ THỐNG GỢI Ý)
+            // =================================================================
+            modelBuilder.Entity<UserAffinity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                // Index Composite để tìm kiếm nhanh mối quan hệ giữa 2 người
+                entity.HasIndex(e => new { e.SourceUserId, e.TargetUserId }).IsUnique();
+
+                // Quan hệ 1: SourceUser (Người thực hiện hành động)
+                // Nếu User bị xóa -> Xóa dữ liệu gợi ý của họ (Cascade OK)
+                entity.HasOne(e => e.SourceUser)
+                      .WithMany()
+                      .HasForeignKey(e => e.SourceUserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Quan hệ 2: TargetUser (Người được tương tác)
+                // Nếu User bị xóa -> KHÔNG tự động xóa dòng này bằng SQL Cascade (Restrict)
+                // Lý do: Tránh lỗi "Multiple Cascade Paths" của SQL Server
+                entity.HasOne(e => e.TargetUser)
+                      .WithMany()
+                      .HasForeignKey(e => e.TargetUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // =================================================================
+            // ⚙️ CẤU HÌNH QUAN HỆ & KHÓA CHÍNH CŨ
             // =================================================================
 
             modelBuilder.Entity<UserHiddenConversation>(entity =>
@@ -89,7 +118,7 @@ namespace UniMarket.DataAccess
                 entity.HasKey(e => new { e.UserId, e.MaCuocTroChuyen });
             });
 
-            // ✨ SỬA LỖI CASCADE PATHS: Cấu hình chi tiết quan hệ cho DeletedMessageForUser
+            // Cấu hình chi tiết quan hệ cho DeletedMessageForUser
             modelBuilder.Entity<DeletedMessageForUser>(entity =>
             {
                 // Định nghĩa khóa chính kép (Composite Key)
@@ -99,7 +128,7 @@ namespace UniMarket.DataAccess
                 entity.HasOne(d => d.TinNhanSocial)
                       .WithMany(t => t.DeletedForUsers)
                       .HasForeignKey(d => d.TinNhanSocialId)
-                      .OnDelete(DeleteBehavior.Restrict); // <-- QUAN TRỌNG: Ngăn chặn xóa dây chuyền
+                      .OnDelete(DeleteBehavior.Restrict); // Ngăn chặn xóa dây chuyền
 
                 // Quan hệ với User (giữ nguyên Cascade)
                 entity.HasOne(d => d.User)
@@ -132,7 +161,7 @@ namespace UniMarket.DataAccess
             }
 
             // =================================================================
-            // 🔗 CÁC QUAN HỆ KHÁC (GIỮ NGUYÊN)
+            // 🔗 CÁC QUAN HỆ KHÁC
             // =================================================================
             modelBuilder.Entity<VideoLike>()
                 .HasOne(v => v.TinDang)

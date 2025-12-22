@@ -20,6 +20,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using UniMarket.DTO;
 using UniMarket.Services.Recommendation;
 using UniMarket.Services.PriceAnalysis;
+using UniMarket.Services.Interfaces;
+using UniMarket.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +76,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     ));
 
 // --- MongoDB Service ---
+// [MỚI THÊM] Đăng ký MongoDbContext cho tính năng Search & Log
+builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddSingleton<TinDangDetailService>();
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
@@ -151,6 +155,7 @@ builder.Services.AddSingleton<UserPresenceService>();
 builder.Services.AddSingleton<ConnectionMapping<string>>();
 builder.Services.AddHostedService<PresenceTimeoutService>();
 builder.Services.AddHostedService<CleanUpEmptyConversationsJob>();
+builder.Services.AddHostedService<ScoreDecayJob>();
 
 // --- Swagger API Docs ---
 builder.Services.AddEndpointsApiExplorer();
@@ -185,6 +190,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<PriceAnalysisService>();
 builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
+builder.Services.AddScoped<ISearchService, SearchService>();
 
 // Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();
@@ -203,6 +209,7 @@ builder.Services.AddScoped<UserBehaviorService>();
 builder.Services.AddScoped<UserRecommendationService>();
 builder.Services.AddScoped<VideoRecommendationService>();
 builder.Services.AddSingleton<RecommendationEngine>();
+builder.Services.AddScoped<IUserAffinityService, UserAffinityService>();
 
 // --- Controllers & JSON Serialization ---
 builder.Services.AddControllers()
