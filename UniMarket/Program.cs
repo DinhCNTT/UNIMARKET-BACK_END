@@ -192,6 +192,9 @@ builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<ISearchService, SearchService>();
 
+// ✅ [QUAN TRỌNG] View History Service (MongoDB)
+builder.Services.AddScoped<ViewHistoryMongoService>();
+
 // Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();
 builder.Services.AddScoped<AiIntentService>();
