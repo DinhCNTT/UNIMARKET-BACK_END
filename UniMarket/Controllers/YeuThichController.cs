@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using UniMarket.DataAccess;
 using UniMarket.Models;
 
@@ -98,31 +99,32 @@ namespace UniMarket.Controllers
                 return Unauthorized(new { message = "Chưa đăng nhập" });
 
             var danhSach = await _context.TinDangYeuThichs
-                .AsNoTracking() // <-- Thêm vào để tăng hiệu năng truy vấn đọc
+                .AsNoTracking()
                 .Where(x => x.MaNguoiDung == userId)
-                // ----- BỎ HẾT CÁC LỆNH .Include() VÌ ĐÃ CÓ .Select() -----
+                .OrderByDescending(x => x.MaYeuThich) // Tin mới nhất trước
                 .Select(x => new
                 {
                     MaTinDang = x.TinDang.MaTinDang,
-                    Images = x.TinDang.AnhTinDangs.Select(a => // <-- Bỏ .ToList()
-                        a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                            ? a.DuongDan
-                            : $"http://localhost:5133{a.DuongDan}"
-                    ), // EF Core sẽ tự động chuyển cái này thành danh sách
-
-                    x.TinDang.TieuDe,
-                    x.TinDang.Gia,
-                    x.TinDang.DiaChi,
+                    TieuDe = x.TinDang.TieuDe,
+                    Gia = x.TinDang.Gia,
+                    DiaChi = x.TinDang.DiaChi,
                     QuanHuyen = x.TinDang.QuanHuyen != null ? x.TinDang.QuanHuyen.TenQuanHuyen : null,
                     TinhThanh = x.TinDang.TinhThanh != null ? x.TinDang.TinhThanh.TenTinhThanh : null,
-
-                    // Sửa lại SavedCount để dùng navigation property
+                    // Lấy ảnh đầu tiên
+                    Images = x.TinDang.AnhTinDangs
+                        .OrderBy(a => a.MaAnh)
+                        .Select(a => 
+                            a.DuongDan.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                                ? a.DuongDan
+                                : $"http://localhost:5133{a.DuongDan}"
+                        )
+                        .ToList(),
                     SavedCount = x.TinDang.TinDangYeuThichs.Count()
                 })
                 .ToListAsync();
 
             if (!danhSach.Any())
-                return NotFound(new { message = "Không có tin đăng yêu thích nào" });
+                return Ok(new List<object>()); // Trả về mảng rỗng thay vì 404
 
             return Ok(danhSach);
         }
