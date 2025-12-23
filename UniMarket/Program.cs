@@ -48,17 +48,17 @@ builder.Services.AddSingleton(provider =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Gmail"));
 builder.Services.AddScoped<IEmailSender, GmailEmailSender>();
 
-// --- CORS Configuration (SỬA LẠI - CÁCH MẠNH MẼ HƠN) ---
+// --- CORS Configuration ---
 var AllowReactAppPolicy = "AllowReactApp";
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AllowReactAppPolicy, policy =>
     {
-        policy.SetIsOriginAllowed(origin => true) // 👈 QUAN TRỌNG: Cho phép mọi nguồn gốc (dễ tính hơn)
+        policy.SetIsOriginAllowed(origin => true) // Cho phép mọi nguồn gốc
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Bắt buộc giữ cái này cho SignalR
+              .AllowCredentials(); // Bắt buộc cho SignalR
     });
 });
 
@@ -75,15 +75,29 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         }
     ));
 
-// --- MongoDB Service ---
+// --- MongoDB Service (ĐÃ CẬP NHẬT) ---
 // [MỚI THÊM] Đăng ký MongoDbContext cho tính năng Search & Log
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddSingleton<TinDangDetailService>();
+
+// 1. Đăng ký Client
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var connectionString = builder.Configuration.GetConnectionString("MongoDbConnection");
     return new MongoDB.Driver.MongoClient(connectionString);
 });
+
+// 2. [QUAN TRỌNG] Đăng ký IMongoDatabase để Controller có thể Inject được
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    // Lấy tên DB từ appsettings.json section "MongoDbSettings:DatabaseName"
+    // Hãy đảm bảo trong appsettings.json bạn có cấu hình này
+    var dbName = config["MongoDbSettings:DatabaseName"] ?? "UniMarketMongoDb";
+    return client.GetDatabase(dbName);
+});
+
 // --- Tăng giới hạn upload file (150MB) ---
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -181,7 +195,7 @@ builder.Services.AddSwaggerGen(c =>
             new string[] { }
         }
     });
-    // Lưu ý: Đảm bảo class FileUploadOperationFilter tồn tại trong project của bạn
+    // Lưu ý: Đảm bảo class FileUploadOperationFilter tồn tại
     c.OperationFilter<FileUploadOperationFilter>();
 });
 
@@ -192,19 +206,19 @@ builder.Services.AddScoped<IQuickMessageService, QuickMessageService>();
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<ISearchService, SearchService>();
 
-// ✅ [QUAN TRỌNG] View History Service (MongoDB)
+// View History Service (MongoDB)
 builder.Services.AddScoped<ViewHistoryMongoService>();
 
 // Logic AI & ChatBot
 builder.Services.AddScoped<AiClient>();
 builder.Services.AddScoped<AiIntentService>();
 builder.Services.AddScoped<ProductSearchService>();
-builder.Services.AddScoped<ExternalToolService>();      // Công cụ ngoài (ship, thời tiết...)
+builder.Services.AddScoped<ExternalToolService>();
 builder.Services.AddScoped<ChatPersistenceService>();
 builder.Services.AddScoped<AiService>();
 builder.Services.AddHostedService<AITrainingWorker>();
 
-// ✅ [LINH HOẠT] Đăng ký SearchFallbackConfig từ appsettings.json
+// Search Fallback Config
 builder.Services.Configure<SearchFallbackConfig>(builder.Configuration.GetSection("SearchFallback"));
 
 // Logic AI Recommendation
