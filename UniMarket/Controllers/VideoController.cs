@@ -13,6 +13,12 @@ using UniMarket.Helpers;
 using UniMarket.Extensions;
 using UniMarket.Services;
 using UniMarket.Services.Interfaces;
+using UniMarket.Services.PriceAnalysis;
+using Microsoft.Extensions.DependencyInjection;
+// Thêm các thư viện cho MongoDB
+using MongoDB.Driver;
+using UniMarket.Models.Mongo;
+using MongoDB.Bson;
 
 namespace UniMarket.Controllers
 {
@@ -27,6 +33,11 @@ namespace UniMarket.Controllers
         private readonly RecommendationEngine _aiEngine;
         private readonly UserBehaviorService _behaviorService;
         private readonly ISearchService _searchService;
+        private readonly PriceAnalysisService _priceAnalysisService;
+        private readonly IServiceScopeFactory _scopeFactory;
+
+        // Thêm collection MongoDB vào field
+        private readonly IMongoCollection<TinDangDetail> _tinDangDetailsCollection;
 
         public VideoController(
             ApplicationDbContext context,
@@ -35,7 +46,11 @@ namespace UniMarket.Controllers
             RecommendationEngine aiEngine,
             IUserNotificationService notiService,
             UserBehaviorService behaviorService,
-            ISearchService searchService)
+            ISearchService searchService,
+            PriceAnalysisService priceAnalysisService,
+            IServiceScopeFactory scopeFactory,
+            // Inject MongoDatabase vào đây
+            IMongoDatabase mongoDatabase)
         {
             _context = context;
             _userManager = userManager;
@@ -44,6 +59,11 @@ namespace UniMarket.Controllers
             _notiService = notiService;
             _behaviorService = behaviorService;
             _searchService = searchService;
+            _priceAnalysisService = priceAnalysisService;
+            _scopeFactory = scopeFactory;
+
+            // Khởi tạo collection (Giả sử tên collection trong Mongo là "TinDangDetails")
+            _tinDangDetailsCollection = mongoDatabase.GetCollection<TinDangDetail>("TinDangDetails");
         }
 
         // =================================================================================
@@ -858,138 +878,223 @@ namespace UniMarket.Controllers
 
         [HttpGet("search")]
         [AllowAnonymous]
-        public async Task<IActionResult> SearchVideos([FromQuery] string keyword, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> SearchVideos(
+            [FromQuery] string keyword,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            // 1. VALIDATION
             if (string.IsNullOrWhiteSpace(keyword))
-                return BadRequest("Từ khóa tìm kiếm không được để trống.");
+                return BadRequest(new { message = "Từ khóa tìm kiếm không được để trống." });
 
             keyword = keyword.Trim();
 
-            // ==========================================================
-            // 2. LẤY USER ID TỪ TOKEN (Dành cho người đã đăng nhập)
-            // ==========================================================
-            string? userId = null;
-            if (User.Identity?.IsAuthenticated == true)
-            {
-                // Lấy ID theo các chuẩn phổ biến (NameIdentifier, id, sub)
-                userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                         ?? User.FindFirst("id")?.Value
-                         ?? User.FindFirst("sub")?.Value;
-            }
-
-            // ==========================================================
-            // 3. LẤY SESSION ID TỪ HEADER (Dành cho cả khách vãng lai)
-            // ==========================================================
-            // Frontend sẽ gửi mã này qua header "X-Session-ID"
+            string? userId = User.Identity?.IsAuthenticated == true
+                ? (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("id")?.Value)
+                : null;
             string? sessionId = Request.Headers["X-Session-ID"].FirstOrDefault();
 
-            // ==========================================================
-            // 4. LOGIC TÌM KIẾM SQL (Core Feature)
-            // ==========================================================
-
-            // 4.1 Tạo Query tìm kiếm
-            var tinDangsQuery = _context.TinDangs
-                .AsNoTracking()
-                .Where(td => td.VideoUrl != null &&
-                             td.TrangThai == TrangThaiTinDang.DaDuyet &&
-                             EF.Functions.Like(td.TieuDe, $"%{keyword}%"));
-
-            // 4.2 Đếm tổng số kết quả (để log và phân trang)
-            int totalMatchCount = await tinDangsQuery.CountAsync();
-
-            // 4.3 Load dữ liệu chi tiết
-            var tinDangsRaw = await tinDangsQuery
-                .Include(td => td.NguoiBan)
-                .Include(td => td.TinhThanh)
-                .Include(td => td.QuanHuyen)
-                .ToListAsync();
-
-            var maTinDangList = tinDangsRaw.Select(td => td.MaTinDang).ToList();
-
-            // 4.4 Lấy số lượng Tym và Comment để tính độ hot
-            var tymCounts = await _context.VideoLikes
-                .Where(v => maTinDangList.Contains(v.MaTinDang))
-                .GroupBy(v => v.MaTinDang)
-                .ToDictionaryAsync(g => g.Key, g => g.Count());
-
-            var binhLuanCounts = await _context.VideoComments
-                .Where(c => maTinDangList.Contains(c.MaTinDang))
-                .GroupBy(c => c.MaTinDang)
-                .ToDictionaryAsync(g => g.Key, g => g.Count());
-
-            // 4.5 Sắp xếp: Ưu tiên video có tương tác cao (Tym + Comment)
-            var tinDangsSorted = tinDangsRaw
-                .OrderByDescending(td => tymCounts.GetValueOrDefault(td.MaTinDang, 0) + binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0))
-                .ToList();
-
-            // 4.6 Phân trang (Pagination)
-            var pagedTinDangs = tinDangsSorted
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            // 4.7 Kiểm tra User hiện tại đã Like video chưa
-            var likedVideoIds = !string.IsNullOrEmpty(userId)
-                ? await _context.VideoLikes
-                    .Where(v => v.UserId == userId && maTinDangList.Contains(v.MaTinDang))
-                    .Select(v => v.MaTinDang)
-                    .ToListAsync()
-                : new List<int>();
-
-            // 4.8 Map sang DTO trả về Client
-            var resultItems = pagedTinDangs.Select(td => new VideoSearchResultDto
+            try
             {
-                MaTinDang = td.MaTinDang,
-                TieuDe = td.TieuDe,
-                VideoUrl = td.VideoUrl,
-                Gia = td.Gia,
-                DiaChi = td.DiaChi,
-                TinhThanh = td.TinhThanh?.TenTinhThanh,
-                QuanHuyen = td.QuanHuyen?.TenQuanHuyen,
-                SoTym = tymCounts.GetValueOrDefault(td.MaTinDang, 0),
-                SoBinhLuan = binhLuanCounts.GetValueOrDefault(td.MaTinDang, 0),
-                NguoiDang = td.NguoiBan == null ? null : new UserSummaryDto
+                // ==========================================================
+                // 2. KHỞI TẠO CÁC TÁC VỤ PHỤ (DÙNG SCOPE ĐỂ TRÁNH LỖI THREAD)
+                // ==========================================================
+
+                // A. Task Log Search (Chạy ngầm an toàn)
+                if (page == 1)
                 {
-                    Id = td.NguoiBan.Id,
-                    FullName = td.NguoiBan.FullName,
-                    AvatarUrl = td.NguoiBan.AvatarUrl
-                },
-                IsLiked = likedVideoIds.Contains(td.MaTinDang),
-                ThoiGianHienThi = CalculateTimeAgo(td.NgayDang) // Hàm helper
-            }).ToList();
-
-            // ==========================================================
-            // 5. GHI LOG VÀO MONGO (Đã update thêm SessionId)
-            // ==========================================================
-
-            // Chỉ log khi user search trang đầu tiên (tránh spam log khi cuộn trang)
-            if (page == 1)
-            {
-                // Fire-and-forget: Chạy luồng phụ, truyền cả userId và sessionId
-                _ = Task.Run(() => _searchService.LogSearchAsync(keyword, userId, sessionId, totalMatchCount));
-            }
-
-            // 6. Lấy Related Keywords (Người khác cũng tìm)
-            List<string> relatedKeywords = new List<string>();
-            if (page == 1)
-            {
-                try
-                {
-                    relatedKeywords = await _searchService.GetRelatedKeywordsAsync(keyword);
+                    _ = Task.Run(async () =>
+                    {
+                        // Tạo scope mới -> DbContext mới -> Không xung đột
+                        using (var scope = _scopeFactory.CreateScope())
+                        {
+                            var searchService = scope.ServiceProvider.GetRequiredService<ISearchService>();
+                            await searchService.LogSearchAsync(keyword, userId, sessionId, 0);
+                        }
+                    });
                 }
-                catch { /* Bỏ qua lỗi phụ */ }
-            }
 
-            // 7. Trả kết quả
-            return Ok(new
+                // B. Task Gợi ý khoảng giá (Chạy song song)
+                var priceTask = Task.Run(async () =>
+                {
+                    if (page != 1) return null;
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        // Lấy Service từ scope mới -> Nó sẽ có DbContext riêng
+                        var priceService = scope.ServiceProvider.GetRequiredService<PriceAnalysisService>();
+                        return await priceService.GetPriceSuggestionByKeywordAsync(keyword);
+                    }
+                });
+
+                // C. Task Gợi ý từ khóa liên quan (Chạy song song)
+                var relatedTask = Task.Run(async () =>
+                {
+                    if (page != 1) return new List<string>();
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var searchService = scope.ServiceProvider.GetRequiredService<ISearchService>();
+                        return await searchService.GetRelatedKeywordsAsync(keyword);
+                    }
+                });
+
+                // ==========================================================
+                // 3. TÌM KIẾM CHÍNH (Dùng _context của Controller - Main Thread)
+                // ==========================================================
+                var baseQuery = _context.TinDangs.AsNoTracking()
+                    .Where(td => td.VideoUrl != null
+                                 && td.TrangThai == TrangThaiTinDang.DaDuyet
+                                 && td.TieuDe.Contains(keyword));
+
+                var hotList = await baseQuery.OrderByDescending(td => td.SoLuotXem)
+                    .Select(td => new CandidateDto
+                    {
+                        MaTinDang = td.MaTinDang,
+                        NgayDang = td.NgayDang,
+                        SoLuotXem = td.SoLuotXem
+                    })
+                    .Take(50).ToListAsync();
+
+                var newList = await baseQuery.OrderByDescending(td => td.NgayDang)
+                    .Select(td => new CandidateDto
+                    {
+                        MaTinDang = td.MaTinDang,
+                        NgayDang = td.NgayDang,
+                        SoLuotXem = td.SoLuotXem
+                    })
+                    .Take(50).ToListAsync();
+
+                var candidates = hotList.Concat(newList)
+                    .GroupBy(x => x.MaTinDang).Select(g => g.First()).ToList();
+
+                int totalMatchCount = candidates.Count;
+
+                // Nếu không có kết quả, vẫn phải đợi Task phụ xong để trả về gợi ý
+                if (totalMatchCount == 0)
+                {
+                    var emptyRelated = await relatedTask;
+                    return Ok(new
+                    {
+                        TotalItems = 0,
+                        Items = new List<object>(),
+                        Page = page,
+                        RelatedKeywords = emptyRelated
+                    });
+                }
+
+                // ==========================================================
+                // 4. SCORING & RANKING (AI)
+                // ==========================================================
+                var rankedIds = new List<(int Id, double Score)>();
+                var random = new Random();
+
+                foreach (var item in candidates)
+                {
+                    double score = 0;
+                    score += Math.Log(item.SoLuotXem + 1) * 0.5;
+
+                    double daysOld = (DateTime.UtcNow - item.NgayDang).TotalDays;
+                    if (daysOld < 3) score += 3.0;
+                    else if (daysOld < 7) score += 1.0;
+
+                    if (!string.IsNullOrEmpty(userId))
+                    {
+                        float aiScore = _aiEngine.PredictScore(userId, item.MaTinDang);
+                        score += (aiScore * 6.0);
+                    }
+                    score += (random.NextDouble() * 8.0);
+                    rankedIds.Add((item.MaTinDang, score));
+                }
+
+                // ==========================================================
+                // 5. PHÂN TRANG & FETCH DATA
+                // ==========================================================
+                var pagedIds = rankedIds
+                    .OrderByDescending(x => x.Score)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(x => x.Id)
+                    .ToList();
+
+                if (!pagedIds.Any())
+                    return Ok(new { TotalItems = totalMatchCount, Items = new List<object>(), Page = page });
+
+                var finalVideos = await _context.TinDangs.AsNoTracking()
+                    .Where(td => pagedIds.Contains(td.MaTinDang))
+                    .Include(td => td.NguoiBan)
+                    .Include(td => td.TinhThanh)
+                    .Include(td => td.QuanHuyen)
+                    .ToListAsync();
+
+                finalVideos = finalVideos.OrderBy(v => pagedIds.IndexOf(v.MaTinDang)).ToList();
+
+                // ==========================================================
+                // 6. THỐNG KÊ TIM & COMMENT
+                // ==========================================================
+                var listMaTin = finalVideos.Select(x => x.MaTinDang).ToList();
+
+                var commentCounts = await _context.VideoComments.AsNoTracking()
+                    .Where(c => listMaTin.Contains(c.MaTinDang))
+                    .GroupBy(c => c.MaTinDang)
+                    .Select(g => new { MaTin = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTin, x => x.Count);
+
+                var likeCounts = await _context.VideoLikes.AsNoTracking()
+                    .Where(l => listMaTin.Contains(l.MaTinDang))
+                    .GroupBy(l => l.MaTinDang)
+                    .Select(g => new { MaTin = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.MaTin, x => x.Count);
+
+                var userLikedIds = new HashSet<int>();
+                if (userId != null)
+                {
+                    userLikedIds = (await _context.VideoLikes.AsNoTracking()
+                        .Where(l => listMaTin.Contains(l.MaTinDang) && l.UserId == userId)
+                        .Select(l => l.MaTinDang)
+                        .ToListAsync()).ToHashSet();
+                }
+
+                // ==========================================================
+                // 7. MAP DTO & TRẢ VỀ
+                // ==========================================================
+                var resultItems = finalVideos.Select(item => new VideoSearchResultDto
+                {
+                    MaTinDang = item.MaTinDang,
+                    TieuDe = item.TieuDe,
+                    VideoUrl = item.VideoUrl,
+                    Gia = item.Gia,
+                    DiaChi = item.DiaChi,
+                    TinhThanh = item.TinhThanh?.TenTinhThanh ?? "",
+                    QuanHuyen = item.QuanHuyen?.TenQuanHuyen ?? "",
+                    SoTym = likeCounts.GetValueOrDefault(item.MaTinDang, 0),
+                    SoBinhLuan = commentCounts.GetValueOrDefault(item.MaTinDang, 0),
+                    NguoiDang = item.NguoiBan == null ? null : new UserSummaryDto
+                    {
+                        Id = item.NguoiBan.Id,
+                        FullName = item.NguoiBan.FullName,
+                        AvatarUrl = item.NguoiBan.AvatarUrl
+                    },
+                    IsLiked = userLikedIds.Contains(item.MaTinDang),
+                    ThoiGianHienThi = CalculateTimeAgo(item.NgayDang)
+                }).ToList();
+
+                // Đợi các Task phụ hoàn thành và lấy kết quả
+                await Task.WhenAll(priceTask, relatedTask);
+
+                return Ok(new
+                {
+                    TotalItems = totalMatchCount,
+                    TotalPages = (int)Math.Ceiling((double)totalMatchCount / pageSize),
+                    Page = page,
+                    PageSize = pageSize,
+                    PriceSuggestion = await priceTask,    // Kết quả từ luồng phụ
+                    RelatedKeywords = await relatedTask,  // Kết quả từ luồng phụ
+                    Items = resultItems
+                });
+            }
+            catch (Exception ex)
             {
-                TotalItems = totalMatchCount,
-                Page = page,
-                PageSize = pageSize,
-                Items = resultItems,
-                RelatedKeywords = relatedKeywords
-            });
+                Console.WriteLine($"Search Error: {ex.Message}");
+                return StatusCode(500, new { message = "Lỗi hệ thống tìm kiếm: " + ex.Message });
+            }
         }
 
         [HttpGet("suggest-smart")]
@@ -1029,27 +1134,7 @@ namespace UniMarket.Controllers
 
             return Ok(trends);
         }
-        // hàm gợi ý tìm kiếm từ khóa 
-        [HttpGet("suggest-keywords")]
-        [AllowAnonymous]
-        public async Task<IActionResult> SuggestKeywords([FromQuery] string keyword, [FromQuery] int limit = 10)
-        {
-            if (string.IsNullOrWhiteSpace(keyword))
-                return BadRequest("Từ khóa không được để trống.");
-
-            var suggestions = await _context.TinDangs
-                .Where(td => td.VideoUrl != null &&
-                             td.TrangThai == TrangThaiTinDang.DaDuyet &&
-                             td.TieuDe.Contains(keyword))
-                .Select(td => td.TieuDe)
-                .Distinct()
-                .OrderBy(t => t)
-                .Take(limit)
-                .ToListAsync();
-
-            return Ok(suggestions);
-        }
-
+        
         [HttpGet("search-users")]
         [AllowAnonymous]
         public async Task<IActionResult> SearchUsersByVideoKeyword([FromQuery] string keyword)
@@ -1487,6 +1572,7 @@ namespace UniMarket.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetVideoDetailInfo(int maTinDang)
         {
+            // 1. Logic cũ: Lấy thông tin cơ bản từ SQL Server
             var tin = await _context.TinDangs
                 .Include(td => td.NguoiBan)
                 .Include(td => td.TinhThanh)
@@ -1499,7 +1585,7 @@ namespace UniMarket.Controllers
             if (tin == null)
                 return NotFound(new { message = "Tin đăng không tồn tại" });
 
-            // Lấy danh sách ảnh (MediaType.Image)
+            // 2. Logic cũ: Xử lý danh sách ảnh
             var danhSachAnh = tin.AnhTinDangs != null
                 ? tin.AnhTinDangs
                     .Where(a => a.LoaiMedia == MediaType.Image)
@@ -1508,6 +1594,20 @@ namespace UniMarket.Controllers
                     .ToList()
                 : new List<string>();
 
+            // 3. LOGIC MỚI: Lấy thông tin chi tiết động từ MongoDB
+            var tinChiTietMongo = await _tinDangDetailsCollection
+                .Find(x => x.MaTinDang == maTinDang)
+                .FirstOrDefaultAsync();
+
+            // Chuyển đổi BsonDocument sang Dictionary để API trả về JSON chuẩn
+            object thongSoKyThuat = null;
+            if (tinChiTietMongo != null && tinChiTietMongo.ChiTiet != null)
+            {
+                // Sử dụng BsonTypeMapper để chuyển đổi các kiểu dữ liệu Mongo sang .NET native types
+                thongSoKyThuat = BsonTypeMapper.MapToDotNetValue(tinChiTietMongo.ChiTiet);
+            }
+
+            // 4. Kết hợp kết quả
             var result = new
             {
                 tin.MaTinDang,
@@ -1522,6 +1622,9 @@ namespace UniMarket.Controllers
                 QuanHuyen = tin.QuanHuyen?.TenQuanHuyen,
 
                 DanhSachAnh = danhSachAnh,
+
+                // Trường mới thêm vào từ MongoDB
+                ThongSoChiTiet = thongSoKyThuat,
 
                 NguoiDang = tin.NguoiBan != null ? new
                 {

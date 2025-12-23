@@ -11,14 +11,16 @@ namespace UniMarket.Models.Mongo
         public string Id { get; set; }
 
         public string Keyword { get; set; }          // Từ khóa gốc
-        public string NormalizedKeyword { get; set; } // Từ khóa viết thường, không dấu (để thống kê)
+        public string NormalizedKeyword { get; set; } // Từ khóa viết thường
 
         public string? UserId { get; set; }          // Null nếu khách vãng lai
-        public string? SessionId { get; set; }       // Session ID để track hành vi khách vãng lai
+        public string? SessionId { get; set; }       // Session ID
 
         [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public int ResultCount { get; set; }         // Số kết quả tìm thấy (để lọc từ khóa rác)
+        public int ResultCount { get; set; }         // Số kết quả tìm thấy
+
+        public string? Platform { get; set; } = "Web";
     }
 }

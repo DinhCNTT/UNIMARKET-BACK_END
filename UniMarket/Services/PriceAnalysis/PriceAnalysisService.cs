@@ -4,15 +4,24 @@ using System.Text.RegularExpressions;
 using UniMarket.DataAccess;
 using UniMarket.DTO;
 using UniMarket.Models;
-using MongoDB.Bson; // Cần thêm
-using MongoDB.Driver; // Cần thêm
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace UniMarket.Services.PriceAnalysis
 {
+    // DTO trả về cho tính năng Gợi ý giá khi Search
+    public class SearchPriceSuggestion
+    {
+        public decimal MinPrice { get; set; }
+        public decimal MaxPrice { get; set; }
+        public decimal AveragePrice { get; set; }
+        public int SampleSize { get; set; }
+    }
+
     public class PriceAnalysisService
     {
         private readonly ApplicationDbContext _context;
-        private readonly TinDangDetailService _mongoService; // ✅ Inject Service Mongo
+        private readonly TinDangDetailService _mongoService;
 
         public PriceAnalysisService(ApplicationDbContext context, TinDangDetailService mongoService)
         {
@@ -20,11 +29,37 @@ namespace UniMarket.Services.PriceAnalysis
             _mongoService = mongoService;
         }
 
+        // =================================================================================
+        // 1. TÍNH NĂNG MỚI: GỢI Ý KHOẢNG GIÁ THEO TỪ KHÓA (Dùng cho API Search)
+        // =================================================================================
+        public async Task<SearchPriceSuggestion?> GetPriceSuggestionByKeywordAsync(string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword)) return null;
+
+            // Lấy mẫu giá từ SQL (Lấy 100 tin mới nhất khớp từ khóa để tính toán nhanh)
+            // Không join MongoDB ở đây để tối ưu tốc độ cho Search API
+            var rawPrices = await _context.TinDangs
+                .AsNoTracking()
+                .Where(p => p.TrangThai == TrangThaiTinDang.DaDuyet
+                         && p.Gia > 0
+                         && p.TieuDe.Contains(keyword))
+                .OrderByDescending(p => p.NgayDang)
+                .Take(100)
+                .Select(p => p.Gia)
+                .ToListAsync();
+
+            if (rawPrices.Count < 3) return null; // Dữ liệu quá ít, không gợi ý
+
+            // Gọi hàm tính toán chung
+            return CalculateIQR(rawPrices);
+        }
+
+        // =================================================================================
+        // 2. TÍNH NĂNG CŨ: PHÂN TÍCH GIÁ CHI TIẾT 1 BÀI ĐĂNG (Deep Analysis)
+        // =================================================================================
         public async Task<MarketAnalysisResult> AnalyzePriceAsync(int postId)
         {
-            // =========================================================
-            // 1. LẤY TIN GỐC TỪ SQL (Cơ bản)
-            // =========================================================
+            // A. LẤY TIN GỐC TỪ SQL
             var currentPost = await _context.TinDangs
                 .Include(p => p.DanhMuc)
                 .AsNoTracking()
@@ -32,24 +67,20 @@ namespace UniMarket.Services.PriceAnalysis
 
             if (currentPost == null) return new MarketAnalysisResult { IsSuccess = false };
 
-            // 🛑 LỚP BẢO VỆ: CHECK DANH MỤC
+            // Check danh mục (Chỉ áp dụng cho điện thoại)
             string categoryName = currentPost.DanhMuc?.TenDanhMuc?.ToLower() ?? "";
             if (!categoryName.Contains("điện thoại") && !categoryName.Contains("phone") && !categoryName.Contains("smartphone"))
             {
                 return new MarketAnalysisResult { IsSuccess = false };
             }
 
-            // =========================================================
-            // 2. LẤY CHI TIẾT TỪ MONGODB (Thay vì SQL)
-            // =========================================================
+            // B. LẤY CHI TIẾT CẤU HÌNH TỪ MONGODB
             ProductSpecDTO currentSpecs = new ProductSpecDTO();
             try
             {
                 var mongoDetail = await _mongoService.GetByMaTinDangAsync(postId);
                 if (mongoDetail != null && mongoDetail.ChiTiet != null)
                 {
-                    // Chuyển BSON -> JSON String -> DTO
-                    // Lưu ý: Cần config ToJsonWriterSettings để output ra JSON chuẩn
                     var json = mongoDetail.ChiTiet.ToJson(new MongoDB.Bson.IO.JsonWriterSettings { OutputMode = MongoDB.Bson.IO.JsonOutputMode.RelaxedExtendedJson });
                     currentSpecs = JsonConvert.DeserializeObject<ProductSpecDTO>(json) ?? new ProductSpecDTO();
                 }
@@ -61,40 +92,34 @@ namespace UniMarket.Services.PriceAnalysis
 
             Console.WriteLine($"\n🔍 [AI HYBRID] Phân tích: {currentPost.TieuDe} (ID: {postId})");
 
-            // =========================================================
-            // 3. LẤY DANH SÁCH ỨNG VIÊN TỪ SQL (Bỏ chọn ThongTinChiTiet)
-            // =========================================================
+            // C. LẤY DANH SÁCH ỨNG VIÊN TỪ SQL (Sơ loại)
             var candidates = await _context.TinDangs
                 .AsNoTracking()
                 .Where(p => p.MaDanhMuc == currentPost.MaDanhMuc
                             && p.TrangThai == TrangThaiTinDang.DaDuyet
                             && p.Gia > 0
-                            && p.TinhTrang == currentPost.TinhTrang)
-                // ❌ QUAN TRỌNG: Không select p.ThongTinChiTiet nữa vì cột đã xóa
+                            && p.TinhTrang == currentPost.TinhTrang
+                            && p.MaTinDang != postId) // Loại trừ chính nó
                 .Select(p => new { p.MaTinDang, p.Gia, p.TieuDe, p.TinhTrang })
                 .ToListAsync();
 
-            Console.WriteLine($"   => Tìm thấy {candidates.Count} tin sơ bộ.");
-
             var validPrices = new List<decimal>();
 
-            // Kiểm tra xem tin gốc có dữ liệu chuẩn không?
+            // Kiểm tra tin gốc có đủ dữ liệu để so sánh chính xác không
             bool hasStrictData = !string.IsNullOrEmpty(currentSpecs.Hang)
                               && !string.IsNullOrEmpty(currentSpecs.DongMay)
                               && currentSpecs.DongMay != "Khác"
                               && !string.IsNullOrEmpty(currentSpecs.DungLuong);
 
-            // =========================================================
-            // 4. SO SÁNH (MATCHING) - KẾT HỢP GỌI MONGO CHO TỪNG ỨNG VIÊN
-            // =========================================================
+            // D. MATCHING LOOP (Kết hợp MongoDB cho từng ứng viên)
             foreach (var post in candidates)
             {
                 try
                 {
-                    // 🔥 Lấy chi tiết của ứng viên từ MongoDB
+                    // Lấy chi tiết ứng viên từ Mongo
                     var candidateDetail = await _mongoService.GetByMaTinDangAsync(post.MaTinDang);
-
                     ProductSpecDTO targetSpecs = new ProductSpecDTO();
+
                     if (candidateDetail != null && candidateDetail.ChiTiet != null)
                     {
                         var json = candidateDetail.ChiTiet.ToJson(new MongoDB.Bson.IO.JsonWriterSettings { OutputMode = MongoDB.Bson.IO.JsonOutputMode.RelaxedExtendedJson });
@@ -103,7 +128,7 @@ namespace UniMarket.Services.PriceAnalysis
 
                     bool isMatch = false;
 
-                    // 🛡️ LỚP 2: SO SÁNH CHÍNH XÁC (STRICT MATCHING)
+                    // Layer 1: So sánh chính xác (Strict)
                     if (hasStrictData)
                     {
                         if (!IsStringMatch(currentSpecs.Hang, targetSpecs.Hang)) continue;
@@ -111,10 +136,9 @@ namespace UniMarket.Services.PriceAnalysis
                         if (!IsStringMatch(currentSpecs.DungLuong, targetSpecs.DungLuong)) continue;
                         isMatch = true;
                     }
-                    // 🛡️ LỚP 3: SO SÁNH TIÊU ĐỀ (FALLBACK)
+                    // Layer 2: So sánh tiêu đề (Fallback)
                     else
                     {
-                        // Vẫn bắt buộc cùng Hãng (nếu có thông tin bên Mongo)
                         if (!string.IsNullOrEmpty(currentSpecs.Hang) && !string.IsNullOrEmpty(targetSpecs.Hang))
                         {
                             if (!IsStringMatch(currentSpecs.Hang, targetSpecs.Hang)) continue;
@@ -134,74 +158,94 @@ namespace UniMarket.Services.PriceAnalysis
                         validPrices.Add(post.Gia);
                     }
                 }
-                catch { }
+                catch { /* Bỏ qua lỗi parsing lẻ tẻ */ }
             }
 
-            // =========================================================
-            // 5. TÍNH TOÁN THỐNG KÊ (GIỮ NGUYÊN LOGIC CŨ)
-            // =========================================================
+            // E. TÍNH TOÁN KẾT QUẢ CUỐI CÙNG
             if (validPrices.Count < 1)
             {
-                Console.WriteLine("❌ KẾT QUẢ: Không tìm thấy dữ liệu thị trường.");
                 return new MarketAnalysisResult { IsSuccess = false };
             }
 
-            validPrices.Sort();
-            int n = validPrices.Count;
-            List<decimal> marketPrices;
+            // 🔥 SỬ DỤNG HÀM TÍNH TOÁN CHUNG (REUSABLE LOGIC)
+            var stats = CalculateIQR(validPrices);
 
-            // IQR Filter
-            if (n >= 4)
-            {
-                decimal q1 = validPrices[n / 4];
-                decimal q3 = validPrices[n * 3 / 4];
-                decimal iqr = q3 - q1;
-                marketPrices = validPrices.Where(p => p >= q1 - 1.5m * iqr && p <= q3 + 1.5m * iqr).ToList();
-            }
-            else
-            {
-                marketPrices = validPrices;
-            }
-
-            if (!marketPrices.Any()) marketPrices = validPrices;
-
-            decimal marketMin = marketPrices.Min();
-            decimal marketMax = marketPrices.Max();
-            decimal marketAvg = marketPrices.Average();
-
-            if (marketMin == marketMax)
-            {
-                marketMin = marketMin * 0.9m;
-                marketMax = marketMax * 1.1m;
-            }
-
+            // Tính độ lệch và trạng thái
             double diffPercent = 0;
-            if (marketAvg > 0)
-                diffPercent = (double)((currentPost.Gia - marketAvg) / marketAvg) * 100;
+            if (stats.AveragePrice > 0)
+                diffPercent = (double)((currentPost.Gia - stats.AveragePrice) / stats.AveragePrice) * 100;
 
             string status = "Giá hợp lý";
             if (diffPercent < -5) status = "Rẻ hơn thị trường";
             else if (diffPercent > 5) status = "Cao hơn thị trường";
 
-            Console.WriteLine($"✅ SUCCESS: Thị trường [{marketMin:N0} - {marketMax:N0}], Phổ biến: {marketAvg:N0}");
+            Console.WriteLine($"✅ SUCCESS: Thị trường [{stats.MinPrice:N0} - {stats.MaxPrice:N0}], TB: {stats.AveragePrice:N0}");
 
             return new MarketAnalysisResult
             {
                 IsSuccess = true,
-                MinPrice = marketMin,
-                MaxPrice = marketMax,
-                AveragePrice = marketAvg,
+                MinPrice = stats.MinPrice,
+                MaxPrice = stats.MaxPrice,
+                AveragePrice = stats.AveragePrice,
                 CurrentPrice = currentPost.Gia,
                 Status = status,
                 DifferencePercent = Math.Round(diffPercent, 1),
+                SampleSize = stats.SampleSize
+            };
+        }
+
+        // =================================================================================
+        // 3. CORE LOGIC: TÍNH TOÁN IQR & LỌC GIÁ ẢO (DÙNG CHUNG)
+        // =================================================================================
+        private SearchPriceSuggestion CalculateIQR(List<decimal> prices)
+        {
+            if (prices == null || !prices.Any())
+                return new SearchPriceSuggestion();
+
+            prices.Sort();
+            int n = prices.Count;
+            List<decimal> marketPrices;
+
+            // Thuật toán IQR để loại bỏ ngoại lai (Outliers)
+            if (n >= 4)
+            {
+                decimal q1 = prices[n / 4];
+                decimal q3 = prices[n * 3 / 4];
+                decimal iqr = q3 - q1;
+                // Lọc các giá nằm trong khoảng [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
+                marketPrices = prices.Where(p => p >= q1 - 1.5m * iqr && p <= q3 + 1.5m * iqr).ToList();
+            }
+            else
+            {
+                marketPrices = prices;
+            }
+
+            // Fallback nếu lọc xong bị rỗng
+            if (!marketPrices.Any()) marketPrices = prices;
+
+            decimal min = marketPrices.Min();
+            decimal max = marketPrices.Max();
+            decimal avg = marketPrices.Average();
+
+            // Mở rộng range nhẹ nếu min == max để biểu đồ đẹp hơn
+            if (min == max)
+            {
+                min = min * 0.9m;
+                max = max * 1.1m;
+            }
+
+            return new SearchPriceSuggestion
+            {
+                MinPrice = min,
+                MaxPrice = max,
+                AveragePrice = avg,
                 SampleSize = marketPrices.Count
             };
         }
 
         // =================================================================================
-        // CÁC HÀM BỔ TRỢ (HELPER FUNCTIONS) - GIỮ NGUYÊN 100%
+        // 4. HELPERS (REGEX, CLEAN TEXT) - GIỮ NGUYÊN
         // =================================================================================
-
         private bool IsStringMatch(string? s1, string? s2)
         {
             if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2)) return false;
