@@ -1,68 +1,84 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using UniMarket.DataAccess;
-using UniMarket.Models;
+using UniMarket.Models; // Chứa enum ShareType, ReportTargetType...
 using UniMarket.Models.ML;
+using UniMarket.Models.Mongo;
 
 namespace UniMarket.Services.Recommendation
 {
     // ============================================================
     // DTO: CHÂN DUNG KHÁCH HÀNG (User Profiling)
-    // Dùng để lọc nhanh (Content-Based) trước khi chạy AI chuyên sâu
     // ============================================================
     public class UserProfileDto
     {
-        public List<string> RecentSearchKeywords { get; set; } = new(); // Từ khóa hay tìm
-        public decimal PreferredMinPrice { get; set; } = 0;             // Khoảng giá thấp nhất chấp nhận
-        public decimal PreferredMaxPrice { get; set; } = 0;             // Khoảng giá cao nhất chấp nhận
-        public int? PreferredLocationId { get; set; }                   // Tỉnh thành quan tâm nhất
-        public List<int> PreferredCategoryIds { get; set; } = new();    // Danh mục hay xem
-        public bool HasData => RecentSearchKeywords.Any() || PreferredMaxPrice > 0;
+        public List<string> RecentSearchKeywords { get; set; } = new();
+        public decimal PreferredMinPrice { get; set; } = 0;
+        public decimal PreferredMaxPrice { get; set; } = 0;
+        public int? PreferredLocationId { get; set; }
+        public List<int> PreferredCategoryIds { get; set; } = new();
+
+        public bool HasData => RecentSearchKeywords.Any() || PreferredMaxPrice > 0 || PreferredCategoryIds.Any();
     }
 
     public class UserBehaviorService
     {
         private readonly ApplicationDbContext _context;
+        // Khai báo 2 collection MongoDB riêng biệt
+        private readonly IMongoCollection<ViewHistory> _viewHistoryCollection;
+        private readonly IMongoCollection<VideoViewLog> _videoLogCollection; // <--- MỚI THÊM
 
         // ============================================================
-        // 1. CẤU HÌNH ĐIỂM SỐ (WEIGHTS CONFIGURATION)
+        // 1. CẤU HÌNH ĐIỂM SỐ (WEIGHTS & SCORING RULES)
         // ============================================================
 
-        // --- Hành vi Xem (Implicit Feedback) ---
-        private const float SCORE_VIEW_SKIP = -2.0f;        // Lướt qua < 3s (Không thích)
-        private const float SCORE_VIEW_SHORT = 0.5f;        // Xem < 10s (Tò mò chút xíu)
-        private const float SCORE_VIEW_MEDIUM = 2.0f;       // Xem > 50% thời lượng (Khá thích)
-        private const float SCORE_VIEW_COMPLETED = 4.0f;    // Xem hết video (Rất thích)
-        private const float SCORE_REWATCH_BONUS = 3.0f;     // Điểm thưởng mỗi lần xem lại
+        // --- A. Hành vi Đọc Tin Đăng (MongoDB - ViewHistory) ---
+        private const float SCORE_POST_CLICK_ONLY = 1.0f;
+        private const float SCORE_POST_GLANCE = 0.5f;
+        private const float SCORE_POST_READING = 2.0f;
+        private const float SCORE_POST_DEEP_READ = 5.0f;
+        private const float SCORE_POST_REVISIT_BONUS = 2.0f;
 
-        // --- Hành vi Tương tác Tích cực (Explicit Feedback) ---
-        private const float SCORE_LIKE = 5.0f;              // Thả tim
-        private const float SCORE_COMMENT = 8.0f;           // Bình luận (Nỗ lực cao hơn like)
+        // --- B. Hành vi Xem Video Feed (MongoDB - VideoViewLog) ---
+        private const float SCORE_VIDEO_SKIP = -2.0f;        // < 3s
+        private const float SCORE_VIDEO_SHORT = 0.5f;        // 3s - 10s
+        private const float SCORE_VIDEO_MEDIUM = 2.0f;       // > 10s
+        private const float SCORE_VIDEO_COMPLETED = 4.0f;    // Xem hết
+        private const float SCORE_VIDEO_REWATCH = 3.0f;      // Xem lại
 
-        // 🔥 CẬP NHẬT TỪ CODE 2 (Tách biệt hành vi Lưu và Yêu thích)
-        private const float SCORE_SAVE_VIDEO = 8.0f;        // Lưu Video (VideoTinDangSave): Thích nội dung giải trí
-        private const float SCORE_FAVORITE_ITEM = 15.0f;    // Yêu thích Sản phẩm (TinDangYeuThich): Ý định mua cực cao
+        // --- C. Tương tác Tích cực ---
+        private const float SCORE_LIKE = 5.0f;
+        private const float SCORE_COMMENT = 8.0f;
+        private const float SCORE_SAVE_VIDEO = 10.0f;
+        private const float SCORE_FAVORITE_ITEM = 15.0f;
 
-        // --- Hành vi Lan tỏa (Viral/Social) ---
-        private const float SCORE_SHARE_INTERNAL = 10.0f;   // Share qua chat nội bộ
-        private const float SCORE_SHARE_SOCIAL = 15.0f;     // Share ra Facebook/Zalo (Viral cao nhất)
+        // --- D. Hành vi Lan tỏa ---
+        private const float SCORE_SHARE_INTERNAL = 10.0f;
+        private const float SCORE_SHARE_SOCIAL = 15.0f;
 
-        // --- Hành vi Tiêu cực (Negative Feedback) ---
-        private const float SCORE_REPORT = -50.0f;          // Báo cáo (Ghét cay ghét đắng)
+        // --- E. Hành vi Tiêu cực ---
+        private const float SCORE_REPORT = -50.0f;
 
-        public UserBehaviorService(ApplicationDbContext context)
+        public UserBehaviorService(ApplicationDbContext context, IMongoDatabase mongoDatabase)
         {
             _context = context;
+            // Map với các collection trong MongoDB
+            _viewHistoryCollection = mongoDatabase.GetCollection<ViewHistory>("ViewHistory");
+            _videoLogCollection = mongoDatabase.GetCollection<VideoViewLog>("VideoViewLog"); // <--- KHỞI TẠO COLLECTION MỚI
         }
 
         // ============================================================
         // 2. PHÂN TÍCH CHÂN DUNG NGƯỜI DÙNG (USER PROFILING)
-        // Dùng cho Content-Based Filtering & Cold Start
         // ============================================================
         public async Task<UserProfileDto> AnalyzeUserProfileAsync(string userId)
         {
             var profile = new UserProfileDto();
 
-            // A. Học từ Lịch Sử Tìm Kiếm (Lấy 10 từ khóa gần nhất)
+            // --- BƯỚC 1: Học từ Lịch Sử Tìm Kiếm (SQL) ---
             profile.RecentSearchKeywords = await _context.SearchHistories
                 .AsNoTracking()
                 .Where(h => h.UserId == userId)
@@ -71,58 +87,82 @@ namespace UniMarket.Services.Recommendation
                 .Select(h => h.Keyword.ToLower())
                 .ToListAsync();
 
-            // B. Học từ Tương tác (Like, Save Video, Favorite Product)
-            // Tách biệt nguồn dữ liệu để lấy danh sách ID tin đăng user quan tâm
+            // --- BƯỚC 2: Tổng hợp ID Tin Đăng quan tâm ---
+            var interestingIds = new List<int>();
 
-            // 1. Likes
-            var likedPostIds = await _context.VideoLikes
-                .AsNoTracking().Where(l => l.UserId == userId).Select(l => l.MaTinDang).ToListAsync();
+            // a. Từ SQL (Like, Favorite, Save)
+            var likedIds = await _context.VideoLikes.AsNoTracking().Where(l => l.UserId == userId).Select(l => l.MaTinDang).ToListAsync();
+            var favIds = await _context.TinDangYeuThichs.AsNoTracking().Where(f => f.MaNguoiDung == userId).Select(f => f.MaTinDang).ToListAsync();
+            var savedIds = await _context.VideoTinDangSaves.AsNoTracking().Where(s => s.MaNguoiDung == userId).Select(s => s.MaTinDang).ToListAsync();
 
-            // 2. Saved Videos (Hành vi giải trí/tham khảo) - Code 2
-            var savedVideoIds = await _context.VideoTinDangSaves
-                .AsNoTracking().Where(s => s.MaNguoiDung == userId).Select(s => s.MaTinDang).ToListAsync();
+            interestingIds.AddRange(likedIds);
+            interestingIds.AddRange(favIds);
+            interestingIds.AddRange(savedIds);
 
-            // 3. Favorites (Hành vi mua sắm) - Code 2 (QUAN TRỌNG NHẤT)
-            var favoriteIds = await _context.TinDangYeuThichs
-                .AsNoTracking().Where(f => f.MaNguoiDung == userId).Select(f => f.MaTinDang).ToListAsync();
+            // b. Từ MongoDB (ViewHistory - Đọc tin)
+            var rawMongoViews = await _viewHistoryCollection
+                .Find(x => x.UserId == userId)
+                .SortByDescending(x => x.LastViewedAt)
+                .Limit(100)
+                .ToListAsync();
 
-            // Gộp tất cả danh sách ID và loại bỏ trùng lặp để phân tích "Gu" chung
-            var interactedIds = likedPostIds
-                                .Concat(savedVideoIds)
-                                .Concat(favoriteIds)
-                                .Distinct()
-                                .ToList();
+            var validMongoIds = rawMongoViews
+                .GroupBy(x => x.MaTinDang)
+                .Select(g => new
+                {
+                    MaTinDang = g.Key,
+                    TotalSeconds = g.Sum(x => x.WatchedSeconds),
+                    VisitCount = g.Count()
+                })
+                .Where(x => x.TotalSeconds > 10 || x.VisitCount >= 2)
+                .Select(x => x.MaTinDang)
+                .ToList();
 
-            if (interactedIds.Any())
+            interestingIds.AddRange(validMongoIds);
+
+            // c. Từ MongoDB (VideoViewLog - Xem Video) -> THÊM PHẦN NÀY ĐỂ HỌC TỪ VIDEO LOG MỚI
+            var rawVideoLogs = await _videoLogCollection
+                .Find(x => x.UserId == userId)
+                .SortByDescending(x => x.StartedAt)
+                .Limit(50)
+                .ToListAsync();
+
+            var validVideoIds = rawVideoLogs
+                .Where(x => x.IsCompleted || x.WatchedSeconds > 10) // Chỉ lấy video xem lâu
+                .Select(x => x.MaTinDang)
+                .ToList();
+
+            interestingIds.AddRange(validVideoIds);
+
+
+            // Loại bỏ trùng lặp
+            interestingIds = interestingIds.Distinct().ToList();
+
+            // --- BƯỚC 3: Tính toán Gu (Affinity) ---
+            if (interestingIds.Any())
             {
-                // Truy vấn tin đăng dựa trên list ID (Nhanh hơn nhiều so với subquery)
-                var interactiveVideos = await _context.TinDangs
+                var interactiveItems = await _context.TinDangs
                     .AsNoTracking()
-                    .Where(t => interactedIds.Contains(t.MaTinDang))
-                    .OrderByDescending(t => t.NgayDang)
-                    .Take(50) // Chỉ phân tích 50 tin gần nhất để bắt trend sở thích mới
+                    .Where(t => interestingIds.Contains(t.MaTinDang))
                     .Select(t => new { t.Gia, t.MaTinhThanh, t.MaDanhMuc })
                     .ToListAsync();
 
-                if (interactiveVideos.Any())
+                if (interactiveItems.Any())
                 {
-                    // 1. Học Giá Cả (Price Affinity): Trung bình +/- 30%
-                    var avgPrice = interactiveVideos.Average(x => x.Gia);
+                    var avgPrice = interactiveItems.Average(x => x.Gia);
                     profile.PreferredMinPrice = avgPrice * 0.7m;
                     profile.PreferredMaxPrice = avgPrice * 1.3m;
 
-                    // 2. Học Khu Vực (Location Affinity): Mode (xuất hiện nhiều nhất)
-                    profile.PreferredLocationId = interactiveVideos
+                    profile.PreferredLocationId = interactiveItems
                         .GroupBy(x => x.MaTinhThanh)
                         .OrderByDescending(g => g.Count())
                         .Select(g => g.Key)
                         .FirstOrDefault();
 
-                    // 3. Học Danh Mục (Category Affinity): Top 3
-                    profile.PreferredCategoryIds = interactiveVideos
+                    profile.PreferredCategoryIds = interactiveItems
                         .GroupBy(x => x.MaDanhMuc)
                         .OrderByDescending(g => g.Count())
-                        .Take(3)
+                        .Take(5)
                         .Select(g => g.Key)
                         .ToList();
                 }
@@ -133,105 +173,113 @@ namespace UniMarket.Services.Recommendation
 
         // ============================================================
         // 3. LẤY DỮ LIỆU HUẤN LUYỆN (TRAINING DATA GENERATION)
-        // Dùng cho Collaborative Filtering (Matrix Factorization)
         // ============================================================
         public async Task<List<VideoRating>> GetTrainingDataAsync()
         {
-            // Dictionary cộng dồn điểm: (UserId, VideoId) -> TotalScore
             var tempScores = new Dictionary<(string userId, int videoId), float>();
 
-            // Chỉ lấy dữ liệu trong 90 ngày gần nhất (Tránh User drift - sở thích thay đổi)
+            // Chỉ học dữ liệu trong 90 ngày gần nhất
             var cutOffDate = DateTime.UtcNow.AddDays(-90);
 
             // ---------------------------------------------------------
-            // A. XỬ LÝ DỮ LIỆU XEM (VIEWS)
+            // A. XỬ LÝ MONGODB (ViewHistory - Đọc bài viết)
             // ---------------------------------------------------------
-            var views = await _context.VideoViews
-                .AsNoTracking()
-                .Where(v => v.UserId != null && v.StartedAt >= cutOffDate)
-                .Select(v => new
-                {
-                    v.UserId,
-                    v.MaTinDang,
-                    v.WatchedSeconds,
-                    v.IsCompleted,
-                    v.RewatchCount,
-                    v.StartedAt
-                })
-                .ToListAsync();
+            var viewHistoryFilter = Builders<ViewHistory>.Filter.Gte(x => x.LastViewedAt, cutOffDate);
+            var rawViewHistory = await _viewHistoryCollection.Find(viewHistoryFilter).ToListAsync();
 
-            foreach (var v in views)
+            var groupedViewHistory = rawViewHistory
+                .GroupBy(x => new { x.UserId, x.MaTinDang })
+                .Select(g => new
+                {
+                    UserId = g.Key.UserId,
+                    MaTinDang = g.Key.MaTinDang,
+                    TotalSeconds = g.Sum(x => x.WatchedSeconds),
+                    MaxRewatch = g.Max(x => x.RewatchCount),
+                    VisitCount = g.Count(),
+                    LastViewed = g.Max(x => x.LastViewedAt),
+                    IsCompleted = g.Any(x => x.IsCompleted)
+                });
+
+            foreach (var view in groupedViewHistory)
             {
                 float score = 0;
+                if (view.TotalSeconds == 0) score = SCORE_POST_CLICK_ONLY;
+                else if (view.TotalSeconds < 5) score = SCORE_POST_GLANCE;
+                else if (view.TotalSeconds < 30) score = SCORE_POST_READING;
+                else score = SCORE_POST_DEEP_READ;
 
-                // Logic tính điểm xem chi tiết
-                if (v.WatchedSeconds < 3)
-                {
-                    score = SCORE_VIEW_SKIP; // Bị phạt điểm nếu lướt quá nhanh
-                }
-                else if (!v.IsCompleted)
-                {
-                    // Chưa xem hết: > 10s thì trung bình, ngược lại thấp
-                    score = (v.WatchedSeconds >= 10) ? SCORE_VIEW_MEDIUM : SCORE_VIEW_SHORT;
-                }
-                else
-                {
-                    score = SCORE_VIEW_COMPLETED; // Xem hết
-                }
+                if (view.VisitCount > 1) score += Math.Min((view.VisitCount - 1) * SCORE_POST_REVISIT_BONUS, 6.0f);
+                if (view.MaxRewatch > 0) score += SCORE_POST_REVISIT_BONUS;
+                if (view.IsCompleted) score += 1.0f;
 
-                // Cộng điểm xem lại (Cap ở 5 lần)
-                if (v.RewatchCount > 0)
-                {
-                    int validRewatch = Math.Min(v.RewatchCount, 5);
-                    score += (validRewatch * SCORE_REWATCH_BONUS);
-                }
-
-                AddScoreWithDecay(tempScores, v.UserId!, v.MaTinDang, score, v.StartedAt);
+                AddScoreWithDecay(tempScores, view.UserId, view.MaTinDang, score, view.LastViewed);
             }
 
             // ---------------------------------------------------------
-            // B. XỬ LÝ TƯƠNG TÁC CƠ BẢN (LIKE, COMMENT)
+            // B. XỬ LÝ MONGODB (VideoViewLog - Xem Video Feed) -> ĐÃ SỬA
+            // ---------------------------------------------------------
+            // Logic cũ dùng SQL (_context.VideoViews) gây lỗi, nay đổi sang Mongo
+
+            var videoLogFilter = Builders<VideoViewLog>.Filter.Gte(x => x.StartedAt, cutOffDate);
+            var rawVideoLogs = await _videoLogCollection.Find(videoLogFilter).ToListAsync();
+
+            // Không cần GroupBy phức tạp vì log video thường lưu theo session xem
+            foreach (var v in rawVideoLogs)
+            {
+                // Bỏ qua nếu không có UserId (khách vãng lai)
+                if (string.IsNullOrEmpty(v.UserId)) continue;
+
+                float score = 0;
+
+                // Logic tính điểm Video Feed
+                if (v.WatchedSeconds < 3)
+                {
+                    score = SCORE_VIDEO_SKIP; // Lướt qua
+                }
+                else if (!v.IsCompleted)
+                {
+                    score = (v.WatchedSeconds >= 10) ? SCORE_VIDEO_MEDIUM : SCORE_VIDEO_SHORT;
+                }
+                else
+                {
+                    score = SCORE_VIDEO_COMPLETED;
+                }
+
+                // Điểm thưởng xem lại
+                if (v.RewatchCount > 0)
+                {
+                    score += Math.Min(v.RewatchCount, 3) * SCORE_VIDEO_REWATCH;
+                }
+
+                AddScoreWithDecay(tempScores, v.UserId, v.MaTinDang, score, v.StartedAt);
+            }
+
+            // ---------------------------------------------------------
+            // C. XỬ LÝ TƯƠNG TÁC RÕ RÀNG (Explicit Feedback - Vẫn dùng SQL)
             // ---------------------------------------------------------
 
-            // Likes
-            var likes = await _context.VideoLikes
-                .AsNoTracking().Where(x => x.CreatedAt >= cutOffDate)
+            // 1. Likes
+            var likes = await _context.VideoLikes.AsNoTracking().Where(x => x.CreatedAt >= cutOffDate)
                 .Select(x => new { x.UserId, x.MaTinDang, x.CreatedAt }).ToListAsync();
-            foreach (var l in likes)
-                AddScoreWithDecay(tempScores, l.UserId, l.MaTinDang, SCORE_LIKE, l.CreatedAt);
+            foreach (var l in likes) AddScoreWithDecay(tempScores, l.UserId, l.MaTinDang, SCORE_LIKE, l.CreatedAt);
 
-            // Comments
-            var comments = await _context.VideoComments
-                .AsNoTracking().Where(x => x.CreatedAt >= cutOffDate)
+            // 2. Comments
+            var comments = await _context.VideoComments.AsNoTracking().Where(x => x.CreatedAt >= cutOffDate)
                 .Select(x => new { x.UserId, x.MaTinDang, x.CreatedAt }).ToListAsync();
-            foreach (var c in comments)
-                AddScoreWithDecay(tempScores, c.UserId, c.MaTinDang, SCORE_COMMENT, c.CreatedAt);
+            foreach (var c in comments) AddScoreWithDecay(tempScores, c.UserId, c.MaTinDang, SCORE_COMMENT, c.CreatedAt);
 
-            // ---------------------------------------------------------
-            // C. XỬ LÝ HÀNH VI LƯU & YÊU THÍCH (Code 2 Integration)
-            // ---------------------------------------------------------
-
-            // 1. Saved Videos (VideoTinDangSave) -> Dùng SCORE_SAVE_VIDEO
-            // Hành vi này cho thấy user thích nội dung video
-            var saves = await _context.VideoTinDangSaves
-                .AsNoTracking().Where(x => x.NgayLuu >= cutOffDate)
+            // 3. Saves
+            var saves = await _context.VideoTinDangSaves.AsNoTracking().Where(x => x.NgayLuu >= cutOffDate)
                 .Select(x => new { UserId = x.MaNguoiDung, x.MaTinDang, CreatedAt = x.NgayLuu }).ToListAsync();
-            foreach (var s in saves)
-                AddScoreWithDecay(tempScores, s.UserId, s.MaTinDang, SCORE_SAVE_VIDEO, s.CreatedAt);
+            foreach (var s in saves) AddScoreWithDecay(tempScores, s.UserId, s.MaTinDang, SCORE_SAVE_VIDEO, s.CreatedAt);
 
-            // 2. Favorites (TinDangYeuThich) -> Dùng SCORE_FAVORITE_ITEM
-            // Hành vi này mạnh hơn, cho thấy user muốn sở hữu món hàng -> AI ưu tiên cao nhất
-            var favorites = await _context.TinDangYeuThichs
-                .AsNoTracking().Where(x => x.NgayTao >= cutOffDate)
+            // 4. Favorites
+            var favs = await _context.TinDangYeuThichs.AsNoTracking().Where(x => x.NgayTao >= cutOffDate)
                 .Select(x => new { UserId = x.MaNguoiDung, x.MaTinDang, CreatedAt = x.NgayTao }).ToListAsync();
-            foreach (var f in favorites)
-                AddScoreWithDecay(tempScores, f.UserId, f.MaTinDang, SCORE_FAVORITE_ITEM, f.CreatedAt);
+            foreach (var f in favs) AddScoreWithDecay(tempScores, f.UserId, f.MaTinDang, SCORE_FAVORITE_ITEM, f.CreatedAt);
 
-            // ---------------------------------------------------------
-            // D. XỬ LÝ LAN TỎA (SHARES)
-            // ---------------------------------------------------------
-            var shares = await _context.Shares
-                .AsNoTracking().Where(s => s.TinDangId.HasValue && s.SharedAt >= cutOffDate)
+            // 5. Shares
+            var shares = await _context.Shares.AsNoTracking().Where(s => s.TinDangId.HasValue && s.SharedAt >= cutOffDate)
                 .Select(s => new { s.UserId, TinDangId = s.TinDangId.Value, s.ShareType, s.SharedAt }).ToListAsync();
             foreach (var s in shares)
             {
@@ -239,36 +287,24 @@ namespace UniMarket.Services.Recommendation
                 AddScoreWithDecay(tempScores, s.UserId, s.TinDangId, shareScore, s.SharedAt);
             }
 
-            // ---------------------------------------------------------
-            // E. XỬ LÝ TÍN HIỆU TIÊU CỰC (REPORTS)
-            // ---------------------------------------------------------
-            var reports = await _context.Reports
-                .AsNoTracking()
+            // 6. Reports
+            var reports = await _context.Reports.AsNoTracking()
                 .Where(r => r.CreatedAt >= cutOffDate && r.TargetType == ReportTargetType.Post)
-                .Select(r => new { r.ReporterId, r.TargetId, r.CreatedAt })
-                .ToListAsync();
-
-            foreach (var r in reports)
-            {
-                // Trừ điểm thật nặng (-50) để AI đẩy vector sở thích ra xa item này
-                AddScoreWithDecay(tempScores, r.ReporterId, r.TargetId, SCORE_REPORT, r.CreatedAt.DateTime);
-            }
+                .Select(r => new { r.ReporterId, r.TargetId, r.CreatedAt }).ToListAsync();
+            foreach (var r in reports) AddScoreWithDecay(tempScores, r.ReporterId, r.TargetId, SCORE_REPORT, r.CreatedAt.DateTime);
 
             // ---------------------------------------------------------
-            // F. CHUYỂN ĐỔI SANG MODEL ĐẦU VÀO CHO AI
+            // D. OUTPUT
             // ---------------------------------------------------------
             var trainingData = new List<VideoRating>();
-
             foreach (var item in tempScores)
             {
-                // Lọc nhiễu: Chỉ lấy các tương tác có độ lớn đáng kể (> 0.5 hoặc < -0.5)
-                if (Math.Abs(item.Value) > 0.5f)
+                if (Math.Abs(item.Value) > 0.2f)
                 {
                     trainingData.Add(new VideoRating
                     {
                         UserId = item.Key.userId,
                         VideoId = (float)item.Key.videoId,
-                        // Label này chứa cả điểm ÂM (ghét) và DƯƠNG (thích)
                         Label = item.Value
                     });
                 }
@@ -278,7 +314,7 @@ namespace UniMarket.Services.Recommendation
         }
 
         // ============================================================
-        // HELPER: CỘNG ĐIỂM VỚI TIME DECAY
+        // 4. HELPER: TIME DECAY
         // ============================================================
         private void AddScoreWithDecay(
             Dictionary<(string, int), float> map,
@@ -287,12 +323,11 @@ namespace UniMarket.Services.Recommendation
             float baseScore,
             DateTime actionDate)
         {
+            if (string.IsNullOrEmpty(userId)) return;
+
             double daysOld = (DateTime.UtcNow - actionDate).TotalDays;
             if (daysOld < 0) daysOld = 0;
 
-            // Công thức Decay: Giá trị giảm dần theo thời gian
-            // Hệ số = 1 / (1 + (Ngày_cũ / 30))
-            // Tức là tin cách đây 30 ngày chỉ còn 50% giá trị điểm
             double decayFactor = 1.0 / (1.0 + (daysOld / 30.0));
             float finalScore = baseScore * (float)decayFactor;
 

@@ -1,13 +1,18 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver; // Cần thêm thư viện này để query Mongo
 using UniMarket.DataAccess;
 using UniMarket.Models;
 using UniMarket.Models.ML;
+using UniMarket.Models.Mongo; // Namespace chứa VideoViewLog
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace UniMarket.Services.Recommendation
 {
     // =================================================================================
     // DTO: CHỨA DỮ LIỆU ĐỂ CHẤM ĐIỂM (Lightweight Object)
-    // Tối ưu hóa việc lấy dữ liệu 1 lần, không query database trong vòng lặp scoring
     // =================================================================================
     public class VideoCandidateDTO
     {
@@ -15,23 +20,24 @@ namespace UniMarket.Services.Recommendation
         public int MaDanhMuc { get; set; }
         public string MaNguoiBan { get; set; } = string.Empty;
         public DateTime NgayDang { get; set; }
-        public string TieuDe { get; set; } = string.Empty; // Để so khớp từ khóa tìm kiếm
-        public decimal Gia { get; set; }                   // Để so khớp khoảng giá
-        public int? MaTinhThanh { get; set; }              // Để so khớp khu vực
+        public string TieuDe { get; set; } = string.Empty;
+        public decimal Gia { get; set; }
+        public int? MaTinhThanh { get; set; }
 
-        // --- Metrics tương tác (Số liệu thô) ---
-        public int ViewCount { get; set; }
+        // --- Metrics tương tác (SQL) ---
+        public int ViewCount { get; set; }   
         public int ShareCount { get; set; }
         public int CommentCount { get; set; }
         public int LikeCount { get; set; }
 
-        // 🔥 ĐÃ TÁCH RIÊNG:
-        public int SaveCount { get; set; }      // Chỉ đếm VideoTinDangSave (Lưu để xem lại nội dung)
-        public int FavoriteCount { get; set; }  // Chỉ đếm TinDangYeuThich (Quan tâm mua sản phẩm)
+        // --- Metrics Lưu/Thích (SQL) ---
+        public int SaveCount { get; set; }
+        public int FavoriteCount { get; set; }
 
-        // Metrics chất lượng View (Tính từ lịch sử xem)
-        public int TotalViewsProcessed { get; set; }
-        public int CompletedViews { get; set; }
+        // --- Metrics chất lượng View (MongoDB) ---
+        // Dữ liệu này sẽ được map từ Mongo sau khi query SQL xong
+        public int TotalViewsProcessed { get; set; } = 0;
+        public int CompletedViews { get; set; } = 0;
     }
 
     public class VideoRecommendationService
@@ -40,68 +46,69 @@ namespace UniMarket.Services.Recommendation
         private readonly RecommendationEngine _aiEngine;
         private readonly UserBehaviorService _behaviorService;
 
+        // Thêm Collection Mongo để truy vấn Views
+        private readonly IMongoCollection<VideoViewLog> _viewLogsCollection;
+
         // ============================================================
-        // CẤU HÌNH TRỌNG SỐ (WEIGHTS & BOOSTS)
+        // 🎯 CẤU HÌNH TRỌNG SỐ (TUNED WEIGHTS)
         // ============================================================
 
         // 1. Trọng số Tương tác
         private const double WEIGHT_LIKE = 2.0;
         private const double WEIGHT_COMMENT = 4.0;
         private const double WEIGHT_SHARE = 8.0;
+        private const double WEIGHT_SAVE = 10.0;
+        private const double WEIGHT_FAVORITE = 15.0;
 
-        // 🔥 Cập nhật trọng số mới
-        private const double WEIGHT_SAVE = 7.0;        // Quan tâm nội dung video
-        private const double WEIGHT_FAVORITE = 12.0;   // Quan tâm sản phẩm (Tín hiệu mua hàng mạnh nhất)
+        // 2. Trọng số AI Prediction
+        private const double WEIGHT_AI_PREDICTION = 15.0;
 
-        // 2. Trọng số AI
-        private const double WEIGHT_AI_PREDICTION = 10.0;
-
-        // 3. Điểm thưởng Ngữ cảnh (Positive Boosts)
+        // 3. Điểm thưởng Ngữ cảnh
         private const double BOOST_FOLLOWING = 50.0;
-        private const double BOOST_CATEGORY = 15.0;
+        private const double BOOST_CATEGORY = 30.0;
         private const double BOOST_SEARCH_MATCH = 40.0;
-        private const double BOOST_PRICE_MATCH = 20.0;
+        private const double BOOST_PRICE_MATCH = 25.0;
         private const double BOOST_LOCATION_MATCH = 15.0;
 
-        // 4. Điểm phạt (Negative Penalties)
-        // Phạt người bán mà user từng báo cáo xấu (Soft Filter)
-        private const double PENALTY_REPORTED_SELLER = 20.0;
+        // 4. Điểm phạt
+        private const double PENALTY_REPORTED_SELLER = 50.0;
 
+        // Inject thêm IMongoDatabase để lấy Collection
         public VideoRecommendationService(
             ApplicationDbContext context,
             RecommendationEngine aiEngine,
-            UserBehaviorService behaviorService)
+            UserBehaviorService behaviorService,
+            IMongoDatabase mongoDatabase) // <-- Inject Mongo Database
         {
             _context = context;
             _aiEngine = aiEngine;
             _behaviorService = behaviorService;
+            // Map vào collection 'VideoViewLogs' (hoặc tên bạn đặt trong Mongo)
+            _viewLogsCollection = mongoDatabase.GetCollection<VideoViewLog>("VideoViewLogs");
         }
 
         // =================================================================================
-        // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID BÀI ĐĂNG ĐỀ XUẤT (VIDEO HOẶC TIN THƯỜNG)
+        // 🎯 HÀM CHÍNH: LẤY DANH SÁCH ID BÀI ĐĂNG ĐỀ XUẤT
         // =================================================================================
         public async Task<List<int>> GetRecommendedPostIds(string? userId, List<int> clientExcludedIds, int count = 10, bool isVideoOnly = true, string? categoryGroup = null)
-         {
+        {
             var finalExcludedIds = new List<int>(clientExcludedIds);
             var userProfile = new UserProfileDto();
             var followingIds = new List<string>();
-            var reportedSellerIds = new List<string>(); // Danh sách người bán bị user này ghét
+            var reportedSellerIds = new List<string>();
 
             // -----------------------------------------------------
-            // BƯỚC 1: PHÂN TÍCH USER & XÂY DỰNG BLACKLIST/PENALTY LIST
+            // BƯỚC 1: PHÂN TÍCH USER & XÂY DỰNG BLACKLIST
             // -----------------------------------------------------
             if (!string.IsNullOrEmpty(userId))
             {
-                // 1.1. Lấy chân dung (Profile)
                 userProfile = await _behaviorService.AnalyzeUserProfileAsync(userId);
 
-                // 1.2. Lấy danh sách đang Follow
                 followingIds = await _context.Follows.AsNoTracking()
                     .Where(f => f.FollowerId == userId)
                     .Select(f => f.FollowingId)
                     .ToListAsync();
 
-                // 1.3. Lọc Báo xấu (Hard Filter) - Ẩn hoàn toàn tin đã report
                 var reportedPostIds = await _context.Reports.AsNoTracking()
                     .Where(r => r.ReporterId == userId && r.TargetType == ReportTargetType.Post)
                     .Select(r => r.TargetId)
@@ -109,62 +116,56 @@ namespace UniMarket.Services.Recommendation
 
                 finalExcludedIds.AddRange(reportedPostIds);
 
-                // 1.4. Lấy danh sách Người bán từng bị Report (Soft Filter)
-                // Join bảng Report với TinDang để tìm ra ai là chủ nhân của cái tin bị report đó
                 reportedSellerIds = await _context.Reports.AsNoTracking()
                     .Where(r => r.ReporterId == userId && r.TargetType == ReportTargetType.Post)
                     .Join(_context.TinDangs,
                           report => report.TargetId,
                           post => post.MaTinDang,
-                          (report, post) => post.MaNguoiBan) // Chỉ lấy ID người bán
+                          (report, post) => post.MaNguoiBan)
                     .Distinct()
                     .ToListAsync();
             }
 
             // -----------------------------------------------------
-            // BƯỚC 2: TẠO TẬP ỨNG VIÊN (CANDIDATE GENERATION)
+            // BƯỚC 2: TẠO TẬP ỨNG VIÊN (QUERY SQL SERVER)
             // -----------------------------------------------------
             var query = _context.TinDangs.AsNoTracking()
                 .Include(t => t.DanhMuc).ThenInclude(dm => dm.DanhMucCha)
-                .Where(t => t.TrangThai == TrangThaiTinDang.DaDuyet) // ✅ Chỉ lấy tin đã duyệt
+                .Where(t => t.TrangThai == TrangThaiTinDang.DaDuyet)
                 .Where(t => !finalExcludedIds.Contains(t.MaTinDang));
 
             if (!string.IsNullOrEmpty(categoryGroup))
             {
                 var keyword = categoryGroup.ToLower().Trim();
-                // Lọc tin mà Danh Mục Cha của nó có tên chứa từ khóa
                 query = query.Where(t =>
                     t.DanhMuc.DanhMucCha != null &&
                     t.DanhMuc.DanhMucCha.TenDanhMucCha.ToLower().Contains(keyword)
                 );
             }
 
-            // ✅ PHÂN LUỒNG: Video Feed vs General Feed
             if (isVideoOnly)
             {
-                // Luồng 1: Chỉ đề xuất Video (Cho Video Feed - TikTok style)
                 query = query.Where(t => t.VideoUrl != null && t.VideoUrl != "");
             }
             else
             {
-                // Luồng 2: Đề xuất Tin đăng (Cho Trang chủ/Dành cho bạn)
-                // Lấy cả tin có video VÀ tin chỉ có ảnh (nhưng phải có ít nhất 1 ảnh)
                 query = query.Where(t => t.AnhTinDangs.Any() || t.VideoUrl != null);
             }
 
-            // Chiến lược Cold/Warm Start
-            if (userProfile.PreferredCategoryIds.Any())
+            if (userProfile.HasData)
             {
-                // Nếu user đã có sở thích: Lấy tin đúng danh mục HOẶC tin hot (View > 50)
-                query = query.Where(t => userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) || t.SoLuotXem > 50);
+                query = query.Where(t =>
+                    userProfile.PreferredCategoryIds.Contains(t.MaDanhMuc) ||
+                    (t.Gia >= userProfile.PreferredMinPrice && t.Gia <= userProfile.PreferredMaxPrice) ||
+                    t.SoLuotXem > 100
+                );
             }
             else
             {
-                // Nếu user mới (Cold start): Lấy tin mới nhất trong 30 ngày qua
                 query = query.Where(t => t.NgayDang >= DateTime.UtcNow.AddDays(-30));
             }
 
-            // Projection ra DTO (Updated: Tách SaveCount và FavoriteCount)
+            // --- LẤY DỮ LIỆU TỪ SQL TRƯỚC (BỎ PHẦN VIEW LOG CỦA MONGO RA KHỎI ĐÂY) ---
             var candidates = await query
                 .OrderByDescending(t => t.NgayDang)
                 .Take(500)
@@ -177,23 +178,54 @@ namespace UniMarket.Services.Recommendation
                     TieuDe = t.TieuDe,
                     Gia = t.Gia,
                     MaTinhThanh = t.MaTinhThanh,
-                    ViewCount = t.SoLuotXem,
+
+                    ViewCount = t.SoLuotXem, // SQL View (hiển thị)
 
                     LikeCount = _context.VideoLikes.Count(l => l.MaTinDang == t.MaTinDang),
                     CommentCount = _context.VideoComments.Count(c => c.MaTinDang == t.MaTinDang),
                     ShareCount = _context.Shares.Count(s => s.TinDangId == t.MaTinDang),
-
-                    // 🔥 TÁCH RIÊNG Ở ĐÂY:
                     SaveCount = _context.VideoTinDangSaves.Count(sv => sv.MaTinDang == t.MaTinDang),
                     FavoriteCount = _context.TinDangYeuThichs.Count(ty => ty.MaTinDang == t.MaTinDang),
 
-                    TotalViewsProcessed = _context.VideoViews.Count(v => v.MaTinDang == t.MaTinDang),
-                    CompletedViews = _context.VideoViews.Count(v => v.MaTinDang == t.MaTinDang && v.IsCompleted)
+                    // Tạm thời để 0, sẽ fill từ Mongo ở bước sau
+                    TotalViewsProcessed = 0,
+                    CompletedViews = 0
                 })
                 .ToListAsync();
 
             // -----------------------------------------------------
-            // BƯỚC 3: SCORING & RANKING (CHẤM ĐIỂM CHI TIẾT)
+            // BƯỚC 2.5: LẤY DỮ LIỆU VIEW TỪ MONGODB (AGGREGATION)
+            // -----------------------------------------------------
+            if (candidates.Any())
+            {
+                // Lấy danh sách ID các video cần check view
+                var candidateIds = candidates.Select(c => c.MaTinDang).ToList();
+
+                // Query Aggregate trên Mongo: Group theo MaTinDang
+                var viewStats = await _viewLogsCollection.Aggregate()
+                    .Match(x => candidateIds.Contains(x.MaTinDang)) // Chỉ lấy log của 500 video trên
+                    .Group(x => x.MaTinDang, g => new
+                    {
+                        MaTinDang = g.Key,
+                        TotalCount = g.Count(),
+                        CompletedCount = g.Sum(x => x.IsCompleted ? 1 : 0)
+                    })
+                    .ToListAsync();
+
+                // Merge dữ liệu Mongo vào List Candidates (In-Memory Join)
+                foreach (var candidate in candidates)
+                {
+                    var stat = viewStats.FirstOrDefault(s => s.MaTinDang == candidate.MaTinDang);
+                    if (stat != null)
+                    {
+                        candidate.TotalViewsProcessed = (int)stat.TotalCount;
+                        candidate.CompletedViews = stat.CompletedCount;
+                    }
+                }
+            }
+
+            // -----------------------------------------------------
+            // BƯỚC 3: SCORING & RANKING (CHẤM ĐIỂM)
             // -----------------------------------------------------
             var scoredVideos = new List<(int Id, double Score)>();
             var now = DateTime.UtcNow;
@@ -202,16 +234,22 @@ namespace UniMarket.Services.Recommendation
             {
                 double finalScore = 0;
 
-                // --- A. ĐIỂM TƯƠNG TÁC (Đã cập nhật Code 2) ---
+                // --- A. ĐIỂM TƯƠNG TÁC ---
                 finalScore += (video.LikeCount * WEIGHT_LIKE);
                 finalScore += (video.CommentCount * WEIGHT_COMMENT);
                 finalScore += (video.ShareCount * WEIGHT_SHARE);
+                finalScore += (video.SaveCount * WEIGHT_SAVE);
+                finalScore += (video.FavoriteCount * WEIGHT_FAVORITE);
 
-                // Cộng điểm riêng biệt với trọng số mới
-                finalScore += (video.SaveCount * WEIGHT_SAVE);         // +7đ mỗi lượt lưu
-                finalScore += (video.FavoriteCount * WEIGHT_FAVORITE); // +12đ mỗi lượt yêu thích
+                // --- B. ĐIỂM CHẤT LƯỢNG VIEW (Dữ liệu từ Mongo đã merge ở trên) ---
 
-                // --- B. ĐIỂM CHẤT LƯỢNG VIEW ---
+                // 1. Logarithmic Score từ View hiển thị (SQL)
+                if (video.ViewCount > 0)
+                {
+                    finalScore += Math.Log10(video.ViewCount) * 5.0;
+                }
+
+                // 2. Completion Rate Bonus (Tính từ Mongo Data)
                 if (video.TotalViewsProcessed > 5)
                 {
                     double completionRate = (double)video.CompletedViews / video.TotalViewsProcessed;
@@ -222,11 +260,9 @@ namespace UniMarket.Services.Recommendation
                 // --- C. ĐIỂM CÁ NHÂN HÓA ---
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    // 1. AI Prediction
                     float aiScore = _aiEngine.PredictScore(userId, video.MaTinDang);
                     finalScore += (aiScore * WEIGHT_AI_PREDICTION);
 
-                    // 2. Search Match
                     foreach (var kw in userProfile.RecentSearchKeywords)
                     {
                         if (video.TieuDe.ToLower().Contains(kw))
@@ -236,7 +272,11 @@ namespace UniMarket.Services.Recommendation
                         }
                     }
 
-                    // 3. Price Match
+                    if (userProfile.PreferredCategoryIds.Contains(video.MaDanhMuc))
+                    {
+                        finalScore += BOOST_CATEGORY;
+                    }
+
                     if (userProfile.PreferredMaxPrice > 0)
                     {
                         if (video.Gia >= userProfile.PreferredMinPrice && video.Gia <= userProfile.PreferredMaxPrice)
@@ -245,16 +285,12 @@ namespace UniMarket.Services.Recommendation
                             finalScore -= 5.0;
                     }
 
-                    // 4. Location Match
                     if (userProfile.PreferredLocationId.HasValue && video.MaTinhThanh == userProfile.PreferredLocationId.Value)
                         finalScore += BOOST_LOCATION_MATCH;
 
-                    // 5. Follow Shop
                     if (followingIds.Contains(video.MaNguoiBan))
                         finalScore += BOOST_FOLLOWING;
 
-                    // 6. 🔥 PHẠT UY TÍN NGƯỜI BÁN (REPUTATION PENALTY)
-                    // Nếu tin này thuộc về người bán mà user từng báo cáo xấu
                     if (reportedSellerIds.Contains(video.MaNguoiBan))
                     {
                         finalScore -= PENALTY_REPORTED_SELLER;
@@ -263,10 +299,10 @@ namespace UniMarket.Services.Recommendation
 
                 // --- D. TIME DECAY ---
                 double hoursOld = (now - video.NgayDang).TotalHours;
-                if (hoursOld < 24) finalScore += 10.0;
+                if (hoursOld < 24) finalScore += 20.0;
 
                 double daysOld = hoursOld / 24.0;
-                if (daysOld > 2)
+                if (daysOld > 1.5)
                 {
                     finalScore = finalScore / Math.Log(daysOld + 2);
                 }

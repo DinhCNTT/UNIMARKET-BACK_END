@@ -32,7 +32,6 @@ namespace UniMarket.DataAccess
 
         public DbSet<VideoLike> VideoLikes { get; set; }
         public DbSet<VideoComment> VideoComments { get; set; }
-        public DbSet<VideoView> VideoViews { get; set; }
 
         public DbSet<SearchHistory> SearchHistories { get; set; }
 
@@ -175,11 +174,7 @@ namespace UniMarket.DataAccess
                 .HasForeignKey(v => v.MaTinDang)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<VideoView>()
-                .HasOne(v => v.TinDang)
-                .WithMany()
-                .HasForeignKey(v => v.MaTinDang)
-                .OnDelete(DeleteBehavior.Restrict);
+            // ❌ ĐÃ XÓA ĐOẠN CẤU HÌNH VideoView Ở ĐÂY ĐỂ TRÁNH LỖI
 
             modelBuilder.Entity<VideoComment>()
                 .HasOne(vc => vc.ParentComment)
