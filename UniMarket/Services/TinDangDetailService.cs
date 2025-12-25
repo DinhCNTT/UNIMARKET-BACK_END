@@ -3,6 +3,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using UniMarket.Models.Mongo;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace UniMarket.Services
 {
@@ -77,6 +78,55 @@ namespace UniMarket.Services
         public async Task DeleteByIdAsync(string id)
         {
             await _detailsCollection.DeleteOneAsync(x => x.Id == id);
+        }
+        public async Task<List<int>> GetIdsByFilterAsync(Dictionary<string, string> filters)
+        {
+            if (filters == null || filters.Count == 0) return new List<int>();
+
+            var builder = Builders<TinDangDetail>.Filter;
+            var filterDefinition = builder.Empty;
+
+            foreach (var item in filters)
+            {
+                if (string.IsNullOrEmpty(item.Key) || string.IsNullOrEmpty(item.Value)) continue;
+
+                // 1. Tạo Regex để tìm giá trị (Value) không phân biệt hoa thường
+                // Ví dụ: Tìm "Samsung" sẽ chấp nhận cả "samsung", "SAMSUNG"
+                var valuePattern = $"^{Regex.Escape(item.Value)}$";
+                var regexFilter = new BsonRegularExpression(valuePattern, "i");
+
+                // 2. Xử lý Key: Chuyển đổi sang camelCase (chữ cái đầu viết thường)
+                // Ví dụ: "Hang" -> "hang", "MauSac" -> "mauSac"
+                string keyInput = item.Key;
+                string keyCamel = char.ToLower(keyInput[0]) + (keyInput.Length > 1 ? keyInput.Substring(1) : "");
+
+                // Để chắc chắn, tạo thêm biến thể PascalCase (viết hoa đầu) phòng hờ
+                string keyPascal = char.ToUpper(keyInput[0]) + (keyInput.Length > 1 ? keyInput.Substring(1) : "");
+
+                // 3. Tạo điều kiện OR: Tìm thẳng key gốc (KHÔNG CÓ ChiTiet.)
+                // Logic: (hang == value) OR (Hang == value)
+                var condition = builder.Regex(keyCamel, regexFilter) |
+                                builder.Regex(keyPascal, regexFilter);
+
+                // 4. Gộp vào bộ lọc chung (AND)
+                filterDefinition &= condition;
+            }
+
+            try
+            {
+                // 5. Query
+                var results = await _detailsCollection
+                    .Find(filterDefinition)
+                    .Project(x => x.MaTinDang)
+                    .ToListAsync();
+
+                return results;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Lỗi Query Mongo: " + ex.Message);
+                return new List<int>();
+            }
         }
     }
 }

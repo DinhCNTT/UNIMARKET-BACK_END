@@ -75,7 +75,12 @@ namespace UniMarket.Hubs
             {
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{userId}");
 
-                // ✅ GHI LẠI THỜI GIAN ĐỂ DÙNG CHUNG
+                // ✅ [BỔ SUNG QUAN TRỌNG] Cập nhật UserPresenceService thành Offline
+                // Giả sử service của bạn có hàm SetOffline hoặc RemoveUser. 
+                // Nếu dùng SetOnline(userId) ở trên thì bạn cần một hàm ngược lại ở đây.
+                _presenceService.RemoveUser(userId); // Hoặc _presenceService.SetOffline(userId);
+
+                // --- Code cũ của bạn ---
                 var lastSeenTime = DateTime.UtcNow;
 
                 using (var scope = Context.GetHttpContext().RequestServices.CreateScope())
@@ -85,7 +90,7 @@ namespace UniMarket.Hubs
                     if (user != null)
                     {
                         user.IsOnline = false;
-                        user.LastOnlineTime = lastSeenTime; // Dùng biến lastSeenTime
+                        user.LastOnlineTime = lastSeenTime;
                         await db.SaveChangesAsync();
                     }
                 }
@@ -95,10 +100,8 @@ namespace UniMarket.Hubs
                 {
                     userId = userId,
                     isOnline = false,
-                    lastSeen = lastSeenTime, // Dùng biến lastSeenTime
-
-                    // ✅ THÊM DÒNG NÀY ĐỂ GỬI CHUỖI ĐÃ FORMAT
-                    formattedLastSeen = UserController.FormatLastSeen(lastSeenTime)
+                    lastSeen = lastSeenTime,
+                    formattedLastSeen = UniMarket.Controllers.ChatController.FormatLastSeen(lastSeenTime) // Cần public static hàm FormatLastSeen hoặc copy logic qua
                 });
 
                 _logger.LogInformation($"User {userId} disconnected and left group user-{userId}");
@@ -396,169 +399,6 @@ namespace UniMarket.Hubs
             }
         }
 
-        public async Task ThuHoiTinNhan(int maTinNhan, string maNguoiGui)
-        {
-            _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall message {maTinNhan}");
-
-            try
-            {
-                var tinNhan = await _context.TinNhans
-                    .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
-
-                // 1. Kiểm tra tồn tại
-                if (tinNhan == null)
-                {
-                    _logger.LogWarning($"Message {maTinNhan} not found for recall by user '{maNguoiGui}'");
-                    throw new HubException("Tin nhắn không tồn tại.");
-                }
-
-                // 2. Kiểm tra quyền chủ sở hữu
-                if (tinNhan.MaNguoiGui != maNguoiGui)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall message {maTinNhan} without permission");
-                    throw new HubException("Bạn không có quyền thu hồi tin nhắn này.");
-                }
-
-                // 3. Kiểm tra thời gian (5 phút)
-                var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
-                if (timeDifference.TotalMinutes > 5)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall message {maTinNhan} after 5 minutes");
-                    throw new HubException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
-                }
-
-                // 4. Xử lý phân loại tin nhắn
-                // Nếu là Ảnh hoặc Video -> Gọi hàm chuyên dụng để xóa file trên Cloud
-                if (tinNhan.Loai == LoaiTinNhan.Image || tinNhan.Loai == LoaiTinNhan.Video)
-                {
-                    await ThuHoiAnhVideo(maTinNhan, maNguoiGui);
-                    return; // Kết thúc hàm này tại đây
-                }
-
-                // Nếu KHÔNG phải Text VÀ KHÔNG phải Location -> Báo lỗi
-                if (tinNhan.Loai != LoaiTinNhan.Text && tinNhan.Loai != LoaiTinNhan.Location)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall unsupported message type {maTinNhan}");
-                    throw new HubException("Loại tin nhắn này không hỗ trợ thu hồi.");
-                }
-
-                var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-
-                // 5. Thực hiện thu hồi (Soft delete)
-                tinNhan.IsRecalled = true;
-                tinNhan.ThoiGianThuHoi = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"[SignalR] Message {maTinNhan} ({tinNhan.Loai}) recalled successfully by user '{maNguoiGui}'");
-
-                // 6. Gửi thông báo cho mọi người trong phòng
-                await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
-                {
-                    maTinNhan = maTinNhan,
-                    maCuocTroChuyen = maCuocTroChuyen,
-                    maNguoiThuHoi = maNguoiGui,
-                    // Trả về đúng loại ("text" hoặc "location") để UI hiển thị đúng icon
-                    loaiTinNhan = tinNhan.Loai.ToString().ToLower(),
-                    isRecalled = true
-                });
-
-                // 7. Cập nhật dòng tin nhắn xem trước bên sidebar (ChatList)
-                await UpdateChatPreviewAfterRecall(maCuocTroChuyen);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error recalling message {maTinNhan} by user '{maNguoiGui}'");
-                throw;
-            }
-        }
-
-        public async Task ThuHoiAnhVideo(int maTinNhan, string maNguoiGui)
-        {
-            _logger.LogInformation($"[SignalR] User '{maNguoiGui}' attempting to recall media message {maTinNhan}");
-
-            try
-            {
-                var tinNhan = await _context.TinNhans
-                    .FirstOrDefaultAsync(t => t.MaTinNhan == maTinNhan);
-
-                if (tinNhan == null)
-                {
-                    _logger.LogWarning($"Media message {maTinNhan} not found for recall by user '{maNguoiGui}'");
-                    throw new HubException("Tin nhắn không tồn tại.");
-                }
-
-                if (tinNhan.MaNguoiGui != maNguoiGui)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall media message {maTinNhan} without permission");
-                    throw new HubException("Bạn không có quyền thu hồi tin nhắn này.");
-                }
-
-                var timeDifference = DateTime.UtcNow - tinNhan.ThoiGianGui;
-                if (timeDifference.TotalMinutes > 5)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall media message {maTinNhan} after 5 minutes");
-                    throw new HubException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút sau khi gửi.");
-                }
-
-                if (tinNhan.Loai != LoaiTinNhan.Image && tinNhan.Loai != LoaiTinNhan.Video)
-                {
-                    _logger.LogWarning($"User '{maNguoiGui}' tried to recall non-media message {maTinNhan}");
-                    throw new HubException("Chỉ có thể thu hồi tin nhắn ảnh hoặc video bằng phương thức này.");
-                }
-
-                var maCuocTroChuyen = tinNhan.MaCuocTroChuyen;
-                var mediaUrl = tinNhan.NoiDung;
-
-                // ✅ VẪN XÓA TRÊN CLOUDINARY
-                if (!string.IsNullOrEmpty(mediaUrl))
-                {
-                    var resourceType = tinNhan.Loai == LoaiTinNhan.Image
-                        ? CloudinaryDotNet.Actions.ResourceType.Image
-                        : CloudinaryDotNet.Actions.ResourceType.Video;
-
-                    var publicId = ExtractPublicIdFromUrl(mediaUrl);
-
-                    if (!string.IsNullOrEmpty(publicId))
-                    {
-                        var deleteResult = await _photoService.DeletePhotoAsync(publicId, resourceType);
-
-                        if (deleteResult.Result == "ok")
-                            _logger.LogInformation($"Successfully deleted media from Cloudinary for message {maTinNhan}");
-                        else
-                            _logger.LogWarning($"Could not delete media from Cloudinary for message {maTinNhan}. Result: {deleteResult.Result}");
-                    }
-                    else
-                        _logger.LogWarning($"Could not extract publicId from URL: {mediaUrl}");
-                }
-
-                // ✅ THAY ĐỔI: Đánh dấu thu hồi thay vì xóa
-                tinNhan.IsRecalled = true;
-                tinNhan.ThoiGianThuHoi = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"[SignalR] Media message {maTinNhan} recalled successfully by user '{maNguoiGui}'");
-
-                await Clients.Group(maCuocTroChuyen).SendAsync("TinNhanDaThuHoi", new
-                {
-                    maTinNhan = maTinNhan,
-                    maCuocTroChuyen = maCuocTroChuyen,
-                    maNguoiThuHoi = maNguoiGui,
-                    loaiTinNhan = tinNhan.Loai == LoaiTinNhan.Image ? "image" : "video",
-                    isRecalled = true
-                });
-
-                // ✅ Cập nhật preview trong ChatList
-                await UpdateChatPreviewAfterRecall(maCuocTroChuyen);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error recalling media message {maTinNhan} by user '{maNguoiGui}'");
-                throw;
-            }
-        }
-
         private string ExtractPublicIdFromUrl(string cloudinaryUrl)
         {
             try
@@ -616,54 +456,6 @@ namespace UniMarket.Hubs
                 // SỬA LỖI: Sử dụng UtcNow thay vì Now
                 lastSeen = isOnline ? (DateTime?)null : DateTime.UtcNow
             });
-        }
-        private async Task UpdateChatPreviewAfterRecall(string maCuocTroChuyen)
-        {
-            var cuocTroChuyen = await _context.CuocTroChuyens
-                .Include(c => c.NguoiThamGias)
-                    .ThenInclude(ntg => ntg.NguoiDung)
-                .FirstOrDefaultAsync(c => c.MaCuocTroChuyen == maCuocTroChuyen);
-
-            if (cuocTroChuyen == null) return;
-
-            foreach (var nguoiThamGia in cuocTroChuyen.NguoiThamGias)
-            {
-                var tinNhanCuoi = await _context.TinNhans
-                    .Where(t => t.MaCuocTroChuyen == maCuocTroChuyen)
-                    .Where(t => !_context.TinNhanXoas.Any(x => x.MaTinNhan == t.MaTinNhan && x.UserId == nguoiThamGia.MaNguoiDung))
-                    .OrderByDescending(t => t.ThoiGianGui)
-                    .Select(t => new
-                    {
-                        t.NoiDung,
-                        t.MaNguoiGui,
-                        LoaiTinNhan = t.Loai.ToString().ToLower(),
-                        t.IsRecalled,
-                        TenNguoiGui = t.NguoiGui.FullName
-                    })
-                    .FirstOrDefaultAsync();
-
-                if (tinNhanCuoi != null)
-                {
-                    var otherUser = cuocTroChuyen.NguoiThamGias.FirstOrDefault(n => n.MaNguoiDung != nguoiThamGia.MaNguoiDung);
-
-                    await Clients.Group($"user-{nguoiThamGia.MaNguoiDung}").SendAsync("CapNhatCuocTroChuyen", new
-                    {
-                        MaCuocTroChuyen = maCuocTroChuyen,
-                        IsEmpty = false,
-                        TieuDeTinDang = cuocTroChuyen.TieuDeTinDang,
-                        AnhDaiDienTinDang = cuocTroChuyen.AnhDaiDienTinDang,
-                        GiaTinDang = cuocTroChuyen.GiaTinDang,
-                        MaNguoiConLai = otherUser?.MaNguoiDung,
-                        TenNguoiConLai = otherUser?.NguoiDung?.FullName,
-                        TinNhanCuoi = tinNhanCuoi.IsRecalled ? "Đã thu hồi tin nhắn" : tinNhanCuoi.NoiDung,
-                        MaNguoiGui = tinNhanCuoi.MaNguoiGui,
-                        LoaiTinNhan = tinNhanCuoi.IsRecalled ? "text" : tinNhanCuoi.LoaiTinNhan,
-                        IsRecalled = tinNhanCuoi.IsRecalled,
-                        TenNguoiThuHoi = tinNhanCuoi.TenNguoiGui,
-                        ThoiGianCapNhat = DateTime.UtcNow
-                    });
-                }
-            }
         }
     }
 }

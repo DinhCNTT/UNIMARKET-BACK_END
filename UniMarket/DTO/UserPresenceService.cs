@@ -1,7 +1,11 @@
-﻿namespace UniMarket.DTO
+﻿using System;
+using System.Collections.Generic;
+
+namespace UniMarket.DTO // Hoặc UniMarket.Services tùy project của bạn
 {
     public class UserPresenceService
     {
+        // Dictionary lưu trạng thái: Key = UserId, Value = (Online?, LastActiveTime)
         private readonly Dictionary<string, (bool IsOnline, DateTime LastActive)> _userStatus = new();
         private readonly object _lock = new();
 
@@ -18,6 +22,19 @@
             lock (_lock)
             {
                 _userStatus[userId] = (false, DateTime.UtcNow);
+            }
+        }
+
+        // ✅ ĐÂY LÀ HÀM BẠN ĐANG THIẾU
+        // Hàm này xóa user khỏi bộ nhớ RAM khi họ ngắt kết nối
+        public void RemoveUser(string userId)
+        {
+            lock (_lock)
+            {
+                if (_userStatus.ContainsKey(userId))
+                {
+                    _userStatus.Remove(userId);
+                }
             }
         }
 
