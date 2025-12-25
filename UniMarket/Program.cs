@@ -79,6 +79,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // [MỚI THÊM] Đăng ký MongoDbContext cho tính năng Search & Log
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddSingleton<TinDangDetailService>();
+builder.Services.AddSingleton<NhaTroDetailService>();
 
 // 1. Đăng ký Client
 builder.Services.AddSingleton<IMongoClient>(sp =>
