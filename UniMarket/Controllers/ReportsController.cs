@@ -12,6 +12,8 @@ using UniMarket.Hubs;
 using UniMarket.Services;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
+using MongoDB.Driver;
+using UniMarket.Models.Mongo;
 
 namespace UniMarket.Controllers
 {
@@ -25,8 +27,16 @@ namespace UniMarket.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly TinDangDetailService _mongoService;
         private readonly PhotoService _photoService;
+        private readonly IMongoDatabase _mongoDatabase;
 
-        public ReportsController(ApplicationDbContext context, ILogger<ReportsController> logger, IHubContext<NotificationHub> notificationHub, UserManager<ApplicationUser> userManager, TinDangDetailService mongoService, PhotoService photoService)
+        public ReportsController(
+            ApplicationDbContext context,
+            ILogger<ReportsController> logger,
+            IHubContext<NotificationHub> notificationHub,
+            UserManager<ApplicationUser> userManager,
+            TinDangDetailService mongoService,
+            PhotoService photoService,
+            IMongoDatabase mongoDatabase)
         {
             _context = context;
             _logger = logger;
@@ -34,12 +44,13 @@ namespace UniMarket.Controllers
             _userManager = userManager;
             _mongoService = mongoService;
             _photoService = photoService;
+            _mongoDatabase = mongoDatabase;
         }
 
         public class ReportRequest
         {
             [Required]
-            public string TargetType { get; set; } = null!; // "Post" or "Video"
+            public string TargetType { get; set; } = null!;
 
             [Required]
             public int TargetId { get; set; }
@@ -255,35 +266,38 @@ namespace UniMarket.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteReportedPost(int id)
         {
+            // 1. Kiểm tra Report
             var report = await _context.Reports.FindAsync(id);
             if (report == null) return NotFound();
 
             if (report.TargetType != ReportTargetType.Post)
                 return BadRequest(new { message = "Target không phải là tin đăng." });
 
-            // Load the post
+            // 2. Load tin đăng (Post)
             var post = await _context.TinDangs
                 .FirstOrDefaultAsync(t => t.MaTinDang == report.TargetId);
 
             if (post == null)
                 return NotFound(new { message = "Không tìm thấy tin đăng." });
 
-            // Capture snapshot info for notification
+            // Lấy thông tin snapshot để thông báo
             var snapshotTitle = post.TieuDe;
 
-            // Fetch owner (if exists) so we can notify them after deletion
+            // Lấy thông tin người đăng để thông báo sau
             var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.MaNguoiBan);
 
-            // Load related images for Cloudinary deletion
+            // Load ảnh liên quan để xóa trên Cloudinary
             var images = await _context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId).ToListAsync();
 
+            // Bắt đầu Transaction (SQL)
             using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // ✅ HARD DELETE: Xóa dữ liệu hoàn toàn (giống logic QuanLyTin)
-                // Không chỉ đánh dấu status, mà xóa hẳn record khỏi DB
-                
-                // 1. Xóa file trên Cloudinary
+                // ✅ HARD DELETE: Xóa dữ liệu hoàn toàn
+
+                // ---------------------------------------------------------
+                // BƯỚC 1: Xóa file trên Cloudinary
+                // ---------------------------------------------------------
                 foreach (var img in images)
                 {
                     if (!string.IsNullOrEmpty(img.DuongDan) && img.DuongDan.StartsWith("http"))
@@ -299,46 +313,62 @@ namespace UniMarket.Controllers
                     }
                 }
 
-                // 2. Xóa dữ liệu liên quan trong SQL Server
+                // ---------------------------------------------------------
+                // BƯỚC 2: Xóa dữ liệu liên quan trong SQL Server
+                // ---------------------------------------------------------
                 _context.AnhTinDangs.RemoveRange(_context.AnhTinDangs.Where(a => a.MaTinDang == report.TargetId));
                 _context.TinDangYeuThichs.RemoveRange(_context.TinDangYeuThichs.Where(t => t.MaTinDang == report.TargetId));
                 _context.VideoComments.RemoveRange(_context.VideoComments.Where(c => c.MaTinDang == report.TargetId));
                 _context.VideoLikes.RemoveRange(_context.VideoLikes.Where(l => l.MaTinDang == report.TargetId));
-                _context.VideoViews.RemoveRange(_context.VideoViews.Where(v => v.MaTinDang == report.TargetId));
                 _context.VideoTinDangSaves.RemoveRange(_context.VideoTinDangSaves.Where(v => v.MaTinDang == report.TargetId));
-                
-                // 3. Xóa các chat liên quan (hard delete)
+
+                // [ĐÃ SỬA] Bỏ dòng _context.VideoViews vì đã chuyển sang Mongo
+                // _context.VideoViews.RemoveRange(...) -> Xóa dòng này
+
+                // Xóa các chat liên quan (hard delete)
                 var cuocTros = await _context.CuocTroChuyens.Where(c => c.MaTinDang == report.TargetId).ToListAsync();
                 _context.CuocTroChuyens.RemoveRange(cuocTros);
 
-                // Mark report as resolved
+                // Đánh dấu báo cáo đã xử lý
                 report.IsResolved = true;
                 report.ResolvedAt = DateTimeOffset.UtcNow;
 
-                // 4. Xóa chi tiết trong MongoDB
+                // ---------------------------------------------------------
+                // BƯỚC 3: Xóa dữ liệu trong MongoDB (Chi tiết tin & Log xem video)
+                // ---------------------------------------------------------
                 try
                 {
+                    // 3.1. Xóa chi tiết tin đăng (Collection cũ của bạn)
                     var mongoDetail = await _mongoService.GetByMaTinDangAsync(report.TargetId);
                     if (mongoDetail != null)
                     {
                         await _mongoService.DeleteByIdAsync(mongoDetail.Id);
                         _logger.LogInformation("[MONGO] Deleted post details for post {PostId}", report.TargetId);
                     }
+
+                    // 3.2. [MỚI] Xóa Log xem video (VideoViewLog) vì bảng VideoViews SQL đã bỏ
+                    // Giả sử bạn có inject IMongoDatabase _mongoDatabase vào Controller
+                    var videoLogCollection = _mongoDatabase.GetCollection<VideoViewLog>("VideoViewLog");
+                    var deleteResult = await videoLogCollection.DeleteManyAsync(x => x.MaTinDang == report.TargetId);
+
+                    _logger.LogInformation("[MONGO] Deleted {Count} video view logs for post {PostId}", deleteResult.DeletedCount, report.TargetId);
                 }
                 catch (Exception mongoEx)
                 {
-                    _logger.LogWarning(mongoEx, "Warning: Could not delete MongoDB details for post {PostId}", report.TargetId);
-                    // Không rollback - tiếp tục xóa SQL ngay cả khi MongoDB không sẵn sàng
+                    _logger.LogWarning(mongoEx, "Warning: Could not delete MongoDB data for post {PostId}", report.TargetId);
+                    // Không rollback transaction SQL chỉ vì lỗi Mongo (để đảm bảo tin rác vẫn bị xóa khỏi SQL)
                 }
 
-                // Create a notification for the owner to inform them the post was deleted by admin
+                // ---------------------------------------------------------
+                // BƯỚC 4: Tạo thông báo (Notification)
+                // ---------------------------------------------------------
                 Notification? notif = null;
                 try
                 {
                     if (owner != null)
                     {
                         var title = "Tin đăng của bạn đã bị xóa";
-                        var url = $"/posts/{post.MaTinDang}";
+                        var url = $"/posts/{post.MaTinDang}"; // Link này có thể dẫn về trang 404 hoặc danh sách tin
                         var message = "Tin đăng của bạn đã bị xóa bởi Quản trị viên vì vi phạm chính sách cộng đồng.";
 
                         notif = new Notification
@@ -361,30 +391,32 @@ namespace UniMarket.Controllers
                     notif = null;
                 }
 
-                // 5. Xóa TinDang chính từ SQL (hard delete)
+                // ---------------------------------------------------------
+                // BƯỚC 5: Xóa TinDang chính và Commit
+                // ---------------------------------------------------------
                 _context.TinDangs.Remove(post);
 
                 await _context.SaveChangesAsync();
-
-                // Commit DB transaction
                 await tx.CommitAsync();
 
-                // Broadcast notification (best-effort) after commit
+                // ---------------------------------------------------------
+                // BƯỚC 6: Gửi thông báo Real-time (SignalR)
+                // ---------------------------------------------------------
                 if (notif != null)
                 {
                     try
                     {
                         await _notificationHub.Clients.Group($"user-{notif.UserId}")
-                            .SendAsync("ReceiveNotification", new 
-                            { 
-                                id = notif.Id, 
-                                title = notif.Title, 
-                                message = notif.Message, 
-                                url = notif.Url, 
-                                createdAt = notif.CreatedAt, 
-                                postTitle = snapshotTitle, 
-                                type = "deleted", 
-                                isFromAdmin = true 
+                            .SendAsync("ReceiveNotification", new
+                            {
+                                id = notif.Id,
+                                title = notif.Title,
+                                message = notif.Message,
+                                url = notif.Url,
+                                createdAt = notif.CreatedAt,
+                                postTitle = snapshotTitle,
+                                type = "deleted",
+                                isFromAdmin = true
                             });
                     }
                     catch (Exception ex)
@@ -514,8 +546,8 @@ namespace UniMarket.Controllers
                         Message = message,
                         Url = url,
                         IsRead = false,
-                            CreatedAt = DateTimeOffset.UtcNow,
-                            IsFromAdmin = true
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        IsFromAdmin = true
                     };
 
                     _context.Notifications.Add(notif);

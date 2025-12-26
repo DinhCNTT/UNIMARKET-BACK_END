@@ -15,7 +15,6 @@ using UniMarket.Services;
 using UniMarket.Services.Interfaces;
 using UniMarket.Services.PriceAnalysis;
 using Microsoft.Extensions.DependencyInjection;
-// Thêm các thư viện cho MongoDB
 using MongoDB.Driver;
 using UniMarket.Models.Mongo;
 using MongoDB.Bson;
@@ -35,9 +34,10 @@ namespace UniMarket.Controllers
         private readonly ISearchService _searchService;
         private readonly PriceAnalysisService _priceAnalysisService;
         private readonly IServiceScopeFactory _scopeFactory;
-
-        // Thêm collection MongoDB vào field
+        private readonly VideoRecommendationService _recommendationService;
         private readonly IMongoCollection<TinDangDetail> _tinDangDetailsCollection;
+        private readonly IMongoCollection<VideoViewLog> _viewLogCollection;
+
 
         public VideoController(
             ApplicationDbContext context,
@@ -49,8 +49,8 @@ namespace UniMarket.Controllers
             ISearchService searchService,
             PriceAnalysisService priceAnalysisService,
             IServiceScopeFactory scopeFactory,
-            // Inject MongoDatabase vào đây
-            IMongoDatabase mongoDatabase)
+            IMongoDatabase mongoDatabase,
+            VideoRecommendationService recommendationService)
         {
             _context = context;
             _userManager = userManager;
@@ -61,9 +61,9 @@ namespace UniMarket.Controllers
             _searchService = searchService;
             _priceAnalysisService = priceAnalysisService;
             _scopeFactory = scopeFactory;
-
-            // Khởi tạo collection (Giả sử tên collection trong Mongo là "TinDangDetails")
+            _recommendationService = recommendationService;
             _tinDangDetailsCollection = mongoDatabase.GetCollection<TinDangDetail>("TinDangDetails");
+            _viewLogCollection = mongoDatabase.GetCollection<VideoViewLog>("VideoViews");
         }
 
         // =================================================================================
@@ -430,13 +430,14 @@ namespace UniMarket.Controllers
         [Authorize]
         public async Task<IActionResult> GetLikedVideos([FromQuery] string? userId)
         {
+            // 1. Lấy thông tin User hiện tại
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null) return Unauthorized();
 
             var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
 
             // =========================================================================
-            // 🔥 SỬA LẠI LOGIC RIÊNG TƯ
+            // 🔥 GIỮ NGUYÊN LOGIC RIÊNG TƯ CŨ CỦA BẠN
             // =========================================================================
             if (targetId != currentUser.Id)
             {
@@ -452,7 +453,7 @@ namespace UniMarket.Controllers
                                     && f.FollowingId == targetId
                                     && f.Status == FollowStatus.Accepted);
 
-                    // Nếu KHÔNG follow -> Chặn
+                    // Nếu KHÔNG follow -> Chặn -> Trả về danh sách rỗng
                     if (!isAcceptedFollower)
                     {
                         return Ok(new List<object>());
@@ -461,8 +462,8 @@ namespace UniMarket.Controllers
             }
             // =========================================================================
 
-            // ... (Code query dữ liệu giữ nguyên)
-            var likedVideos = await _context.VideoLikes
+            // 2. Bước 1: Lấy dữ liệu từ SQL (BỎ Views ra khỏi query này)
+            var likedVideosRaw = await _context.VideoLikes
                 .AsNoTracking()
                 .Where(v => v.UserId == targetId)
                 .OrderByDescending(v => v.CreatedAt)
@@ -471,30 +472,59 @@ namespace UniMarket.Controllers
                     v.MaTinDang,
                     v.TinDang.TieuDe,
                     v.TinDang.VideoUrl,
+                    // Giữ logic lấy ảnh bìa đầu tiên
                     AnhBia = v.TinDang.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault(),
-                    Views = _context.VideoViews.Count(x => x.MaTinDang == v.MaTinDang),
                     v.TinDang.Gia,
+
+                    // Logic ghép chuỗi địa chỉ cũ của bạn
                     DiaChi = (v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : "") +
                              (v.TinDang.QuanHuyen != null && v.TinDang.TinhThanh != null ? ", " : "") +
                              (v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : ""),
+
+                    // Các chỉ số đếm từ SQL
                     SoTym = _context.VideoLikes.Count(x => x.MaTinDang == v.MaTinDang),
                     SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+
                     NguoiDang = new
                     {
                         v.TinDang.NguoiBan.Id,
                         v.TinDang.NguoiBan.FullName,
                         v.TinDang.NguoiBan.AvatarUrl
-                    },
+                    }
+                })
+                .ToListAsync();
+
+            // 3. Bước 2: Lấy Views từ MongoDB và gộp kết quả
+            var resultList = new List<object>();
+
+            foreach (var video in likedVideosRaw)
+            {
+                // Query MongoDB để đếm Views
+                var filter = Builders<VideoViewLog>.Filter.Eq(x => x.MaTinDang, video.MaTinDang);
+                var viewCount = await _viewLogCollection.CountDocumentsAsync(filter);
+
+                resultList.Add(new
+                {
+                    video.MaTinDang,
+                    video.TieuDe,
+                    video.VideoUrl,
+                    video.AnhBia,
+                    Views = viewCount, // <--- Số view lấy từ Mongo được gán vào đây
+                    video.Gia,
+                    video.DiaChi,
+                    video.SoTym,
+                    video.SoBinhLuan,
+                    video.NguoiDang,
                     CurrentUser = new
                     {
                         currentUser.Id,
                         currentUser.FullName,
                         currentUser.AvatarUrl
                     }
-                })
-                .ToListAsync();
+                });
+            }
 
-            return Ok(likedVideos);
+            return Ok(resultList);
         }
 
         [Authorize]
@@ -1134,7 +1164,7 @@ namespace UniMarket.Controllers
 
             return Ok(trends);
         }
-        
+
         [HttpGet("search-users")]
         [AllowAnonymous]
         public async Task<IActionResult> SearchUsersByVideoKeyword([FromQuery] string keyword)
@@ -1401,52 +1431,91 @@ namespace UniMarket.Controllers
 
             return Ok(result ?? new { soNguoiLuu = 0, isSaved = false });
         }
+
         [HttpGet("saved")]
         [Authorize]
         public async Task<IActionResult> GetSavedVideos([FromQuery] string? userId)
         {
-            // Lấy user đang thực hiện request (người đang xem)
-            var currentUser = await _userManager.GetUserAsync(User);
-            if (currentUser == null) return Unauthorized();
+            try
+            {
+                // 1. Lấy user hiện tại
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null) return Unauthorized();
 
-            // LOGIC QUAN TRỌNG:
-            // Nếu có userId gửi lên (xem profile người khác) -> targetId = userId
-            // Nếu không có (xem profile của chính mình) -> targetId = currentUser.Id
-            var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
+                // 2. Xác định targetId (Xem của mình hay của người khác)
+                var targetId = string.IsNullOrEmpty(userId) ? currentUser.Id : userId;
 
-            var savedVideos = await _context.VideoTinDangSaves
-                .Where(v => v.MaNguoiDung == targetId) // Lọc theo ID mục tiêu
-                .OrderByDescending(v => v.NgayLuu)
-                .Select(v => new
+                // 3. Lấy dữ liệu cơ bản từ SQL trước (Bỏ qua phần Views tại đây)
+                // Lưu ý: Ta vẫn đếm SoNguoiLuu và SoBinhLuan bằng SQL vì bảng này nằm trong SQL
+                var savedVideosRaw = await _context.VideoTinDangSaves
+                    .Where(v => v.MaNguoiDung == targetId)
+                    .OrderByDescending(v => v.NgayLuu)
+                    .Select(v => new
+                    {
+                        v.MaTinDang,
+                        v.TinDang.TieuDe,
+                        v.TinDang.VideoUrl,
+                        v.TinDang.Gia,
+                        v.TinDang.DiaChi,
+                        // Null check an toàn cho TinhThanh/QuanHuyen
+                        TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
+                        QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
+
+                        // Đếm số liệu từ SQL
+                        SoNguoiLuu = _context.VideoTinDangSaves.Count(x => x.MaTinDang == v.MaTinDang),
+                        SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
+
+                        NguoiDang = new
+                        {
+                            v.TinDang.NguoiBan.Id,
+                            v.TinDang.NguoiBan.FullName,
+                            v.TinDang.NguoiBan.AvatarUrl
+                        }
+                    })
+                    .ToListAsync();
+
+                // 4. Kết hợp dữ liệu: Lấy Views từ MongoDB cho từng video
+                // Tạo một list kết quả mới
+                var resultList = new List<object>();
+
+                foreach (var video in savedVideosRaw)
                 {
-                    v.MaTinDang,
-                    v.TinDang.TieuDe,
-                    v.TinDang.VideoUrl,
-                    // Đếm view chuẩn
-                    Views = _context.VideoViews.Count(x => x.MaTinDang == v.MaTinDang),
-                    v.TinDang.Gia,
-                    v.TinDang.DiaChi,
-                    TinhThanh = v.TinDang.TinhThanh != null ? v.TinDang.TinhThanh.TenTinhThanh : null,
-                    QuanHuyen = v.TinDang.QuanHuyen != null ? v.TinDang.QuanHuyen.TenQuanHuyen : null,
-                    SoNguoiLuu = _context.VideoTinDangSaves.Count(x => x.MaTinDang == v.MaTinDang),
-                    SoBinhLuan = _context.VideoComments.Count(x => x.MaTinDang == v.MaTinDang),
-                    NguoiDang = new
-                    {
-                        v.TinDang.NguoiBan.Id,
-                        v.TinDang.NguoiBan.FullName,
-                        v.TinDang.NguoiBan.AvatarUrl
-                    },
-                    CurrentUser = new
-                    {
-                        currentUser.Id,
-                        currentUser.FullName,
-                        currentUser.AvatarUrl
-                    }
-                })
-                .ToListAsync();
+                    // Query MongoDB để đếm Views cho video này
+                    // Filter: MaTinDang trong Mongo phải khớp với MaTinDang từ SQL
+                    var filter = Builders<VideoViewLog>.Filter.Eq(x => x.MaTinDang, video.MaTinDang);
+                    var viewCount = await _viewLogCollection.CountDocumentsAsync(filter);
 
-            return Ok(savedVideos);
+                    resultList.Add(new
+                    {
+                        video.MaTinDang,
+                        video.TieuDe,
+                        video.VideoUrl,
+                        Views = viewCount, // Gán số view lấy từ Mongo
+                        video.Gia,
+                        video.DiaChi,
+                        video.TinhThanh,
+                        video.QuanHuyen,
+                        video.SoNguoiLuu,
+                        video.SoBinhLuan,
+                        video.NguoiDang,
+                        CurrentUser = new
+                        {
+                            currentUser.Id,
+                            currentUser.FullName,
+                            currentUser.AvatarUrl
+                        }
+                    });
+                }
+
+                return Ok(resultList);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi nếu cần thiết
+                return StatusCode(500, new { message = "Lỗi server", error = ex.Message });
+            }
         }
+
         // Thêm các API này vào VideoController
 
         [HttpGet("search-history")]
@@ -1655,7 +1724,7 @@ namespace UniMarket.Controllers
         {
             try
             {
-                // ✅ Lưu giờ Việt Nam luôn
+                // ✅ Giờ Việt Nam
                 var now = DateTime.UtcNow.AddHours(7);
 
                 var userId = User.Identity?.IsAuthenticated == true
@@ -1663,92 +1732,114 @@ namespace UniMarket.Controllers
                     : null;
 
                 var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "";
-                var deviceName = UserAgentHelper.GetDeviceName(userAgent); // ✅ parse gọn
-                var ipAddress = Request.GetClientIp();
+                var deviceName = UserAgentHelper.GetDeviceName(userAgent);
+                var ipAddress = Request.GetClientIp(); // Giả sử bạn có extension method này
 
-                Console.WriteLine("=== TRACK VIEW DEBUG ===");
-                Console.WriteLine($"MaTinDang: {request.MaTinDang}");
-                Console.WriteLine($"UserId: {userId ?? "ANONYMOUS"}");
-                Console.WriteLine($"IP: {ipAddress}");
-                Console.WriteLine($"Device: {deviceName}");
-
-                VideoView lastView = null;
-                bool createNew;
+                // 1️⃣ TÌM VIEW CŨ TRONG MONGODB
+                var builder = Builders<VideoViewLog>.Filter;
+                FilterDefinition<VideoViewLog> filter;
 
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    lastView = await _context.VideoViews
-                        .Where(v => v.MaTinDang == request.MaTinDang && v.UserId == userId)
-                        .OrderByDescending(v => v.StartedAt)
-                        .FirstOrDefaultAsync();
-
-                    createNew = lastView == null || (now - lastView.StartedAt).TotalMinutes >= 30;
+                    // Tìm theo UserId + MaTinDang
+                    filter = builder.Eq(x => x.MaTinDang, request.MaTinDang) &
+                             builder.Eq(x => x.UserId, userId);
                 }
                 else
                 {
-                    lastView = await _context.VideoViews
-                        .Where(v => v.MaTinDang == request.MaTinDang
-                                 && v.UserId == null
-                                 && v.IpAddress == ipAddress
-                                 && v.DeviceName == deviceName) // ✅ dùng deviceName gọn
-                        .OrderByDescending(v => v.StartedAt)
-                        .FirstOrDefaultAsync();
-
-                    createNew = lastView == null || (now - lastView.StartedAt).TotalMinutes >= 30;
+                    // Tìm theo IP + Device + MaTinDang (cho khách vãng lai)
+                    filter = builder.Eq(x => x.MaTinDang, request.MaTinDang) &
+                             builder.Eq(x => x.UserId, null) &
+                             builder.Eq(x => x.IpAddress, ipAddress) &
+                             builder.Eq(x => x.DeviceName, deviceName);
                 }
+
+                // Lấy view mới nhất (Sort giảm dần theo StartedAt)
+                var lastView = await _viewLogCollection.Find(filter)
+                    .SortByDescending(x => x.StartedAt)
+                    .FirstOrDefaultAsync();
+
+                // Logic 30 phút tính là view mới
+                bool createNew = lastView == null || (now - lastView.StartedAt).TotalMinutes >= 30;
 
                 if (createNew)
                 {
-                    var newView = new VideoView
+                    // 2️⃣ TẠO VIEW MỚI (INSERT VÀO MONGO)
+                    var newView = new VideoViewLog
                     {
                         MaTinDang = request.MaTinDang,
                         UserId = userId,
                         IpAddress = ipAddress,
                         DeviceName = deviceName,
-                        StartedAt = now, // ✅ giờ VN
+                        StartedAt = now,
                         WatchedSeconds = request.WatchedSeconds,
                         IsCompleted = request.IsCompleted,
                         RewatchCount = request.RewatchCount
                     };
 
-                    _context.VideoViews.Add(newView);
+                    await _viewLogCollection.InsertOneAsync(newView);
 
+                    // 3️⃣ CẬP NHẬT COUNT VÀO SQL (Để hiển thị số view ngoài trang chủ cho nhanh)
+                    int currentTotalViews = 0;
+
+                    // Chỉ cộng view nếu xem trên 3s và không phải tua nhanh (SkipViewCount)
                     if (request.WatchedSeconds >= 3 && !request.SkipViewCount)
                     {
                         var tinDang = await _context.TinDangs.FindAsync(request.MaTinDang);
                         if (tinDang != null)
                         {
                             tinDang.SoLuotXem += 1;
-                            Console.WriteLine($"✅ Tăng view cho video {request.MaTinDang}: {tinDang.SoLuotXem}");
+                            // Lưu SQL chỉ để update con số đếm
+                            await _context.SaveChangesAsync();
+                            currentTotalViews = tinDang.SoLuotXem;
+                            Console.WriteLine($"✅ [Mongo+SQL] Tăng view ID {request.MaTinDang}: {tinDang.SoLuotXem}");
                         }
                     }
-
-                    await _context.SaveChangesAsync();
-                    var totalViews = await _context.TinDangs
-                        .Where(t => t.MaTinDang == request.MaTinDang)
-                        .Select(t => t.SoLuotXem)
-                        .FirstOrDefaultAsync();
+                    else
+                    {
+                        // Nếu không tăng view thì lấy số cũ ra để return
+                        currentTotalViews = await _context.TinDangs
+                           .Where(t => t.MaTinDang == request.MaTinDang)
+                           .Select(t => t.SoLuotXem)
+                           .FirstOrDefaultAsync();
+                    }
 
                     return Ok(new
                     {
                         success = true,
-                        message = $"New view tracked ({(userId != null ? "User" : "Anonymous")})",
+                        message = $"New view tracked in Mongo ({(userId != null ? "User" : "Anonymous")})",
                         isNewView = true,
-                        totalViews,
-                        userType = userId != null ? "authenticated" : "anonymous",
-                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss") // ✅ format đẹp khi trả ra API
+                        totalViews = currentTotalViews,
+                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss")
                     });
                 }
                 else
                 {
-                    lastView.WatchedSeconds = Math.Max(lastView.WatchedSeconds, request.WatchedSeconds);
+                    // 4️⃣ UPDATE VIEW CŨ (UPDATE VÀO MONGO)
+                    // Logic: Cập nhật giây xem max, đánh dấu completed
+                    var updateBuilder = Builders<VideoViewLog>.Update;
+                    var updates = new List<UpdateDefinition<VideoViewLog>>();
+
+                    // Chỉ update nếu số giây xem lớn hơn cái cũ
+                    if (request.WatchedSeconds > lastView.WatchedSeconds)
+                        updates.Add(updateBuilder.Set(x => x.WatchedSeconds, request.WatchedSeconds));
+
+                    // Update rewatch count
                     if (request.RewatchCount > lastView.RewatchCount)
-                        lastView.RewatchCount = request.RewatchCount;
+                        updates.Add(updateBuilder.Set(x => x.RewatchCount, request.RewatchCount));
+
+                    // Update Completed
                     if (request.IsCompleted && !lastView.IsCompleted)
-                        lastView.IsCompleted = true;
+                        updates.Add(updateBuilder.Set(x => x.IsCompleted, true));
 
-                    await _context.SaveChangesAsync();
+                    // Thực hiện update nếu có thay đổi
+                    if (updates.Any())
+                    {
+                        var combinedUpdate = updateBuilder.Combine(updates);
+                        await _viewLogCollection.UpdateOneAsync(x => x.Id == lastView.Id, combinedUpdate);
+                    }
 
+                    // Lấy total view từ SQL để trả về (nhẹ database hơn là count từ Mongo mỗi lần request)
                     var totalViews = await _context.TinDangs
                         .Where(t => t.MaTinDang == request.MaTinDang)
                         .Select(t => t.SoLuotXem)
@@ -1757,21 +1848,154 @@ namespace UniMarket.Controllers
                     return Ok(new
                     {
                         success = true,
-                        message = $"Existing view updated ({(userId != null ? "User" : "Anonymous")})",
+                        message = "Existing view updated in Mongo",
                         isNewView = false,
-                        isCompleted = lastView.IsCompleted,
-                        rewatchCount = lastView.RewatchCount,
+                        isCompleted = request.IsCompleted || lastView.IsCompleted,
                         totalViews,
-                        userType = userId != null ? "authenticated" : "anonymous",
-                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss") // ✅ format đẹp khi trả ra API
+                        startedAt = now.ToString("dd/MM/yyyy HH:mm:ss")
                     });
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Track view error: {ex.Message}");
+                Console.WriteLine($"❌ Track view Mongo error: {ex.Message}");
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
+        }
+
+        [HttpGet("explore/categories")]
+        public async Task<IActionResult> GetExploreCategories()
+        {
+            var categories = await _context.DanhMucChas
+                .Include(c => c.DanhMucs) // Join bảng con
+                .Select(c => new CategoryHierarchyDto
+                {
+                    Id = c.MaDanhMucCha,
+                    Ten = c.TenDanhMucCha,
+                    Icon = c.Icon,
+                    DanhMucCons = c.DanhMucs.Select(dm => new ChildCategoryDto
+                    {
+                        Id = dm.MaDanhMuc,
+                        Ten = dm.TenDanhMuc
+                    }).ToList()
+                })
+                .ToListAsync();
+
+            return Ok(categories);
+        }
+        [HttpGet("explore/videos")]
+        public async Task<IActionResult> GetExploreVideos(
+            [FromQuery] int? parentCategoryId,
+            [FromQuery] int pageSize = 10, // AI tính toán nặng, nên load khoảng 10-20 video/lần thôi
+            [FromQuery] string? excludedIdsJson = null) // <--- MỚI: Client gửi lên danh sách ID đã xem để không bị trùng
+        {
+            // 1. Lấy UserId từ Token (nếu đã đăng nhập)
+            string? userId = User.FindFirst("Id")?.Value; // Hoặc ClaimTypes.NameIdentifier tùy cấu hình JWT
+
+            // 2. Xử lý danh sách ID đã xem (để AI không gợi ý lại cái vừa xem ở trang trước)
+            List<int> excludedIds = new List<int>();
+            if (!string.IsNullOrEmpty(excludedIdsJson))
+            {
+                try
+                {
+                    excludedIds = System.Text.Json.JsonSerializer.Deserialize<List<int>>(excludedIdsJson) ?? new List<int>();
+                }
+                catch { /* Bỏ qua lỗi parse */ }
+            }
+
+            // 3. Xử lý Category Group (Chuyển đổi từ ID cha sang tên để Service hiểu - nếu Service cần String)
+            string? categoryGroupKeyword = null;
+            if (parentCategoryId.HasValue && parentCategoryId.Value > 0)
+            {
+                var category = await _context.DanhMucChas.FindAsync(parentCategoryId.Value);
+                categoryGroupKeyword = category?.TenDanhMucCha;
+            }
+
+            // =================================================================================
+            // 4. 🔥 GỌI AI RECOMMENDATION SERVICE 🔥
+            // Thay vì query trực tiếp, ta nhờ Service tính toán danh sách ID tốt nhất
+            // =================================================================================
+            var recommendedIds = await _recommendationService.GetRecommendedPostIds(
+                userId: userId,
+                clientExcludedIds: excludedIds,
+                count: pageSize,
+                isVideoOnly: true, // Chỉ lấy Video
+                categoryGroup: categoryGroupKeyword
+            );
+
+            // Nếu AI không trả về gì (lỗi hoặc hết tin), fallback về lấy tin mới nhất (Logic cũ)
+            if (recommendedIds == null || !recommendedIds.Any())
+            {
+                return await GetFallbackVideos(parentCategoryId, pageSize, excludedIds);
+            }
+
+            // 5. Fetch dữ liệu chi tiết từ DB dựa trên list ID mà AI đưa cho
+            // Lưu ý: SQL "IN" sẽ không giữ thứ tự, nên ta phải sort lại sau khi lấy dữ liệu
+            var videosRaw = await _context.TinDangs
+                .AsNoTracking()
+                .Include(t => t.NguoiBan)
+                .Include(t => t.AnhTinDangs)
+                .Where(t => recommendedIds.Contains(t.MaTinDang))
+                .ToListAsync();
+
+            // 6. Mapping sang DTO & Sắp xếp lại đúng thứ tự AI đã rank (Quan trọng!)
+            var result = recommendedIds
+                .Join(videosRaw, id => id, vid => vid.MaTinDang, (id, vid) => vid) // Giữ thứ tự của recommendedIds
+                .Select(t => new ExploreVideoDto
+                {
+                    MaTinDang = t.MaTinDang,
+                    TieuDe = t.TieuDe,
+                    VideoUrl = t.VideoUrl,
+                    ThumbnailUrl = t.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault(),
+                    SoLuotXem = t.SoLuotXem,
+
+                    // Count số tim (Tối ưu query con)
+                    SoLuotTim = _context.VideoLikes.Count(vl => vl.MaTinDang == t.MaTinDang),
+
+                    TenNguoiBan = t.NguoiBan.FullName ?? "Người dùng",
+                    AvatarNguoiBan = t.NguoiBan.AvatarUrl,
+                    UserId = t.NguoiBan.Id
+                })
+                .ToList();
+
+            return Ok(result);
+        }
+
+        // Hàm dự phòng (Fallback) khi User chưa có dữ liệu hoặc AI chưa tính kịp
+        private async Task<IActionResult> GetFallbackVideos(int? parentCategoryId, int pageSize, List<int> excludedIds)
+        {
+            var query = _context.TinDangs
+               .AsNoTracking()
+               .Include(t => t.NguoiBan)
+               .Include(t => t.AnhTinDangs)
+               .Where(t => t.TrangThai == TrangThaiTinDang.DaDuyet
+                           && !t.IsDeleted
+                           && !string.IsNullOrEmpty(t.VideoUrl)
+                           && !excludedIds.Contains(t.MaTinDang)); // Trừ các tin đã xem
+
+            if (parentCategoryId.HasValue)
+            {
+                query = query.Where(t => t.DanhMuc.MaDanhMucCha == parentCategoryId.Value);
+            }
+
+            var videos = await query
+                .OrderByDescending(t => t.NgayDang) // Mặc định tin mới nhất
+                .Take(pageSize)
+                .Select(t => new ExploreVideoDto
+                {
+                    MaTinDang = t.MaTinDang,
+                    TieuDe = t.TieuDe,
+                    VideoUrl = t.VideoUrl,
+                    ThumbnailUrl = t.AnhTinDangs.OrderBy(a => a.Order).Select(a => a.DuongDan).FirstOrDefault(),
+                    SoLuotXem = t.SoLuotXem,
+                    SoLuotTim = _context.VideoLikes.Count(vl => vl.MaTinDang == t.MaTinDang),
+                    TenNguoiBan = t.NguoiBan.FullName ?? "Người dùng",
+                    AvatarNguoiBan = t.NguoiBan.AvatarUrl,
+                    UserId = t.NguoiBan.Id
+                })
+                .ToListAsync();
+
+            return Ok(videos);
         }
 
         public class TrackViewRequest
