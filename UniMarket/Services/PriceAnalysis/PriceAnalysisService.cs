@@ -160,6 +160,7 @@ namespace UniMarket.Services.PriceAnalysis
                 }
                 catch { /* Bỏ qua lỗi parsing lẻ tẻ */ }
             }
+            validPrices.Add(currentPost.Gia);
 
             // E. TÍNH TOÁN KẾT QUẢ CUỐI CÙNG
             if (validPrices.Count < 1)
@@ -178,6 +179,8 @@ namespace UniMarket.Services.PriceAnalysis
             string status = "Giá hợp lý";
             if (diffPercent < -5) status = "Rẻ hơn thị trường";
             else if (diffPercent > 5) status = "Cao hơn thị trường";
+            // Tính toán dữ liệu biểu đồ cột (Chia làm 5 cột)
+            var histogram = CalculateHistogram(validPrices, 5);
 
             Console.WriteLine($"✅ SUCCESS: Thị trường [{stats.MinPrice:N0} - {stats.MaxPrice:N0}], TB: {stats.AveragePrice:N0}");
 
@@ -190,7 +193,8 @@ namespace UniMarket.Services.PriceAnalysis
                 CurrentPrice = currentPost.Gia,
                 Status = status,
                 DifferencePercent = Math.Round(diffPercent, 1),
-                SampleSize = stats.SampleSize
+                SampleSize = stats.SampleSize,
+                HistogramData = histogram
             };
         }
 
@@ -307,5 +311,72 @@ namespace UniMarket.Services.PriceAnalysis
             public List<string> Numbers { get; set; } = new List<string>();
             public HashSet<string> Keywords { get; set; } = new HashSet<string>();
         }
+        // =================================================================================
+        // 5. [NEW] LOGIC CHIA BIỂU ĐỒ CỘT (HISTOGRAM)
+        // =================================================================================
+        private List<PriceBucket> CalculateHistogram(List<decimal> prices, int bucketCount = 5)
+        {
+            if (prices == null || !prices.Any()) return new List<PriceBucket>();
+
+            decimal min = prices.Min();
+            decimal max = prices.Max();
+
+            // Trường hợp đặc biệt: Chỉ có 1 giá hoặc tất cả giá bằng nhau
+            if (min == max)
+            {
+                return new List<PriceBucket> {
+                    new PriceBucket { Min = min, Max = max, Count = prices.Count }
+                };
+            }
+
+            // Tính độ rộng của mỗi cột (Bucket Size)
+            decimal range = max - min;
+            decimal step = range / bucketCount;
+
+            var buckets = new List<PriceBucket>();
+
+            for (int i = 0; i < bucketCount; i++)
+            {
+                // Tính khoảng giá cho cột thứ i
+                decimal bucketMin = min + (step * i);
+                decimal bucketMax = min + (step * (i + 1));
+
+                // Nếu là cột cuối cùng, mở rộng max ra một chút để chắc chắn bao gồm giá trị lớn nhất
+                if (i == bucketCount - 1) bucketMax = max + 1;
+
+                // Đếm số lượng tin đăng nằm trong khoảng giá này
+                int count = prices.Count(p => p >= bucketMin && p < bucketMax);
+
+                buckets.Add(new PriceBucket
+                {
+                    Min = Math.Round(bucketMin, 0),
+                    Max = Math.Round(bucketMax, 0),
+                    Count = count
+                });
+            }
+
+            return buckets;
+        }
+    }
+    public class MarketAnalysisResult
+    {
+        public bool IsSuccess { get; set; }
+        public decimal MinPrice { get; set; }
+        public decimal MaxPrice { get; set; }
+        public decimal AveragePrice { get; set; }
+        public decimal CurrentPrice { get; set; }
+        public string? Status { get; set; } // "Rẻ hơn", "Cao hơn"...
+        public double DifferencePercent { get; set; }
+        public int SampleSize { get; set; }
+
+        // 🔥 Trường mới thêm cho biểu đồ cột (Histogram)
+        public List<PriceBucket> HistogramData { get; set; } = new List<PriceBucket>();
+    }
+
+    public class PriceBucket
+    {
+        public decimal Min { get; set; }
+        public decimal Max { get; set; }
+        public int Count { get; set; }
     }
 }
